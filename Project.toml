@@ -3,6 +3,9 @@ uuid = "8838a6a3-0006-4405-b874-385995508d5d"
 authors = ["Francesc Verdugo <fverdugo@cimne.upc.edu>"]
 version = "0.1.0"
 
+[deps]
+Libdl = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
+
 [compat]
 julia = "1"
 
