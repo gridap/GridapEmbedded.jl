@@ -5,6 +5,11 @@ os:
 julia:
   - 1.0
   - 1.3
+addons:
+  apt:
+    update: true
+    packages:
+    - libqhull-r7
 notifications:
   email:
     on_success: never
