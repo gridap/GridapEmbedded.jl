@@ -6,9 +6,9 @@ QHULL_LIB_DIR   = haskey(ENV,"QHULL_LIB_DIR")  ? ENV["QHULL_LIB_DIR"]  : nothing
 QHULL_LIB_NAME  = haskey(ENV,"QHULL_LIB_NAME") ? ENV["QHULL_LIB_NAME"] : nothing
 
 QHULL_LIB_PATH  = ""
-QHULL_LIB_NAMES = ["libqhull_r.$(Libdl.dlext)",
-                   "libqhull_r.$(Libdl.dlext)",
-                   "libqhull_r.$(Libdl.dlext).7"]
+QHULL_LIB_NAMES = ["libqhull.$(Libdl.dlext)",
+                   "libqhull.$(Libdl.dlext)",
+                   "libqhull.$(Libdl.dlext).7"]
 
 # Check QHULL_DIR exists
 if !isnothing(QHULL_ROOT) && isdir(QHULL_ROOT)
