@@ -11,11 +11,11 @@ QHULL_LIB_NAMES = ["libqhull.$(Libdl.dlext)",
                    "libqhull.$(Libdl.dlext).7"]
 
 # Check QHULL_DIR exists
-if !QHULL_ROOT==nothing && isdir(QHULL_ROOT)
+if !(QHULL_ROOT==nothing) && isdir(QHULL_ROOT)
     @info "QHULL root directory at: $QHULL_ROOT"
 
     # Define default paths
-    if QHULL_LIB_DIR==nothing
+    if (QHULL_LIB_DIR==nothing)
         QHULL_LIB_DIR = joinpath(QHULL_ROOT,"lib")
     end
 else
@@ -23,7 +23,7 @@ else
 end
 
 # Check QHULL_LIB_DIR (.../lib directory) exists
-if !QHULL_LIB_DIR==nothing && isdir(QHULL_LIB_DIR)
+if !(QHULL_LIB_DIR==nothing) && isdir(QHULL_LIB_DIR)
     @info "QHULL lib directory found at: $QHULL_LIB_DIR"
 else
     QHULL_LIB_DIR = ""
@@ -31,7 +31,7 @@ else
 end
 
 # Find QHull reentrant shared library  (libqhull_r.so or libqhull_r.so.7 or libqhull7_r.so file)
-if QHULL_LIB_NAME==nothing
+if (QHULL_LIB_NAME==nothing)
     QHULL_LIB_NAME=Libdl.find_library(QHULL_LIB_NAMES, [QHULL_LIB_DIR])
 end
 
