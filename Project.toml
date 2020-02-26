@@ -3,6 +3,11 @@ uuid = "8838a6a3-0006-4405-b874-385995508d5d"
 authors = ["Francesc Verdugo <fverdugo@cimne.upc.edu>"]
 version = "0.1.0"
 
+[deps]
+Combinatorics = "861a8166-3701-5b0c-9a16-15d98fcdc6aa"
+Gridap = "56d4f2e9-7ea1-5844-9cf6-b9c51ca7ce8e"
+MiniQhull = "978d7f02-9e05-4691-894f-ae31a51d76ca"
+
 [compat]
 julia = "1"
 

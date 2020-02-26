@@ -1,6 +1,8 @@
+module GridapEmbeddedTests
+
 using GridapEmbedded
 using Test
 
-@testset "GridapEmbedded.jl" begin
-    # Write your own tests here.
-end
+@time @testset "LookupTables" begin "LookupTablesTests.jl" end
+
+end # module
