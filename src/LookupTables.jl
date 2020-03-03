@@ -1,4 +1,22 @@
 
+struct LookupTable{D,T}
+  case_to_subcell_to_points::Vector{Vector{Vector{Int}}}
+  case_to_subcell_to_inout::Vector{Vector{Int}}
+  case_to_subfacet_to_subcell::Vector{Vector{Int}}
+  case_to_subfacet_to_lfacet::Vector{Vector{Int}}
+  case_to_subfacet_to_points::Vector{Vector{Vector{Int}}}
+  case_to_subfacet_to_normal::Vector{Vector{VectorValue{D,T}}}
+  case_to_point_to_coordinates::Vector{Vector{VectorValue{D,T}}} 
+  case_to_inoutcut::Vector{Int}
+end
+
+function LookupTable(p::Polytope)
+  _LookupTable(p)
+end
+
+#function is_cut_cell(table::LookupTable,ls::AbstractVector...)
+#end
+
 function num_cases(nvertices)
   2^nvertices
 end
@@ -7,9 +25,15 @@ function isout(v)
   v > 0
 end
 
-function compute_case(values)
+function compute_case(
+  cell_to_points::Table, point_to_value::AbstractVector, cell::Integer)
+
   case = 1
-  for (i,v) in enumerate(values)
+  a = cell_to_points.ptrs[cell]
+  b = cell_to_points.ptrs[cell+1]-1
+  for (i,p) in enumerate(a:b)
+    point = cell_to_points.data[p]
+    v  = point_to_value[point]
     if  isout(v)
       case += 2^(i-1)
     end
@@ -20,6 +44,10 @@ end
 const IN = -1
 const OUT = 1
 const INTERFACE = 0
+const CUT = 0
+
+
+# Helpers
 
 function Simplex(p::Polytope)
   D = num_cell_dims(p)
@@ -35,17 +63,12 @@ function Simplex(p::Polytope{3})
   TET
 end
 
-struct LookupTable{D,T}
-  case_to_subcell_to_points::Vector{Vector{Vector{Int}}}
-  case_to_subcell_to_inout::Vector{Vector{Int}}
-  case_to_subfacet_to_subcell::Vector{Vector{Int}}
-  case_to_subfacet_to_lfacet::Vector{Vector{Int}}
-  case_to_subfacet_to_points::Vector{Vector{Vector{Int}}}
-  case_to_subfacet_to_normal::Vector{Vector{VectorValue{D,T}}}
-  case_to_point_to_coordinates::Vector{Vector{VectorValue{D,T}}} 
+function _compute_case(values)
+  t = Table([collect(1:length(values)),])
+  compute_case(t,values,1)
 end
 
-function LookupTable(p::Polytope)
+function _LookupTable(p::Polytope)
 
   nvertices = num_vertices(p)
 
@@ -70,6 +93,7 @@ function LookupTable(p::Polytope)
   case_to_subfacet_to_points = Vector{Vector{Vector{Int}}}(undef,ncases)
   case_to_subfacet_to_normal = Vector{Vector{V}}(undef,ncases)
   case_to_point_to_coordinates = Vector{Vector{V}}(undef,ncases)
+  case_to_inoutcut = Vector{Int}(undef,ncases)
 
   for ci in cis
 
@@ -92,8 +116,9 @@ function LookupTable(p::Polytope)
     n = get_normal_vector(interface)
     n_q = collect(evaluate(n,q))
     subfacet_to_normal = map(first,n_q)
+    inoutcut = _find_in_out_or_cut(vertex_to_value)
 
-    case = compute_case(vertex_to_value)
+    case = _compute_case(vertex_to_value)
     case_to_subcell_to_points[case] = subcell_to_points
     case_to_subcell_to_inout[case] = subcell_to_inout
     case_to_subfacet_to_subcell[case] = subfacet_to_subcell
@@ -101,6 +126,7 @@ function LookupTable(p::Polytope)
     case_to_subfacet_to_points[case] = subfacet_to_points
     case_to_subfacet_to_normal[case] = subfacet_to_normal
     case_to_point_to_coordinates[case] = point_to_coords
+    case_to_inoutcut[case] = inoutcut
 
   end
 
@@ -111,8 +137,25 @@ function LookupTable(p::Polytope)
     case_to_subfacet_to_lfacet,
     case_to_subfacet_to_points,
     case_to_subfacet_to_normal,
-    case_to_point_to_coordinates)
+    case_to_point_to_coordinates,
+    case_to_inoutcut)
 end
+
+function _find_in_out_or_cut(vertex_to_value)
+  b = isout(first(vertex_to_value))
+  for value in vertex_to_value
+    if b != isout(value)
+      return CUT
+    end
+  end
+  if b
+    return OUT
+  else
+    return IN
+  end
+  return -1
+end
+
 
 function _find_subfacet_to_points(
   subcell_to_points,subfacet_to_subcell,subfacet_to_lfacet, lfacet_to_lpoints)
