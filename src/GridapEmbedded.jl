@@ -22,6 +22,6 @@ export cut_sub_triangulation
 
 include("LookupTables.jl")
 
-include("Triangulations.jl")
+include("SubTriangulations.jl")
 
 end # module

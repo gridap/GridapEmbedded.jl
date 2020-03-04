@@ -5,6 +5,6 @@ using Test
 
 @time @testset "LookupTables" begin "LookupTablesTests.jl" end
 
-@time @testset "Triangulations" begin "TriangulationsTests.jl" end
+@time @testset "SubTriangulations" begin "SubTriangulationsTests.jl" end
 
 end # module
