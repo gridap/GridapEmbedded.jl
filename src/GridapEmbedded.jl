@@ -9,11 +9,18 @@ using Gridap.Fields
 using Gridap.Helpers
 using Gridap.Geometry
 using Gridap.Integration
+using Gridap.Polynomials
+using Gridap.Visualization
+import Gridap.Geometry: UnstructuredGrid
+import Gridap.Visualization: writevtk
 
 export LookupTable
 export num_cases
 export compute_case
+export initial_sub_triangulation
 
 include("LookupTables.jl")
+
+include("Triangulations.jl")
 
 end # module

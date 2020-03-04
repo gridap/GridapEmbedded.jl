@@ -63,6 +63,19 @@ function Simplex(p::Polytope{3})
   TET
 end
 
+function Simplex(::Val{D}) where D
+  extrusion = tfill(TET_AXIS,Val{D}())
+  ExtrusionPolytope(extrusion)
+end
+
+function Simplex(::Val{2})
+  TRI
+end
+
+function Simplex(::Val{3})
+  TET
+end
+
 function _compute_case(values)
   t = Table([collect(1:length(values)),])
   compute_case(t,values,1)
@@ -193,7 +206,7 @@ function delaunay(points::Vector{Point{D,T}}) where {D,T}
     end
   end
   cells = delaunay(m)
-  [ cells[:,k] for k in 1:size(cells,2)]
+  [ Vector{Int}(cells[:,k]) for k in 1:size(cells,2)]
 end
 
 function _compute_delaunay_points(vertex_to_value, vertex_to_coords, edge_to_vertices)
