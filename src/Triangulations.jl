@@ -50,7 +50,8 @@ struct SubTriangulation{D,T}
   ls_to_point_to_value::Vector{Vector{T}}
 end
 
-function initial_sub_triangulation(_grid::Grid,_ls_to_point_to_value::Vector{<:AbstractVector})
+function initial_sub_triangulation(_grid::Grid,_ls_to_point_to_value::Vector{<:AbstractArray})
+  _ls_to_point_to_value_ = map(collect1d,_ls_to_point_to_value)
   grid = UnstructuredGrid(_grid)
   reffes = get_reffes(grid)
   @notimplementedif length(reffes) != 1
@@ -60,10 +61,10 @@ function initial_sub_triangulation(_grid::Grid,_ls_to_point_to_value::Vector{<:A
   p = get_polytope(reffe)
   _table = LookupTable(p)
   _cell_to_points = get_cell_nodes(grid)
-  _cell_to_inoutcut = compute_in_out_or_cut(_table,_cell_to_points,_ls_to_point_to_value)
+  _cell_to_inoutcut = compute_in_out_or_cut(_table,_cell_to_points,_ls_to_point_to_value_)
   cutcell_to_cell = findall(_cell_to_inoutcut .== CUT)
   _cutgrid = GridPortion(grid,cutcell_to_cell)
-  ls_to_point_to_value = [ point_to_value[_cutgrid.node_to_oldnode] for point_to_value in _ls_to_point_to_value ]
+  ls_to_point_to_value = [ point_to_value[_cutgrid.node_to_oldnode] for point_to_value in _ls_to_point_to_value_ ]
   cutgrid = simplexify(_cutgrid)
   ltcell_to_lpoints, simplex = simplexify(p)
   point_to_coords = get_node_coordinates(cutgrid)
@@ -114,3 +115,118 @@ function writevtk(st::SubTriangulation,filename::String)
   write_vtk_file(ug,filename,
     celldata=celldata, nodaldata=nodaldata)
 end
+
+function cut_sub_triangulation(st::SubTriangulation)
+  _st = st
+  while length(_st.ls_to_point_to_value) > 0
+    point_to_value = pop!(_st.ls_to_point_to_value)
+    _st = _cut_sub_triangulation(_st,point_to_value)
+  end
+  _st
+end
+
+function _cut_sub_triangulation(st::SubTriangulation,point_to_value)
+  nrcells, nrpoints = _cut_sub_triangulation_count(st,point_to_value)
+  rst = _allocate_new_sub_triangulation(st,nrcells,nrpoints)
+  _fill_new_sub_triangulation!(rst,st,point_to_value)
+  rst
+end
+
+function _cut_sub_triangulation_count(st,point_to_value)
+  nrcells = 0
+  nrpoints = 0
+  for cell in 1:length(st.cell_to_points)
+    case = compute_case(st.cell_to_points,point_to_value,cell)
+    nrcells += length(st.table.case_to_subcell_to_inout[case])
+    nrpoints += length(st.table.case_to_point_to_coordinates[case])
+  end
+  nrcells, nrpoints
+end
+
+function _allocate_new_sub_triangulation(st::SubTriangulation{D,T},nrcells,nrpoints) where {D,T}
+  nlp = st.table.nlpoints
+  rcell_to_rpoints_data = zeros(eltype(st.cell_to_points.data),nlp*nrcells)
+  rcell_to_rpoints_ptrs = fill(eltype(st.cell_to_points.ptrs)(nlp),nrcells+1)
+  length_to_ptrs!(rcell_to_rpoints_ptrs)
+  rcell_to_rpoints = Table(rcell_to_rpoints_data,rcell_to_rpoints_ptrs)
+  rcell_to_inoutcut = zeros(eltype(st.cell_to_inoutcut),nrcells)
+  rcell_to_bgcell = zeros(eltype(st.cell_to_bgcell),nrcells)
+  rpoint_to_coords = zeros(Point{D,T},nrpoints)
+  ls_to_rpoint_to_value = [zeros(T,nrpoints) for i in 1:length(st.ls_to_point_to_value)]
+
+  SubTriangulation(
+    st.table,
+    rcell_to_rpoints,
+    rcell_to_inoutcut,
+    rcell_to_bgcell,
+    rpoint_to_coords,
+    ls_to_rpoint_to_value)
+
+end
+
+function _fill_new_sub_triangulation!(rst,st,point_to_value)
+  rcell = 0
+  rpoint = 0
+  q = 0
+  for cell in 1:length(st.cell_to_points)
+
+    offset = rpoint
+    a = st.cell_to_points.ptrs[cell]-1
+    for lpoint in 1:st.table.nlpoints
+      rpoint += 1
+      point = st.cell_to_points.data[a+lpoint]
+      coords = st.point_to_coords[point]
+      rst.point_to_coords[rpoint] = coords
+      for (ils, point_to_val) in enumerate(st.ls_to_point_to_value)
+        val = point_to_val[point]
+        rst.ls_to_point_to_value[ils][rpoint] = val
+      end
+    end
+
+    case = compute_case(st.cell_to_points,point_to_value,cell)
+
+    if CUT == st.table.case_to_inoutcut[case]
+      for (ledge, lpoints) in enumerate(st.table.ledge_to_lpoints)
+        point1 = st.cell_to_points.data[a+lpoints[1]]
+        point2 = st.cell_to_points.data[a+lpoints[2]]
+        v1 = point_to_value[point1]
+        v2 = point_to_value[point2]
+        if isout(v1) != isout(v2)
+          rpoint += 1
+          w1 = abs(v1)
+          w2 = abs(v2)
+          c1 = w1/(w1+w2)
+          p1 = st.point_to_coords[point1]
+          p2 = st.point_to_coords[point2]
+          dp = p2-p1
+          p = p1 + c1*dp
+          rst.point_to_coords[rpoint] = p
+          for (ils, point_to_val) in enumerate(st.ls_to_point_to_value)
+            s1 = point_to_val[point1]
+            s2 = point_to_val[point2]
+            ds = s2-s1
+            s = s1 + c1*ds
+            rst.ls_to_point_to_value[ils][rpoint] = s
+          end
+        end
+      end
+    end
+
+    nsubcells = length(st.table.case_to_subcell_to_inout[case])
+    for subcell in 1:nsubcells
+      rcell += 1
+      if st.cell_to_inoutcut[cell] == OUT
+        rst.cell_to_inoutcut[rcell] = OUT
+      else
+        rst.cell_to_inoutcut[rcell] = st.table.case_to_subcell_to_inout[case][subcell]
+      end
+      rst.cell_to_bgcell[rcell] = st.cell_to_bgcell[cell]
+      for subpoint in st.table.case_to_subcell_to_points[case][subcell]
+        q += 1
+        rst.cell_to_points.data[q] = subpoint + offset
+      end
+    end
+
+  end
+end
+

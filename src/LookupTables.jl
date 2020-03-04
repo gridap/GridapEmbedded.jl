@@ -8,14 +8,13 @@ struct LookupTable{D,T}
   case_to_subfacet_to_normal::Vector{Vector{VectorValue{D,T}}}
   case_to_point_to_coordinates::Vector{Vector{VectorValue{D,T}}} 
   case_to_inoutcut::Vector{Int}
+  ledge_to_lpoints::Vector{Vector{Int}}
+  nlpoints::Int
 end
 
 function LookupTable(p::Polytope)
   _LookupTable(p)
 end
-
-#function is_cut_cell(table::LookupTable,ls::AbstractVector...)
-#end
 
 function num_cases(nvertices)
   2^nvertices
@@ -151,7 +150,9 @@ function _LookupTable(p::Polytope)
     case_to_subfacet_to_points,
     case_to_subfacet_to_normal,
     case_to_point_to_coordinates,
-    case_to_inoutcut)
+    case_to_inoutcut,
+    edge_to_vertices,
+    nvertices)
 end
 
 function _find_in_out_or_cut(vertex_to_value)

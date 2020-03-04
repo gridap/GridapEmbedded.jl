@@ -18,6 +18,7 @@ export LookupTable
 export num_cases
 export compute_case
 export initial_sub_triangulation
+export cut_sub_triangulation
 
 include("LookupTables.jl")
 
