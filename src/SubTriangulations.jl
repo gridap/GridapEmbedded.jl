@@ -63,25 +63,90 @@ function initial_sub_triangulation(_grid::Grid,_ls_to_point_to_value::Vector{<:A
   _cell_to_points = get_cell_nodes(grid)
   _cell_to_inoutcut = compute_in_out_or_cut(_table,_cell_to_points,_ls_to_point_to_value_)
   cutcell_to_cell = findall(_cell_to_inoutcut .== CUT)
-  _cutgrid = GridPortion(grid,cutcell_to_cell)
-  ls_to_point_to_value = [ point_to_value[_cutgrid.node_to_oldnode] for point_to_value in _ls_to_point_to_value_ ]
-  cutgrid = simplexify(_cutgrid)
+  cutgrid = GridPortion(grid,cutcell_to_cell)
+  ls_to_point_to_value = [ point_to_value[cutgrid.node_to_oldnode] for point_to_value in _ls_to_point_to_value_ ]
   ltcell_to_lpoints, simplex = simplexify(p)
-  point_to_coords = get_node_coordinates(cutgrid)
-  cell_to_points = get_cell_nodes(cutgrid)
-  ncells = length(cell_to_points)
-  cell_to_inoutcut = fill(Int8(CUT),ncells)
+  lpoint_to_lcoords = get_vertex_coordinates(p)
+  nlpoints = num_vertices(p)
+  nsp = num_vertices(simplex)
+
+  tcell_to_tpoints, tpoint_to_coords, tpoint_to_rcoords, ls_to_tpoint_to_value = _simplexity(
+    get_node_coordinates(cutgrid),
+    get_cell_nodes(cutgrid),
+    ltcell_to_lpoints,
+    lpoint_to_lcoords,
+    ls_to_point_to_value,
+    nlpoints,
+    nsp)
+
+  ntcells = length(tcell_to_tpoints)
+  tcell_to_inoutcut = fill(Int8(CUT),ntcells)
   nltcells = length(ltcell_to_lpoints)
-  cell_to_bgcell = _setup_cell_to_bgcell(_cutgrid.cell_to_oldcell,nltcells,ncells)
+  tcell_to_bgcell = _setup_cell_to_bgcell(cutgrid.cell_to_oldcell,nltcells,ntcells)
   table = LookupTable(simplex)
 
   SubTriangulation(
     table,
-    cell_to_points,
-    cell_to_inoutcut,
-    cell_to_bgcell,
-    point_to_coords,
-    ls_to_point_to_value)
+    tcell_to_tpoints,
+    tcell_to_inoutcut,
+    tcell_to_bgcell,
+    tpoint_to_coords,
+    ls_to_tpoint_to_value)
+end
+
+function _simplexity(
+  point_to_coords,
+  cell_to_points::Table,
+  ltcell_to_lpoints,
+  lpoint_to_lcoords,
+  ls_to_point_to_value,
+  nlpoints,
+  nsp)
+
+  ncells = length(cell_to_points)
+  nltcells = length(ltcell_to_lpoints)
+  ntcells = ncells*nltcells
+  ntpoints = ncells*nlpoints
+
+  tcell_to_tpoints_data = zeros(eltype(cell_to_points.data),nsp*ntcells)
+  tcell_to_tpoints_ptrs = fill(eltype(cell_to_points.ptrs)(nsp),ntcells+1)
+  length_to_ptrs!(tcell_to_tpoints_ptrs)
+  tcell_to_tpoints = Table(tcell_to_tpoints_data,tcell_to_tpoints_ptrs)
+  tpoint_to_coords = zeros(eltype(point_to_coords),ntpoints)
+  tpoint_to_rcoords = zeros(eltype(point_to_coords),ntpoints)
+  T = eltype(first(ls_to_point_to_value))
+  ls_to_tpoint_to_value = [ zeros(T,ntpoints) for i in 1:length(ls_to_point_to_value)]
+
+  tpoint = 0
+  tcell = 0
+  for cell in 1:ncells
+
+    for ltcell in 1:nltcells
+      tcell += 1
+      q = tcell_to_tpoints.ptrs[tcell] - 1
+      lpoints = ltcell_to_lpoints[ltcell]
+      for (j,lpoint) in enumerate(lpoints)
+        tcell_to_tpoints.data[q+j] = tpoint + lpoint
+      end
+    end
+
+    a = cell_to_points.ptrs[cell]-1
+    for lpoint in 1:nlpoints
+      tpoint += 1
+      point = cell_to_points.data[a+lpoint]
+      coords = point_to_coords[point]
+      rcoords = lpoint_to_lcoords[lpoint]
+      tpoint_to_coords[tpoint] = coords
+      tpoint_to_rcoords[tpoint] = rcoords
+      for (i,point_to_val) in enumerate(ls_to_point_to_value)
+        val = point_to_val[point]
+        ls_to_tpoint_to_value[i][tpoint] = val
+      end
+    end
+
+  end
+
+  tcell_to_tpoints, tpoint_to_coords, tpoint_to_rcoords, ls_to_tpoint_to_value
 end
 
 function _setup_cell_to_bgcell(pcell_to_bgcell,nlcells,ncells)
