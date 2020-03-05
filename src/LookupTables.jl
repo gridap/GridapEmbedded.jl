@@ -10,10 +10,54 @@ struct LookupTable{D,T}
   case_to_inoutcut::Vector{Int}
   ledge_to_lpoints::Vector{Vector{Int}}
   nlpoints::Int
+  subcell_shapefuns_grad::Vector{VectorValue{D,T}}
 end
 
 function LookupTable(p::Polytope)
   _LookupTable(p)
+end
+
+function writevtk(table::LookupTable,filename::String)
+  ncases = length(table.case_to_subcell_to_points)
+  for case in 1:ncases
+    _writevtk_single_case_volume(table,filename,case,ncases)
+    _writevtk_single_case_boundary(table,filename,case,ncases)
+  end
+end
+
+function _writevtk_single_case_volume(table::LookupTable{D},filename,case,ncases) where D
+
+  reffe = LagrangianRefFE(Float64,Simplex(Val{D}()),1)
+  cell_types = fill(Int8(1),length(table.case_to_subcell_to_points[case]))
+
+  grid = UnstructuredGrid(
+    table.case_to_point_to_coordinates[case],
+    Table(table.case_to_subcell_to_points[case]),
+    [reffe,],
+    cell_types)
+
+  celldata = ["inout" => table.case_to_subcell_to_inout[case]]
+  _filename = "$(filename)_$(lpad(case,ceil(Int,log10(ncases)),'0'))"
+  write_vtk_file(grid,_filename,celldata=celldata)
+
+end
+
+function _writevtk_single_case_boundary(table::LookupTable{D,T},filename,case,ncases) where {D,T}
+
+  nfacets = length(table.case_to_subfacet_to_points[case])
+  reffe = LagrangianRefFE(Float64,Simplex(Val{D-1}()),1)
+  cell_types = fill(Int8(1),nfacets)
+
+  grid = UnstructuredGrid(
+    table.case_to_point_to_coordinates[case],
+    Table(table.case_to_subfacet_to_points[case]),
+    [reffe,],
+    cell_types)
+
+  celldata = ["normal" => table.case_to_subfacet_to_normal[case]]
+  _filename = "$(filename)_boundary_$(lpad(case,ceil(Int,log10(ncases)),'0'))"
+  write_vtk_file(grid,_filename)#,celldata=celldata)
+
 end
 
 function num_cases(nvertices)
@@ -50,16 +94,12 @@ const CUT = 0
 
 function Simplex(p::Polytope)
   D = num_cell_dims(p)
-  extrusion = tfill(TET_AXIS,Val{D}())
-  ExtrusionPolytope(extrusion)
+  Simplex(Val{D}())
 end
 
-function Simplex(p::Polytope{2})
-  TRI
-end
-
-function Simplex(p::Polytope{3})
-  TET
+function FacetSimplex(p::Polytope)
+  D = num_cell_dims(p)
+  Simplex(Val{D-1}())
 end
 
 function Simplex(::Val{D}) where D
@@ -91,6 +131,7 @@ function _LookupTable(p::Polytope)
   D = num_cell_dims(simplex)
   lfacet_to_lpoints = get_faces(simplex,D-1,0)
   degree = 0
+  subcell_shapefuns_grad = collect1d(evaluate_field(gradient(get_shapefuns(reffe)),vertex_to_coords)[1,:])
 
   V = eltype(get_vertex_coordinates(p))
 
@@ -152,7 +193,8 @@ function _LookupTable(p::Polytope)
     case_to_point_to_coordinates,
     case_to_inoutcut,
     edge_to_vertices,
-    nvertices)
+    nvertices,
+    subcell_shapefuns_grad)
 end
 
 function _find_in_out_or_cut(vertex_to_value)
@@ -182,7 +224,7 @@ function _find_subfacet_to_points(
     lpoints = lfacet_to_lpoints[lfacet]
     push!(subfacet_to_points,points[lpoints])
   end
-  subcell_to_points
+  subfacet_to_points
 end
 
 function _prepare_vertex_to_value(ci)

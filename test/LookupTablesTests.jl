@@ -12,9 +12,11 @@ using GridapEmbedded: _compute_case
 @test _compute_case([1,0,1]) == 6
 @test _compute_case([1,1,1]) == 8
 
+table = LookupTable(SEGMENT)
 table = LookupTable(TRI)
 table = LookupTable(QUAD)
 table = LookupTable(HEX)
 table = LookupTable(TET)
+
 
 end # module
