@@ -1,5 +1,6 @@
 module GridapEmbedded
 
+using LinearAlgebra
 using MiniQhull
 import MiniQhull: delaunay
 using Gridap.TensorValues

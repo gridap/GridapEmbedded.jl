@@ -76,7 +76,9 @@ function initial_sub_triangulation(_grid::Grid,_ls_to_point_to_value::Vector{<:A
   cutgrid = GridPortion(grid,cutcell_to_cell)
   ls_to_point_to_value = [ point_to_value[cutgrid.node_to_oldnode] for point_to_value in _ls_to_point_to_value_ ]
   ltcell_to_lpoints, simplex = simplexify(p)
+  cell_table = LookupTable(simplex)
   lpoint_to_lcoords = get_vertex_coordinates(p)
+  _ensure_positive_jacobians!(ltcell_to_lpoints,lpoint_to_lcoords,cell_table.subcell_shapefuns_grad)
   nlpoints = num_vertices(p)
   nsp = num_vertices(simplex)
 
@@ -93,7 +95,6 @@ function initial_sub_triangulation(_grid::Grid,_ls_to_point_to_value::Vector{<:A
   tcell_to_inoutcut = fill(Int8(CUT),ntcells)
   nltcells = length(ltcell_to_lpoints)
   tcell_to_bgcell = _setup_cell_to_bgcell(cutgrid.cell_to_oldcell,nltcells,ntcells)
-  cell_table = LookupTable(simplex)
   facet_simplex = FacetSimplex(simplex)
   facet_table = LookupTable(facet_simplex)
 
@@ -354,36 +355,85 @@ function _fill_new_sub_triangulation!(rst,rfst,st,point_to_value)
           rfst.facet_to_points.data[z] = subpoint + pointoffset
         end
         rfst.facet_to_bgcell[rfacet] = st.cell_to_bgcell[cell]
-        normal = _setup_normal(st,case,subfacet,cell)
-        rfst.facet_to_normal[rfacet] = normal
+        normal = _setup_normal(
+          st.cell_table.case_to_subfacet_to_points[case],
+          rfst.point_to_coords,
+          subfacet,pointoffset)
+        orientation = st.cell_table.case_to_subfacet_to_orientation[case][subfacet]
+        rfst.facet_to_normal[rfacet] = orientation*normal
       end
     end
 
   end
 end
 
-@inline function _setup_normal(st,case,subfacet,cell)
-  Ta = eltype(st.cell_table.subcell_shapefuns_grad)
-  Tb = eltype(st.point_to_coords)
-  J = zero(outer(zero(Ta),zero(Tb)))
-  nlp = st.cell_table.nlpoints
-  a = st.cell_to_points.ptrs[cell]-1
-  for lpoint in 1:nlp
-    point = st.cell_to_points.data[a+lpoint]
-    u = st.point_to_coords[point]
-    v = st.cell_table.subcell_shapefuns_grad[lpoint]
-    J += outer(v,u)
-  end
-  refnormal = st.cell_table.case_to_subfacet_to_normal[case][subfacet]
-  _map_normal(J,refnormal)
+function _setup_normal(subfacet_to_points,point_to_coords::Vector{<:Point{1}},subfacet,pointoffset)
+  T = eltype(eltype(point_to_coords))
+  VectorValue(one(T))
 end
 
-@inline function _map_normal(J::TensorValue{D,T},n::VectorValue{D,T}) where {D,T}
-  v = inv(J)*n
+function _setup_normal(subfacet_to_points,point_to_coords::Vector{<:Point{2}},subfacet,pointoffset)
+  subpoints = subfacet_to_points[subfacet]
+  p1 = point_to_coords[subpoints[1]+pointoffset]
+  p2 = point_to_coords[subpoints[2]+pointoffset]
+  v1 = p2-p1
+  _normal_vector(v1)
+end
+
+function _setup_normal(subfacet_to_points,point_to_coords::Vector{<:Point{3}},subfacet,pointoffset)
+  subpoints = subfacet_to_points[subfacet]
+  p1 = point_to_coords[subpoints[1]+pointoffset]
+  p2 = point_to_coords[subpoints[2]+pointoffset]
+  p3 = point_to_coords[subpoints[3]+pointoffset]
+  v1 = p2-p1
+  v2 = p3-p1
+  _normal_vector(v1,v2)
+end
+
+function _setup_normal(subfacet_to_points,point_to_coords::Vector{<:Point{4}},subfacet,pointoffset)
+  subpoints = subfacet_to_points[subfacet]
+  p1 = point_to_coords[subpoints[1]+pointoffset]
+  p2 = point_to_coords[subpoints[2]+pointoffset]
+  p3 = point_to_coords[subpoints[3]+pointoffset]
+  p4 = point_to_coords[subpoints[4]+pointoffset]
+  v1 = p2-p1
+  v2 = p3-p1
+  v3 = p4-p1
+  _normal_vector(v1,v2,v3)
+end
+
+function _normal_vector(u::VectorValue...)
+  v = _orthogonal_vector(u...)
   m = sqrt(inner(v,v))
   if m < eps()
-    return zero(n)
+    return zero(v)
   else
     return v/m
   end
 end
+
+function _orthogonal_vector(v::VectorValue{2})
+  w1 = v[2]
+  w2 = -v[1]
+  VectorValue(w1,w2)
+end
+
+function _orthogonal_vector(v1::VectorValue{3},v2::VectorValue{3})
+  w1 = v1[2]*v2[3] - v1[3]*v2[2]
+  w2 = v1[3]*v2[1] - v1[1]*v2[3]
+  w3 = v1[1]*v2[2] - v1[2]*v2[1]
+  VectorValue(w1,w2,w3)
+end
+
+function _orthogonal_vector(v1::VectorValue{4},v2::VectorValue{4},v3::VectorValue{4})
+    v11 = v1[1]; v21 = v2[1]; v31 = v3[1]
+    v12 = v1[2]; v22 = v2[2]; v32 = v3[2]
+    v13 = v1[3]; v23 = v2[3]; v33 = v3[3]
+    v14 = v1[4]; v24 = v2[4]; v34 = v3[4]
+    w1 = (v12*v23*v34 - v12*v24*v33 - v13*v22*v34 + v13*v24*v32 + v14*v22*v33 - v14*v23*v32)
+    w2 = (v11*v24*v33 - v11*v23*v34 + v13*v21*v34 - v13*v24*v31 - v14*v21*v33 + v14*v23*v31)
+    w3 = (v11*v22*v34 - v11*v24*v32 - v12*v21*v34 + v12*v24*v31 + v14*v21*v32 - v14*v22*v31)
+    w4 = (v11*v23*v32 - v11*v22*v33 + v12*v21*v33 - v12*v23*v31 - v13*v21*v32 + v13*v22*v31)
+  VectorValue(w1,w2,w3,w4)
+end
+

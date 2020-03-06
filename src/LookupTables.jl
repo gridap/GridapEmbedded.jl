@@ -6,6 +6,7 @@ struct LookupTable{D,T}
   case_to_subfacet_to_lfacet::Vector{Vector{Int}}
   case_to_subfacet_to_points::Vector{Vector{Vector{Int}}}
   case_to_subfacet_to_normal::Vector{Vector{VectorValue{D,T}}}
+  case_to_subfacet_to_orientation::Vector{Vector{T}}
   case_to_point_to_coordinates::Vector{Vector{VectorValue{D,T}}} 
   case_to_inoutcut::Vector{Int}
   ledge_to_lpoints::Vector{Vector{Int}}
@@ -145,14 +146,18 @@ function _LookupTable(p::Polytope)
   case_to_subfacet_to_lfacet = Vector{Vector{Int}}(undef,ncases)
   case_to_subfacet_to_points = Vector{Vector{Vector{Int}}}(undef,ncases)
   case_to_subfacet_to_normal = Vector{Vector{V}}(undef,ncases)
+  case_to_subfacet_to_orientation = Vector{Vector{eltype(V)}}(undef,ncases)
   case_to_point_to_coordinates = Vector{Vector{V}}(undef,ncases)
   case_to_inoutcut = Vector{Int}(undef,ncases)
 
   for ci in cis
 
     vertex_to_value = _prepare_vertex_to_value(ci)
+    case = _compute_case(vertex_to_value)
+
     point_to_coords, point_to_value = _compute_delaunay_points(vertex_to_value, vertex_to_coords, edge_to_vertices)
     subcell_to_points = delaunay(point_to_coords)
+    _ensure_positive_jacobians!(subcell_to_points,point_to_coords,subcell_shapefuns_grad)
     subcell_to_inout = _compute_subcell_to_inout(subcell_to_points,point_to_value)
     subcell_to_ctype = fill(Int8(1),length(subcell_to_points))
     subgrid = UnstructuredGrid(point_to_coords,Table(subcell_to_points),[reffe],subcell_to_ctype)
@@ -169,15 +174,16 @@ function _LookupTable(p::Polytope)
     n = get_normal_vector(interface)
     n_q = collect(evaluate(n,q))
     subfacet_to_normal = map(first,n_q)
+    subfacet_to_orientation = _setup_subfacet_to_orientation(point_to_coords,subfacet_to_points,subfacet_to_normal)
     inoutcut = _find_in_out_or_cut(vertex_to_value)
 
-    case = _compute_case(vertex_to_value)
     case_to_subcell_to_points[case] = subcell_to_points
     case_to_subcell_to_inout[case] = subcell_to_inout
     case_to_subfacet_to_subcell[case] = subfacet_to_subcell
     case_to_subfacet_to_lfacet[case] = subfacet_to_lfacet
     case_to_subfacet_to_points[case] = subfacet_to_points
     case_to_subfacet_to_normal[case] = subfacet_to_normal
+    case_to_subfacet_to_orientation[case] = subfacet_to_orientation
     case_to_point_to_coordinates[case] = point_to_coords
     case_to_inoutcut[case] = inoutcut
 
@@ -190,11 +196,43 @@ function _LookupTable(p::Polytope)
     case_to_subfacet_to_lfacet,
     case_to_subfacet_to_points,
     case_to_subfacet_to_normal,
+    case_to_subfacet_to_orientation,
     case_to_point_to_coordinates,
     case_to_inoutcut,
     edge_to_vertices,
     nvertices,
     subcell_shapefuns_grad)
+end
+
+function _ensure_positive_jacobians!(subcell_to_points,point_to_coords,shapefuns_grad)
+  for (subcell,points) in enumerate(subcell_to_points)
+    Ta = eltype(shapefuns_grad)
+    Tb = eltype(point_to_coords)
+    J = zero(outer(zero(Ta),zero(Tb)))
+    for (i,point) in enumerate(points)
+      J += outer(shapefuns_grad[i],point_to_coords[point])
+    end
+    dV = det(J)
+    if dV < 0
+      n1 = subcell_to_points[subcell][1]
+      n2 = subcell_to_points[subcell][2]
+      subcell_to_points[subcell][1] = n2
+      subcell_to_points[subcell][2] = n1
+    end
+  end
+end
+
+function _setup_subfacet_to_orientation(point_to_coords,subfacet_to_points,subfacet_to_normal)
+  T = eltype(eltype(point_to_coords))
+  subfacet_to_orientation = zeros(T,length(subfacet_to_normal))
+  for (subfacet, points) in enumerate(subfacet_to_points)
+    v = _setup_normal(subfacet_to_points,point_to_coords,subfacet,0)
+    n = subfacet_to_normal[subfacet]
+    a = v*n
+    orientation = sign(a)
+    subfacet_to_orientation[subfacet] = orientation
+  end
+  subfacet_to_orientation
 end
 
 function _find_in_out_or_cut(vertex_to_value)
