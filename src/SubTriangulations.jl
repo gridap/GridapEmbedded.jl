@@ -13,7 +13,8 @@ end
   table::LookupTable,
   cell_to_points::Table,
   ls_to_point_to_value::Vector{<:AbstractVector},
-  cell::Integer)
+  cell::Integer,
+  intersection::Bool=true)
 
   a = cell_to_points.ptrs[cell]
   b = cell_to_points.ptrs[cell+1]-1
@@ -21,13 +22,24 @@ end
   all_out = true
   for p in a:b
     point = cell_to_points.data[p]
-    maxvalue = -1
-    for point_to_value in ls_to_point_to_value
-      value = point_to_value[point]
-      maxvalue = max(maxvalue,value)
+
+    if intersection
+      mvalue = -1
+      for point_to_value in ls_to_point_to_value
+        value = point_to_value[point]
+        mvalue = max(mvalue,value)
+      end
+    else
+      mvalue = 1
+      for point_to_value in ls_to_point_to_value
+        value = point_to_value[point]
+        mvalue = min(mvalue,value)
+      end
     end
-    all_in = all_in && (!isout(maxvalue))
-    all_out = all_out && isout(maxvalue)
+
+    all_in = all_in && (!isout(mvalue))
+    all_out = all_out && isout(mvalue)
+
   end
   if all_in
     return IN
@@ -51,6 +63,20 @@ function compute_in_out_or_cut(
   cell_to_inoutcut
 end
 
+function compute_in_out_or_cut(
+  table::LookupTable,
+  cell_to_points::Table,
+  point_to_value::Vector{<:AbstractVector},
+  intersection::Bool=true)
+
+  ncells = length(cell_to_points)
+  cell_to_inoutcut = zeros(Int8,ncells)
+  for cell in 1:ncells
+    cell_to_inoutcut[cell] = compute_in_out_or_cut(table,cell_to_points,point_to_value,cell,intersection)
+  end
+  cell_to_inoutcut
+end
+
 struct SubTriangulation{Dc,Df,T}
   cell_table::LookupTable{Dc,T}
   facet_table::LookupTable{Df,T}
@@ -59,6 +85,7 @@ struct SubTriangulation{Dc,Df,T}
   cell_to_bgcell::Vector{Int32}
   point_to_coords::Vector{Point{Dc,T}}
   ls_to_point_to_value::Vector{Vector{T}}
+  intersection::Bool
 end
 
 struct FacetSubTriangulation{Dc,Df,T}
@@ -68,13 +95,14 @@ struct FacetSubTriangulation{Dc,Df,T}
   facet_to_bgcell::Vector{Int32}
   point_to_coords::Vector{Point{Dc,T}}
   ls_to_point_to_value::Vector{Vector{T}}
+  intersection::Bool
 end
 
-function initial_sub_triangulation(grid::Grid,point_to_value::AbstractArray)
-  initial_sub_triangulation(grid,[point_to_value,])
+function initial_sub_triangulation(grid::Grid,point_to_value::AbstractArray,intersection=true)
+  initial_sub_triangulation(grid,[point_to_value,],intersection)
 end
 
-function initial_sub_triangulation(_grid::Grid,_ls_to_point_to_value::Vector{<:AbstractArray})
+function initial_sub_triangulation(_grid::Grid,_ls_to_point_to_value::Vector{<:AbstractArray},intersection=true)
   _ls_to_point_to_value_ = map(collect1d,_ls_to_point_to_value)
   grid = UnstructuredGrid(_grid)
   reffes = get_reffes(grid)
@@ -85,7 +113,7 @@ function initial_sub_triangulation(_grid::Grid,_ls_to_point_to_value::Vector{<:A
   p = get_polytope(reffe)
   _table = LookupTable(p)
   _cell_to_points = get_cell_nodes(grid)
-  _cell_to_inoutcut = compute_in_out_or_cut(_table,_cell_to_points,_ls_to_point_to_value_)
+  _cell_to_inoutcut = compute_in_out_or_cut(_table,_cell_to_points,_ls_to_point_to_value_,intersection)
   cutcell_to_cell = findall(_cell_to_inoutcut .== CUT)
   cutgrid = GridPortion(grid,cutcell_to_cell)
   ls_to_point_to_value = [ point_to_value[cutgrid.node_to_oldnode] for point_to_value in _ls_to_point_to_value_ ]
@@ -119,7 +147,8 @@ function initial_sub_triangulation(_grid::Grid,_ls_to_point_to_value::Vector{<:A
     tcell_to_inoutcut,
     tcell_to_bgcell,
     tpoint_to_coords,
-    ls_to_tpoint_to_value)
+    ls_to_tpoint_to_value,
+    intersection)
 end
 
 function _simplexity(
@@ -258,11 +287,16 @@ function _cut_sub_triangulation_count(st::SubTriangulation,point_to_value)
   nrcells = 0
   nrpoints = 0
   nrfacets = 0
+  if st.intersection
+    LOC = OUT
+  else
+    LOC = IN
+  end
   for cell in 1:length(st.cell_to_points)
     case = compute_case(st.cell_to_points,point_to_value,cell)
     nrcells += length(st.cell_table.case_to_subcell_to_inout[case])
     nrpoints += length(st.cell_table.case_to_point_to_coordinates[case])
-    if st.cell_to_inoutcut[cell] != OUT
+    if st.cell_to_inoutcut[cell] != LOC
       nrfacets += length(st.cell_table.case_to_subfacet_to_subcell[case])
     end
   end
@@ -274,9 +308,16 @@ function _cut_sub_triangulation_count(st::FacetSubTriangulation,point_to_value)
   nrpoints = 0
   for facet in 1:length(st.facet_to_points)
     case = compute_case(st.facet_to_points,point_to_value,facet)
-    if st.facet_table.case_to_inoutcut[case] != OUT
-      nrfacets += st.facet_table.case_to_num_in[case]
-      nrpoints += length(st.facet_table.case_to_point_to_coordinates[case])
+    if st.intersection
+      if st.facet_table.case_to_inoutcut[case] != OUT
+        nrfacets += st.facet_table.case_to_num_in[case]
+        nrpoints += length(st.facet_table.case_to_point_to_coordinates[case])
+      end
+    else
+      if st.facet_table.case_to_inoutcut[case] != IN
+        nrfacets += st.facet_table.case_to_num_out[case]
+        nrpoints += length(st.facet_table.case_to_point_to_coordinates[case])
+      end
     end
   end
   nrfacets, nrpoints
@@ -301,7 +342,8 @@ function _allocate_new_sub_triangulation(st::SubTriangulation{Dc,Df,T},nrcells,n
     rcell_to_inoutcut,
     rcell_to_bgcell,
     rpoint_to_coords,
-    ls_to_rpoint_to_value)
+    ls_to_rpoint_to_value,
+    st.intersection)
 
   nlpf = st.facet_table.nlpoints
   rfacet_to_rpoints_data = zeros(eltype(st.cell_to_points.data),nlpf*nrfacets)
@@ -317,7 +359,8 @@ function _allocate_new_sub_triangulation(st::SubTriangulation{Dc,Df,T},nrcells,n
     rfacet_to_normal,
     rfacet_to_bgcell,
     rpoint_to_coords,
-    [  rpoint_to_value for rpoint_to_value in ls_to_rpoint_to_value ])
+    [  rpoint_to_value for rpoint_to_value in ls_to_rpoint_to_value ],
+    st.intersection)
 
   _st, _fst
 end
@@ -340,7 +383,8 @@ function _allocate_new_sub_triangulation(st::FacetSubTriangulation{Dc,Df,T},nrfa
     rfacet_to_normal,
     rfacet_to_bgcell,
     rpoint_to_coords,
-    ls_to_rpoint_to_value)
+    ls_to_rpoint_to_value,
+    st.intersection)
 
   _fst
 end
@@ -351,6 +395,11 @@ function _fill_new_sub_triangulation!(rst,rfst,st,point_to_value)
   rfacet = 0
   q = 0
   z = 0
+  if st.intersection
+    LOC = OUT
+  else
+    LOC = IN
+  end
   for cell in 1:length(st.cell_to_points)
 
     pointoffset = rpoint
@@ -400,8 +449,8 @@ function _fill_new_sub_triangulation!(rst,rfst,st,point_to_value)
     for subcell in 1:nsubcells
       rcell += 1
 
-      if st.cell_to_inoutcut[cell] == OUT
-        rst.cell_to_inoutcut[rcell] = OUT
+      if st.cell_to_inoutcut[cell] == LOC
+        rst.cell_to_inoutcut[rcell] = LOC
       else
         rst.cell_to_inoutcut[rcell] = st.cell_table.case_to_subcell_to_inout[case][subcell]
       end
@@ -413,7 +462,7 @@ function _fill_new_sub_triangulation!(rst,rfst,st,point_to_value)
       end
     end
 
-    if st.cell_to_inoutcut[cell] != OUT
+    if st.cell_to_inoutcut[cell] != LOC
       nsubfacets = length(st.cell_table.case_to_subfacet_to_subcell[case])
       for subfacet in 1:nsubfacets
         rfacet += 1
@@ -438,10 +487,15 @@ function _fill_new_sub_triangulation!(rfst::FacetSubTriangulation,st::FacetSubTr
   rpoint = 0
   rfacet = 0
   q = 0
+  if st.intersection
+    LOC = OUT
+  else
+    LOC = IN
+  end
   for facet in 1:length(st.facet_to_points)
 
     case = compute_case(st.facet_to_points,point_to_value,facet)
-    if OUT == st.facet_table.case_to_inoutcut[case]
+    if LOC == st.facet_table.case_to_inoutcut[case]
       continue
     end
 
@@ -488,7 +542,7 @@ function _fill_new_sub_triangulation!(rfst::FacetSubTriangulation,st::FacetSubTr
 
     nsubfacets = length(st.facet_table.case_to_subcell_to_inout[case])
     for subfacet in 1:nsubfacets
-      if st.facet_table.case_to_subcell_to_inout[case][subfacet] == IN
+      if st.facet_table.case_to_subcell_to_inout[case][subfacet] != LOC
         rfacet += 1
         rfst.facet_to_bgcell[rfacet] = st.facet_to_bgcell[facet]
         rfst.facet_to_normal[rfacet] = st.facet_to_normal[facet]

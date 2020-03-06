@@ -54,56 +54,19 @@ function olympic_rings_domain(R,r)
   domain
 end
 
-const R = 1.2
-const r = 0.2
-
-domain = olympic_rings_domain(R,r)
-n = 20
-partition =(8*n,4*n,n)
-grid = CartesianGrid(domain,partition)
-writevtk(grid,"grid")
-
-point_to_coords = get_node_coordinates(grid)
-point_to_value = olympic_rings(point_to_coords,R,r)
-
-st = initial_sub_triangulation(grid,point_to_value)
-writevtk(st,"st")
-
-cst, ls_to_fst = cut_sub_triangulation(st)
-writevtk(cst,"cst")
-
-for (i,fst) in enumerate(ls_to_fst)
-  fug = UnstructuredGrid(fst)
-  quad = CellQuadrature(fug,2)
-  dS = integrate(1,fug,quad)
-  writevtk(fug,"fug_$i",celldata=["normals"=>fst.facet_to_normal,"dS"=>dS])
-end
-
-
-
-#domain = (0,1,0,1,0,1)
-#n = 50
-#partition =(n,n,n)
+#const R = 1.2
+#const r = 0.2
+#
+#domain = olympic_rings_domain(R,r)
+#n = 20
+#partition =(8*n,4*n,n)
 #grid = CartesianGrid(domain,partition)
+#writevtk(grid,"grid")
 #
 #point_to_coords = get_node_coordinates(grid)
+#point_to_value = olympic_rings(point_to_coords,R,r)
 #
-#const R1 = 0.7
-#ls1(x) = x[1]^2 + x[2]^2 - R1
-#
-#const R2 = 0.7
-#ls2(x) = x[1]^2 + (x[2]-1)^2 - R2
-#
-#const R3 = 0.7
-#ls3(x) = (x[1]-1)^2 + x[2]^2 - R3
-#
-#point_to_ls1 = ls1.(point_to_coords)
-#point_to_ls2 = ls2.(point_to_coords)
-#point_to_ls3 = ls3.(point_to_coords)
-#
-#ls_to_point_to_value = [point_to_ls1, point_to_ls2, point_to_ls3]
-#
-#st = initial_sub_triangulation(grid,ls_to_point_to_value)
+#st = initial_sub_triangulation(grid,point_to_value)
 #writevtk(st,"st")
 #
 #cst, ls_to_fst = cut_sub_triangulation(st)
@@ -115,6 +78,44 @@ end
 #  dS = integrate(1,fug,quad)
 #  writevtk(fug,"fug_$i",celldata=["normals"=>fst.facet_to_normal,"dS"=>dS])
 #end
+
+
+
+domain = (0,1,0,1,0,1)
+n = 50
+partition =(n,n,n)
+grid = CartesianGrid(domain,partition)
+
+point_to_coords = get_node_coordinates(grid)
+
+const R1 = 0.7
+ls1(x) = x[1]^2 + x[2]^2 - R1
+
+const R2 = 0.7
+ls2(x) = x[1]^2 + (x[2]-1)^2 - R2
+
+const R3 = 0.7
+ls3(x) = (x[1]-1)^2 + x[2]^2 - R3
+
+point_to_ls1 = ls1.(point_to_coords)
+point_to_ls2 = ls2.(point_to_coords)
+point_to_ls3 = ls3.(point_to_coords)
+
+ls_to_point_to_value = [point_to_ls1, point_to_ls2]#, point_to_ls3]
+
+intersection = false
+st = initial_sub_triangulation(grid,ls_to_point_to_value,intersection)
+writevtk(st,"st")
+
+cst, ls_to_fst = cut_sub_triangulation(st)
+writevtk(cst,"cst")
+
+for (i,fst) in enumerate(ls_to_fst)
+  fug = UnstructuredGrid(fst)
+  quad = CellQuadrature(fug,2)
+  dS = integrate(1,fug,quad)
+  writevtk(fug,"fug_$i",celldata=["normals"=>fst.facet_to_normal,"dS"=>dS])
+end
 
 
 
