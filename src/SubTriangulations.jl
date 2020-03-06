@@ -15,17 +15,27 @@ end
   ls_to_point_to_value::Vector{<:AbstractVector},
   cell::Integer)
 
-  for point_to_value in ls_to_point_to_value
-    if OUT == compute_in_out_or_cut(table,cell_to_points,point_to_value,cell)
-      return OUT
+  a = cell_to_points.ptrs[cell]
+  b = cell_to_points.ptrs[cell+1]-1
+  all_in = true
+  all_out = true
+  for p in a:b
+    point = cell_to_points.data[p]
+    maxvalue = -1
+    for point_to_value in ls_to_point_to_value
+      value = point_to_value[point]
+      maxvalue = max(maxvalue,value)
     end
+    all_in = all_in && (!isout(maxvalue))
+    all_out = all_out && isout(maxvalue)
   end
-  for point_to_value in ls_to_point_to_value
-    if CUT == compute_in_out_or_cut(table,cell_to_points,point_to_value,cell)
-      return CUT
-    end
+  if all_in
+    return IN
+  elseif all_out
+    return OUT
+  else
+    return CUT
   end
-  return IN
 end
 
 function compute_in_out_or_cut(
@@ -58,6 +68,10 @@ struct FacetSubTriangulation{Dc,Df,T}
   facet_to_bgcell::Vector{Int32}
   point_to_coords::Vector{Point{Dc,T}}
   ls_to_point_to_value::Vector{Vector{T}}
+end
+
+function initial_sub_triangulation(grid::Grid,point_to_value::AbstractArray)
+  initial_sub_triangulation(grid,[point_to_value,])
 end
 
 function initial_sub_triangulation(_grid::Grid,_ls_to_point_to_value::Vector{<:AbstractArray})
@@ -211,9 +225,19 @@ function cut_sub_triangulation(st::SubTriangulation{Dc,Df,T}) where {Dc,Df,T}
   while length(_st.ls_to_point_to_value) > 0
     point_to_value = pop!(_st.ls_to_point_to_value)
     _st, _fst = _cut_sub_triangulation(_st,point_to_value)
+    _fst = cut_sub_triangulation(_fst)
     push!(ls_to_fst,_fst)
   end
   _st, ls_to_fst
+end
+
+function cut_sub_triangulation(st::FacetSubTriangulation)
+  _st = st
+  while length(_st.ls_to_point_to_value) > 0
+    point_to_value = pop!(_st.ls_to_point_to_value)
+    _st = _cut_sub_triangulation(_st,point_to_value)
+  end
+  _st
 end
 
 function _cut_sub_triangulation(st::SubTriangulation,point_to_value)
@@ -223,7 +247,14 @@ function _cut_sub_triangulation(st::SubTriangulation,point_to_value)
   rst, rfst
 end
 
-function _cut_sub_triangulation_count(st,point_to_value)
+function _cut_sub_triangulation(st::FacetSubTriangulation,point_to_value)
+  nrfacets, nrpoints = _cut_sub_triangulation_count(st,point_to_value)
+  rst = _allocate_new_sub_triangulation(st,nrfacets,nrpoints)
+  _fill_new_sub_triangulation!(rst,st,point_to_value)
+  rst
+end
+
+function _cut_sub_triangulation_count(st::SubTriangulation,point_to_value)
   nrcells = 0
   nrpoints = 0
   nrfacets = 0
@@ -236,6 +267,19 @@ function _cut_sub_triangulation_count(st,point_to_value)
     end
   end
   nrcells, nrpoints, nrfacets
+end
+
+function _cut_sub_triangulation_count(st::FacetSubTriangulation,point_to_value)
+  nrfacets = 0
+  nrpoints = 0
+  for facet in 1:length(st.facet_to_points)
+    case = compute_case(st.facet_to_points,point_to_value,facet)
+    if st.facet_table.case_to_inoutcut[case] != OUT
+      nrfacets += st.facet_table.case_to_num_in[case]
+      nrpoints += length(st.facet_table.case_to_point_to_coordinates[case])
+    end
+  end
+  nrfacets, nrpoints
 end
 
 function _allocate_new_sub_triangulation(st::SubTriangulation{Dc,Df,T},nrcells,nrpoints,nrfacets) where {Dc,Df,T}
@@ -273,9 +317,32 @@ function _allocate_new_sub_triangulation(st::SubTriangulation{Dc,Df,T},nrcells,n
     rfacet_to_normal,
     rfacet_to_bgcell,
     rpoint_to_coords,
-    ls_to_rpoint_to_value)
+    [  rpoint_to_value for rpoint_to_value in ls_to_rpoint_to_value ])
 
   _st, _fst
+end
+
+function _allocate_new_sub_triangulation(st::FacetSubTriangulation{Dc,Df,T},nrfacets,nrpoints) where {Dc,Df,T}
+
+  nlpf = st.facet_table.nlpoints
+  rfacet_to_rpoints_data = zeros(eltype(st.facet_to_points.data),nlpf*nrfacets)
+  rfacet_to_rpoints_ptrs = fill(eltype(st.facet_to_points.ptrs)(nlpf),nrfacets+1)
+  length_to_ptrs!(rfacet_to_rpoints_ptrs)
+  rfacet_to_rpoints = Table(rfacet_to_rpoints_data,rfacet_to_rpoints_ptrs)
+  rfacet_to_normal = zeros(VectorValue{Dc,T},nrfacets)
+  rfacet_to_bgcell = zeros(eltype(st.facet_to_bgcell),nrfacets)
+  rpoint_to_coords = zeros(Point{Dc,T},nrpoints)
+  ls_to_rpoint_to_value = [zeros(T,nrpoints) for i in 1:length(st.ls_to_point_to_value)]
+
+  _fst = FacetSubTriangulation(
+    st.facet_table,
+    rfacet_to_rpoints,
+    rfacet_to_normal,
+    rfacet_to_bgcell,
+    rpoint_to_coords,
+    ls_to_rpoint_to_value)
+
+  _fst
 end
 
 function _fill_new_sub_triangulation!(rst,rfst,st,point_to_value)
@@ -361,6 +428,74 @@ function _fill_new_sub_triangulation!(rst,rfst,st,point_to_value)
           subfacet,pointoffset)
         orientation = st.cell_table.case_to_subfacet_to_orientation[case][subfacet]
         rfst.facet_to_normal[rfacet] = orientation*normal
+      end
+    end
+
+  end
+end
+
+function _fill_new_sub_triangulation!(rfst::FacetSubTriangulation,st::FacetSubTriangulation,point_to_value)
+  rpoint = 0
+  rfacet = 0
+  q = 0
+  for facet in 1:length(st.facet_to_points)
+
+    case = compute_case(st.facet_to_points,point_to_value,facet)
+    if OUT == st.facet_table.case_to_inoutcut[case]
+      continue
+    end
+
+    pointoffset = rpoint
+    a = st.facet_to_points.ptrs[facet]-1
+    for lpoint in 1:st.facet_table.nlpoints
+      rpoint += 1
+      point = st.facet_to_points.data[a+lpoint]
+      coords = st.point_to_coords[point]
+      rfst.point_to_coords[rpoint] = coords
+      for (ils, point_to_val) in enumerate(st.ls_to_point_to_value)
+        val = point_to_val[point]
+        rfst.ls_to_point_to_value[ils][rpoint] = val
+      end
+    end
+
+
+    if CUT == st.facet_table.case_to_inoutcut[case]
+      for (ledge, lpoints) in enumerate(st.facet_table.ledge_to_lpoints)
+        point1 = st.facet_to_points.data[a+lpoints[1]]
+        point2 = st.facet_to_points.data[a+lpoints[2]]
+        v1 = point_to_value[point1]
+        v2 = point_to_value[point2]
+        if isout(v1) != isout(v2)
+          rpoint += 1
+          w1 = abs(v1)
+          w2 = abs(v2)
+          c1 = w1/(w1+w2)
+          p1 = st.point_to_coords[point1]
+          p2 = st.point_to_coords[point2]
+          dp = p2-p1
+          p = p1 + c1*dp
+          rfst.point_to_coords[rpoint] = p
+          for (ils, point_to_val) in enumerate(st.ls_to_point_to_value)
+            s1 = point_to_val[point1]
+            s2 = point_to_val[point2]
+            ds = s2-s1
+            s = s1 + c1*ds
+            rfst.ls_to_point_to_value[ils][rpoint] = s
+          end
+        end
+      end
+    end
+
+    nsubfacets = length(st.facet_table.case_to_subcell_to_inout[case])
+    for subfacet in 1:nsubfacets
+      if st.facet_table.case_to_subcell_to_inout[case][subfacet] == IN
+        rfacet += 1
+        rfst.facet_to_bgcell[rfacet] = st.facet_to_bgcell[facet]
+        rfst.facet_to_normal[rfacet] = st.facet_to_normal[facet]
+        for subpoint in st.facet_table.case_to_subcell_to_points[case][subfacet]
+          q += 1
+          rfst.facet_to_points.data[q] = subpoint + pointoffset
+        end
       end
     end
 

@@ -2,6 +2,8 @@
 struct LookupTable{D,T}
   case_to_subcell_to_points::Vector{Vector{Vector{Int}}}
   case_to_subcell_to_inout::Vector{Vector{Int}}
+  case_to_num_in::Vector{Int}
+  case_to_num_out::Vector{Int}
   case_to_subfacet_to_subcell::Vector{Vector{Int}}
   case_to_subfacet_to_lfacet::Vector{Vector{Int}}
   case_to_subfacet_to_points::Vector{Vector{Vector{Int}}}
@@ -142,6 +144,8 @@ function _LookupTable(p::Polytope)
 
   case_to_subcell_to_points = Vector{Vector{Vector{Int}}}(undef,ncases)
   case_to_subcell_to_inout = Vector{Vector{Int}}(undef,ncases)
+  case_to_num_in = Vector{Int}(undef,ncases)
+  case_to_num_out = Vector{Int}(undef,ncases)
   case_to_subfacet_to_subcell = Vector{Vector{Int}}(undef,ncases)
   case_to_subfacet_to_lfacet = Vector{Vector{Int}}(undef,ncases)
   case_to_subfacet_to_points = Vector{Vector{Vector{Int}}}(undef,ncases)
@@ -179,6 +183,8 @@ function _LookupTable(p::Polytope)
 
     case_to_subcell_to_points[case] = subcell_to_points
     case_to_subcell_to_inout[case] = subcell_to_inout
+    case_to_num_in[case] = count(i-> i == IN, subcell_to_inout)
+    case_to_num_out[case] = count(i-> i == OUT, subcell_to_inout)
     case_to_subfacet_to_subcell[case] = subfacet_to_subcell
     case_to_subfacet_to_lfacet[case] = subfacet_to_lfacet
     case_to_subfacet_to_points[case] = subfacet_to_points
@@ -192,6 +198,8 @@ function _LookupTable(p::Polytope)
   LookupTable(
     case_to_subcell_to_points,
     case_to_subcell_to_inout,
+    case_to_num_in,
+    case_to_num_out,
     case_to_subfacet_to_subcell,
     case_to_subfacet_to_lfacet,
     case_to_subfacet_to_points,
