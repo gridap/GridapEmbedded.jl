@@ -16,6 +16,12 @@ end
   cell::Integer,
   intersection::Bool=true)
 
+  for point_to_value in ls_to_point_to_value
+    if compute_in_out_or_cut(table,cell_to_points,point_to_value,cell) == CUT
+      return CUT
+    end
+  end
+
   a = cell_to_points.ptrs[cell]
   b = cell_to_points.ptrs[cell+1]-1
   all_in = true

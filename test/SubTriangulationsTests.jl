@@ -42,7 +42,7 @@ function olympic_rings(x,R,r)
   v4 = doughnut(x,R,r,x0)
   x0 = Point(3*(r+r+R),z,z)
   v5 = doughnut(x,R,r,x0)
-  min.(v1,v2,v3,v4,v5)
+  [v1,v2,v3,v4,v5]
 end
 
 function olympic_rings_domain(R,r)
@@ -66,7 +66,7 @@ end
 #point_to_coords = get_node_coordinates(grid)
 #point_to_value = olympic_rings(point_to_coords,R,r)
 #
-#st = initial_sub_triangulation(grid,point_to_value)
+#st = initial_sub_triangulation(grid,point_to_value,false)
 #writevtk(st,"st")
 #
 #cst, ls_to_fst = cut_sub_triangulation(st)
