@@ -1,74 +1,19 @@
 
 struct LookupTable{D,T}
+  num_cases::Int
   case_to_subcell_to_points::Vector{Vector{Vector{Int}}}
   case_to_subcell_to_inout::Vector{Vector{Int}}
-  case_to_num_in::Vector{Int}
-  case_to_num_out::Vector{Int}
-  case_to_subfacet_to_subcell::Vector{Vector{Int}}
-  case_to_subfacet_to_lfacet::Vector{Vector{Int}}
+  case_to_num_subcells_in::Vector{Int}
+  case_to_num_subcells_out::Vector{Int}
   case_to_subfacet_to_points::Vector{Vector{Vector{Int}}}
   case_to_subfacet_to_normal::Vector{Vector{VectorValue{D,T}}}
   case_to_subfacet_to_orientation::Vector{Vector{T}}
   case_to_point_to_coordinates::Vector{Vector{VectorValue{D,T}}} 
   case_to_inoutcut::Vector{Int}
-  ledge_to_lpoints::Vector{Vector{Int}}
-  nlpoints::Int
-  subcell_shapefuns_grad::Vector{VectorValue{D,T}}
 end
 
 function LookupTable(p::Polytope)
-  _LookupTable(p)
-end
-
-function writevtk(table::LookupTable,filename::String)
-  ncases = length(table.case_to_subcell_to_points)
-  for case in 1:ncases
-    _writevtk_single_case_volume(table,filename,case,ncases)
-    _writevtk_single_case_boundary(table,filename,case,ncases)
-  end
-end
-
-function _writevtk_single_case_volume(table::LookupTable{D},filename,case,ncases) where D
-
-  reffe = LagrangianRefFE(Float64,Simplex(Val{D}()),1)
-  cell_types = fill(Int8(1),length(table.case_to_subcell_to_points[case]))
-
-  grid = UnstructuredGrid(
-    table.case_to_point_to_coordinates[case],
-    Table(table.case_to_subcell_to_points[case]),
-    [reffe,],
-    cell_types)
-
-  celldata = ["inout" => table.case_to_subcell_to_inout[case]]
-  _filename = "$(filename)_$(lpad(case,ceil(Int,log10(ncases)),'0'))"
-  write_vtk_file(grid,_filename,celldata=celldata)
-
-end
-
-function _writevtk_single_case_boundary(table::LookupTable{D,T},filename,case,ncases) where {D,T}
-
-  nfacets = length(table.case_to_subfacet_to_points[case])
-  reffe = LagrangianRefFE(Float64,Simplex(Val{D-1}()),1)
-  cell_types = fill(Int8(1),nfacets)
-
-  grid = UnstructuredGrid(
-    table.case_to_point_to_coordinates[case],
-    Table(table.case_to_subfacet_to_points[case]),
-    [reffe,],
-    cell_types)
-
-  celldata = ["normal" => table.case_to_subfacet_to_normal[case]]
-  _filename = "$(filename)_boundary_$(lpad(case,ceil(Int,log10(ncases)),'0'))"
-  write_vtk_file(grid,_filename)#,celldata=celldata)
-
-end
-
-function num_cases(nvertices)
-  2^nvertices
-end
-
-function isout(v)
-  v > 0
+  _build_lookup_table(p)
 end
 
 function compute_case(
@@ -87,129 +32,156 @@ function compute_case(
   case
 end
 
+function compute_case(values)
+  t = Table([collect(1:length(values)),])
+  compute_case(t,values,1)
+end
+
 const IN = -1
 const OUT = 1
 const INTERFACE = 0
 const CUT = 0
 
+function isout(v)
+  v > 0
+end
 
 # Helpers
 
-function Simplex(p::Polytope)
-  D = num_cell_dims(p)
-  Simplex(Val{D}())
-end
+function _build_lookup_table(p::Polytope)
 
-function FacetSimplex(p::Polytope)
-  D = num_cell_dims(p)
-  Simplex(Val{D-1}())
-end
+  table = _allocate_lookup_table(p)
 
-function Simplex(::Val{D}) where D
-  extrusion = tfill(TET_AXIS,Val{D}())
-  ExtrusionPolytope(extrusion)
-end
-
-function Simplex(::Val{2})
-  TRI
-end
-
-function Simplex(::Val{3})
-  TET
-end
-
-function _compute_case(values)
-  t = Table([collect(1:length(values)),])
-  compute_case(t,values,1)
-end
-
-function _LookupTable(p::Polytope)
-
-  nvertices = num_vertices(p)
-
-  edge_to_vertices = get_faces(p,1,0)
-  vertex_to_coords = get_vertex_coordinates(p)
-  simplex = Simplex(p)
-  reffe = LagrangianRefFE(Float64,simplex,1)
-  D = num_cell_dims(simplex)
-  lfacet_to_lpoints = get_faces(simplex,D-1,0)
-  degree = 0
-  subcell_shapefuns_grad = collect1d(evaluate_field(gradient(get_shapefuns(reffe)),vertex_to_coords)[1,:])
-
-  V = eltype(get_vertex_coordinates(p))
-
-  cis = CartesianIndices(Tuple(fill(2,nvertices)))
-
-  ncases = length(cis)
-
-  case_to_subcell_to_points = Vector{Vector{Vector{Int}}}(undef,ncases)
-  case_to_subcell_to_inout = Vector{Vector{Int}}(undef,ncases)
-  case_to_num_in = Vector{Int}(undef,ncases)
-  case_to_num_out = Vector{Int}(undef,ncases)
-  case_to_subfacet_to_subcell = Vector{Vector{Int}}(undef,ncases)
-  case_to_subfacet_to_lfacet = Vector{Vector{Int}}(undef,ncases)
-  case_to_subfacet_to_points = Vector{Vector{Vector{Int}}}(undef,ncases)
-  case_to_subfacet_to_normal = Vector{Vector{V}}(undef,ncases)
-  case_to_subfacet_to_orientation = Vector{Vector{eltype(V)}}(undef,ncases)
-  case_to_point_to_coordinates = Vector{Vector{V}}(undef,ncases)
-  case_to_inoutcut = Vector{Int}(undef,ncases)
+  cis = _setup_cartesian_indices(p)
 
   for ci in cis
 
     vertex_to_value = _prepare_vertex_to_value(ci)
-    case = _compute_case(vertex_to_value)
-
-    point_to_coords, point_to_value = _compute_delaunay_points(vertex_to_value, vertex_to_coords, edge_to_vertices)
-    subcell_to_points = delaunay(point_to_coords)
-    _ensure_positive_jacobians!(subcell_to_points,point_to_coords,subcell_shapefuns_grad)
+    case = compute_case(vertex_to_value)
+    point_to_coords, point_to_value = _compute_delaunay_points(vertex_to_value,p)
+    subcell_to_points = _delaunay(point_to_coords)
+    _ensure_positive_jacobians!(subcell_to_points,point_to_coords,p)
     subcell_to_inout = _compute_subcell_to_inout(subcell_to_points,point_to_value)
-    subcell_to_ctype = fill(Int8(1),length(subcell_to_points))
-    subgrid = UnstructuredGrid(point_to_coords,Table(subcell_to_points),[reffe],subcell_to_ctype)
-    topo = GridTopology(subgrid)
-    labels = FaceLabeling(topo)
-    model = DiscreteModel(subgrid,topo,labels)
-    interface = InterfaceTriangulation(model,collect(Bool,subcell_to_inout .== IN))
-    subfacet_to_subcell = get_face_to_cell(interface.left)
-    subfacet_to_lfacet = get_face_to_lface(interface.left)
-    subfacet_to_points = _find_subfacet_to_points(
-      subcell_to_points, subfacet_to_subcell, subfacet_to_lfacet, lfacet_to_lpoints)
-    quad = CellQuadrature(interface,degree)
-    q = get_coordinates(quad)
-    n = get_normal_vector(interface)
-    n_q = collect(evaluate(n,q))
-    subfacet_to_normal = map(first,n_q)
-    subfacet_to_orientation = _setup_subfacet_to_orientation(point_to_coords,subfacet_to_points,subfacet_to_normal)
+    subfacet_to_points, subfacet_to_normal = _find_subfacets(
+      point_to_coords,subcell_to_points,subcell_to_inout,p)
+    subfacet_to_orientation = _setup_subfacet_to_orientation(
+      point_to_coords,subfacet_to_points,subfacet_to_normal)
     inoutcut = _find_in_out_or_cut(vertex_to_value)
 
-    case_to_subcell_to_points[case] = subcell_to_points
-    case_to_subcell_to_inout[case] = subcell_to_inout
-    case_to_num_in[case] = count(i-> i == IN, subcell_to_inout)
-    case_to_num_out[case] = count(i-> i == OUT, subcell_to_inout)
-    case_to_subfacet_to_subcell[case] = subfacet_to_subcell
-    case_to_subfacet_to_lfacet[case] = subfacet_to_lfacet
-    case_to_subfacet_to_points[case] = subfacet_to_points
-    case_to_subfacet_to_normal[case] = subfacet_to_normal
-    case_to_subfacet_to_orientation[case] = subfacet_to_orientation
-    case_to_point_to_coordinates[case] = point_to_coords
-    case_to_inoutcut[case] = inoutcut
+    table.case_to_subcell_to_points[case] = subcell_to_points
+    table.case_to_subcell_to_inout[case] = subcell_to_inout
+    table.case_to_num_subcells_in[case] = count(i-> i == IN, subcell_to_inout)
+    table.case_to_num_subcells_out[case] = count(i-> i == OUT, subcell_to_inout)
+    table.case_to_subfacet_to_points[case] = subfacet_to_points
+    table.case_to_subfacet_to_normal[case] = subfacet_to_normal
+    table.case_to_subfacet_to_orientation[case] = subfacet_to_orientation
+    table.case_to_point_to_coordinates[case] = point_to_coords
+    table.case_to_inoutcut[case] = inoutcut
 
   end
 
+  table
+end
+
+function _allocate_lookup_table(p::Polytope)
+
+  nvertices = num_vertices(p)
+  ncases = 2^nvertices
+  vertex_to_coords = get_vertex_coordinates(p)
+  V = eltype(vertex_to_coords)
+  D = length(V)
+  T = eltype(V)
+
+  case_to_subcell_to_points = Vector{Vector{Vector{Int}}}(undef,ncases)
+  case_to_subcell_to_inout = Vector{Vector{Int}}(undef,ncases)
+  case_to_num_subcells_in = Vector{Int}(undef,ncases)
+  case_to_num_subcells_out = Vector{Int}(undef,ncases)
+  case_to_subfacet_to_points = Vector{Vector{Vector{Int}}}(undef,ncases)
+  case_to_subfacet_to_normal = Vector{Vector{VectorValue{D,T}}}(undef,ncases)
+  case_to_subfacet_to_orientation = Vector{Vector{T}}(undef,ncases)
+  case_to_point_to_coordinates = Vector{Vector{VectorValue{D,T}}}(undef,ncases)
+  case_to_inoutcut = Vector{Int}(undef,ncases)
+
   LookupTable(
+    ncases,
     case_to_subcell_to_points,
     case_to_subcell_to_inout,
-    case_to_num_in,
-    case_to_num_out,
-    case_to_subfacet_to_subcell,
-    case_to_subfacet_to_lfacet,
+    case_to_num_subcells_in,
+    case_to_num_subcells_out,
     case_to_subfacet_to_points,
     case_to_subfacet_to_normal,
     case_to_subfacet_to_orientation,
     case_to_point_to_coordinates,
-    case_to_inoutcut,
-    edge_to_vertices,
-    nvertices,
-    subcell_shapefuns_grad)
+    case_to_inoutcut)
+
+end
+
+function _setup_cartesian_indices(p::Polytope)
+  nvertices = num_vertices(p)
+  cis = CartesianIndices(Tuple(fill(2,nvertices)))
+  cis
+end
+
+function _prepare_vertex_to_value(ci)
+  nvertices = length(ci)
+  vertex_to_value = fill(IN,nvertices)
+  for (vertex,c) in enumerate(Tuple(ci))
+    if c == 1
+       vertex_to_value[vertex] = IN
+    else
+       vertex_to_value[vertex] = OUT
+    end
+  end
+  vertex_to_value
+end
+
+function _compute_delaunay_points(vertex_to_value,p::Polytope)
+  edge_to_vertices = get_faces(p,1,0)
+  vertex_to_coords = get_vertex_coordinates(p)
+  _compute_delaunay_points(vertex_to_value, vertex_to_coords, edge_to_vertices)
+end
+
+function _compute_delaunay_points(vertex_to_value, vertex_to_coords, edge_to_vertices)
+  point_to_coords = copy(vertex_to_coords)
+  point_to_value = copy(vertex_to_value)
+  for vertices in edge_to_vertices
+    v1 = vertex_to_value[vertices[1]]
+    v2 = vertex_to_value[vertices[2]]
+    if isout(v1) != isout(v2)
+      p1 = vertex_to_coords[vertices[1]]
+      p2 = vertex_to_coords[vertices[2]]
+      p = 0.5*(p1+p2)
+      push!(point_to_coords,p)
+      push!(point_to_value,INTERFACE)
+    end
+  end
+  point_to_coords, point_to_value
+end
+
+function _delaunay(points::Vector{Point{D,T}}) where {D,T}
+  n = length(points)
+  m = zeros(T,D,n)
+  for (i,p) in enumerate(points)
+    for (j,pj) in enumerate(p)
+      m[j,i] = pj
+    end
+  end
+  cells = delaunay(m)
+  [ Vector{Int}(cells[:,k]) for k in 1:size(cells,2)]
+end
+
+function _ensure_positive_jacobians!(subcell_to_points,point_to_coords,p::Polytope)
+
+  simplex = Simplex(p)
+  order = 1
+  reffe = LagrangianRefFE(Float64,simplex,order)
+  D = num_cell_dims(simplex)
+  lfacet_to_lpoints = get_faces(simplex,D-1,0)
+  shapefuns = get_shapefuns(reffe)
+  vertex_to_coords = get_vertex_coordinates(p)
+  shapefuns_grad = collect1d(evaluate_field(gradient(shapefuns),vertex_to_coords)[1,:])
+
+   _ensure_positive_jacobians!(subcell_to_points,point_to_coords,shapefuns_grad)
 end
 
 function _ensure_positive_jacobians!(subcell_to_points,point_to_coords,shapefuns_grad)
@@ -228,6 +200,64 @@ function _ensure_positive_jacobians!(subcell_to_points,point_to_coords,shapefuns
       subcell_to_points[subcell][2] = n1
     end
   end
+end
+
+function  _compute_subcell_to_inout(subcell_to_points,point_to_value)
+  nsubcells = length(subcell_to_points)
+  subcell_to_inout = fill(IN,nsubcells)
+  for subcell in 1:nsubcells
+    points = subcell_to_points[subcell]
+    for point in points
+      value = point_to_value[point]
+      if isout(value)
+        subcell_to_inout[subcell] = OUT
+        break
+      end
+    end
+  end
+  subcell_to_inout
+end
+
+function _find_subfacets(point_to_coords,subcell_to_points, subcell_to_inout,p::Polytope)
+
+  simplex = Simplex(p)
+  order = 1
+  reffe = LagrangianRefFE(Float64,simplex,order)
+  D = num_cell_dims(simplex)
+  lfacet_to_lpoints = get_faces(simplex,D-1,0)
+
+  subcell_to_ctype = fill(Int8(1),length(subcell_to_points))
+  subgrid = UnstructuredGrid(point_to_coords,Table(subcell_to_points),[reffe],subcell_to_ctype)
+  topo = GridTopology(subgrid)
+  labels = FaceLabeling(topo)
+  model = DiscreteModel(subgrid,topo,labels)
+  interface = InterfaceTriangulation(model,collect(Bool,subcell_to_inout .== IN))
+  subfacet_to_subcell = get_face_to_cell(interface.left)
+  subfacet_to_lfacet = get_face_to_lface(interface.left)
+  subfacet_to_points = _find_subfacet_to_points(
+    subcell_to_points, subfacet_to_subcell, subfacet_to_lfacet, lfacet_to_lpoints)
+  degree = 0
+  quad = CellQuadrature(interface,degree)
+  q = get_coordinates(quad)
+  n = get_normal_vector(interface)
+  n_q = collect(evaluate(n,q))
+  subfacet_to_normal = map(first,n_q)
+
+  subfacet_to_points, subfacet_to_normal
+end
+
+function _find_subfacet_to_points(
+  subcell_to_points,subfacet_to_subcell,subfacet_to_lfacet, lfacet_to_lpoints)
+
+  subfacet_to_points = Vector{Int}[]
+  for subfacet in 1:length(subfacet_to_subcell)
+    subcell = subfacet_to_subcell[subfacet]
+    lfacet = subfacet_to_lfacet[subfacet]
+    points = subcell_to_points[subcell]
+    lpoints = lfacet_to_lpoints[lfacet]
+    push!(subfacet_to_points,points[lpoints])
+  end
+  subfacet_to_points
 end
 
 function _setup_subfacet_to_orientation(point_to_coords,subfacet_to_points,subfacet_to_normal)
@@ -258,76 +288,91 @@ function _find_in_out_or_cut(vertex_to_value)
   return -1
 end
 
-
-function _find_subfacet_to_points(
-  subcell_to_points,subfacet_to_subcell,subfacet_to_lfacet, lfacet_to_lpoints)
-
-  subfacet_to_points = Vector{Int}[]
-  for subfacet in 1:length(subfacet_to_subcell)
-    subcell = subfacet_to_subcell[subfacet]
-    lfacet = subfacet_to_lfacet[subfacet]
-    points = subcell_to_points[subcell]
-    lpoints = lfacet_to_lpoints[lfacet]
-    push!(subfacet_to_points,points[lpoints])
-  end
-  subfacet_to_points
+function Simplex(p::Polytope)
+  D = num_cell_dims(p)
+  Simplex(Val{D}())
 end
 
-function _prepare_vertex_to_value(ci)
-  nvertices = length(ci)
-  vertex_to_value = fill(IN,nvertices)
-  for (vertex,c) in enumerate(Tuple(ci))
-    if c == 1
-       vertex_to_value[vertex] = IN
-    else
-       vertex_to_value[vertex] = OUT
-    end
-  end
-  vertex_to_value
+function Simplex(::Val{D}) where D
+  extrusion = tfill(TET_AXIS,Val{D}())
+  ExtrusionPolytope(extrusion)
 end
 
-function delaunay(points::Vector{Point{D,T}}) where {D,T}
-  n = length(points)
-  m = zeros(T,D,n)
-  for (i,p) in enumerate(points)
-    for (j,pj) in enumerate(p)
-      m[j,i] = pj
-    end
-  end
-  cells = delaunay(m)
-  [ Vector{Int}(cells[:,k]) for k in 1:size(cells,2)]
+function Simplex(::Val{2})
+  TRI
 end
 
-function _compute_delaunay_points(vertex_to_value, vertex_to_coords, edge_to_vertices)
-  point_to_coords = copy(vertex_to_coords)
-  point_to_value = copy(vertex_to_value)
-  for vertices in edge_to_vertices
-    v1 = vertex_to_value[vertices[1]]
-    v2 = vertex_to_value[vertices[2]]
-    if isout(v1) != isout(v2)
-      p1 = vertex_to_coords[vertices[1]]
-      p2 = vertex_to_coords[vertices[2]]
-      p = 0.5*(p1+p2)
-      push!(point_to_coords,p)
-      push!(point_to_value,INTERFACE)
-    end
-  end
-  point_to_coords, point_to_value
+function Simplex(::Val{3})
+  TET
 end
 
-function  _compute_subcell_to_inout(subcell_to_points,point_to_value)
-  nsubcells = length(subcell_to_points)
-  subcell_to_inout = fill(IN,nsubcells)
-  for subcell in 1:nsubcells
-    points = subcell_to_points[subcell]
-    for point in points
-      value = point_to_value[point]
-      if isout(value)
-        subcell_to_inout[subcell] = OUT
-        break
-      end
-    end
+function _setup_normal(subfacet_to_points,point_to_coords::Vector{<:Point{1}},subfacet,pointoffset)
+  T = eltype(eltype(point_to_coords))
+  VectorValue(one(T))
+end
+
+function _setup_normal(subfacet_to_points,point_to_coords::Vector{<:Point{2}},subfacet,pointoffset)
+  subpoints = subfacet_to_points[subfacet]
+  p1 = point_to_coords[subpoints[1]+pointoffset]
+  p2 = point_to_coords[subpoints[2]+pointoffset]
+  v1 = p2-p1
+  _normal_vector(v1)
+end
+
+function _setup_normal(subfacet_to_points,point_to_coords::Vector{<:Point{3}},subfacet,pointoffset)
+  subpoints = subfacet_to_points[subfacet]
+  p1 = point_to_coords[subpoints[1]+pointoffset]
+  p2 = point_to_coords[subpoints[2]+pointoffset]
+  p3 = point_to_coords[subpoints[3]+pointoffset]
+  v1 = p2-p1
+  v2 = p3-p1
+  _normal_vector(v1,v2)
+end
+
+function _setup_normal(subfacet_to_points,point_to_coords::Vector{<:Point{4}},subfacet,pointoffset)
+  subpoints = subfacet_to_points[subfacet]
+  p1 = point_to_coords[subpoints[1]+pointoffset]
+  p2 = point_to_coords[subpoints[2]+pointoffset]
+  p3 = point_to_coords[subpoints[3]+pointoffset]
+  p4 = point_to_coords[subpoints[4]+pointoffset]
+  v1 = p2-p1
+  v2 = p3-p1
+  v3 = p4-p1
+  _normal_vector(v1,v2,v3)
+end
+
+function _normal_vector(u::VectorValue...)
+  v = _orthogonal_vector(u...)
+  m = sqrt(inner(v,v))
+  if m < eps()
+    return zero(v)
+  else
+    return v/m
   end
-  subcell_to_inout
+end
+
+function _orthogonal_vector(v::VectorValue{2})
+  w1 = v[2]
+  w2 = -v[1]
+  VectorValue(w1,w2)
+end
+
+function _orthogonal_vector(v1::VectorValue{3},v2::VectorValue{3})
+  w1 = v1[2]*v2[3] - v1[3]*v2[2]
+  w2 = v1[3]*v2[1] - v1[1]*v2[3]
+  w3 = v1[1]*v2[2] - v1[2]*v2[1]
+  VectorValue(w1,w2,w3)
+end
+
+function _orthogonal_vector(v1::VectorValue{4},v2::VectorValue{4},v3::VectorValue{4})
+    v11 = v1[1]; v21 = v2[1]; v31 = v3[1]
+    v12 = v1[2]; v22 = v2[2]; v32 = v3[2]
+    v13 = v1[3]; v23 = v2[3]; v33 = v3[3]
+    v14 = v1[4]; v24 = v2[4]; v34 = v3[4]
+    w1 = (v12*v23*v34 - v12*v24*v33 - v13*v22*v34 + v13*v24*v32 + v14*v22*v33 - v14*v23*v32)
+    w2 = (v11*v24*v33 - v11*v23*v34 + v13*v21*v34 - v13*v24*v31 - v14*v21*v33 + v14*v23*v31)
+    w3 = (v11*v22*v34 - v11*v24*v32 - v12*v21*v34 + v12*v24*v31 + v14*v21*v32 - v14*v22*v31)
+    w4 = (v11*v23*v32 - v11*v22*v33 + v12*v21*v33 - v12*v23*v31 - v13*v21*v32 + v13*v22*v31)
+  VectorValue(w1,w2,w3,w4)
 end
 
