@@ -18,6 +18,8 @@ using Gridap.Visualization
 
 include("LookupTables.jl")
 
+include("Geometries.jl")
+
 #include("SubTriangulations.jl")
 
 end # module
