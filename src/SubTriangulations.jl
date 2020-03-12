@@ -16,44 +16,40 @@ end
   cell::Integer,
   intersection::Bool=true)
 
-  for point_to_value in ls_to_point_to_value
-    if compute_in_out_or_cut(table,cell_to_points,point_to_value,cell) == CUT
-      return CUT
-    end
-  end
-
-  a = cell_to_points.ptrs[cell]
-  b = cell_to_points.ptrs[cell+1]-1
+  at_least_one_cut = false
   all_in = true
   all_out = true
-  for p in a:b
-    point = cell_to_points.data[p]
+  all_cut_or_in = true
+  all_cut_or_out = true
 
-    if intersection
-      mvalue = -1
-      for point_to_value in ls_to_point_to_value
-        value = point_to_value[point]
-        mvalue = max(mvalue,value)
-      end
+  for point_to_value in ls_to_point_to_value
+    inoutcut = compute_in_out_or_cut(table,cell_to_points,point_to_value,cell)
+    at_least_one_cut = at_least_one_cut || (inoutcut == CUT)
+    all_in = all_in && (inoutcut == IN)
+    all_out = all_out && (inoutcut == IN)
+    all_cut_or_in = all_cut_or_in  && ( (inoutcut == CUT) || (inoutcut == IN) )
+    all_cut_or_out = all_cut_or_out  && ( (inoutcut == CUT) || (inoutcut == OUT) )
+  end
+
+  if intersection
+    if all_in
+      r = IN
+    elseif all_cut_or_in && at_least_one_cut
+      r = CUT
     else
-      mvalue = 1
-      for point_to_value in ls_to_point_to_value
-        value = point_to_value[point]
-        mvalue = min(mvalue,value)
-      end
+      r = OUT
     end
-
-    all_in = all_in && (!isout(mvalue))
-    all_out = all_out && isout(mvalue)
-
-  end
-  if all_in
-    return IN
-  elseif all_out
-    return OUT
   else
-    return CUT
+    if all_out
+      r = OUT
+    elseif all_cut_or_out && at_least_one_cut
+      r = CUT
+    else
+      r = IN
+    end
   end
+
+  r
 end
 
 function compute_in_out_or_cut(
