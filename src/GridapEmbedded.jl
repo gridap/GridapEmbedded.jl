@@ -14,6 +14,7 @@ using Gridap.Polynomials
 using Gridap.Visualization
 
 import Gridap.Geometry: UnstructuredGrid
+import Gridap.Visualization: writevtk
 
 include("LookupTables.jl")
 

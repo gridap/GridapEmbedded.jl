@@ -13,6 +13,10 @@ struct DiscreteGeometry{D,T}
   ls_to_point_to_value::Vector{Vector{T}}
 end
 
+function DiscreteGeometry(geom::DiscreteGeometry,ls_to_point_to_value)
+  DiscreteGeometry(geom.pmin,geom.pmax,geom.intersection,ls_to_point_to_value)
+end
+
 function discretize(geom::AnalyticalGeometry,model::DiscreteModel)
   grid = get_grid(model)
   discretize(geom,grid)
