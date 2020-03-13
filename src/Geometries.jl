@@ -108,3 +108,40 @@ end
   A
 end
 
+function olympic_rings(R,r)
+
+  z = zero(R)
+  x0 = Point(-(r+r+R),z,z)
+  g1 = doughnut(R,r,x0)
+  x0 = Point(r+r+R,z,z)
+  g2 = doughnut(R,r,x0)
+  x0 = Point(z,-R+r,z)
+  g3 = doughnut(R,r,x0)
+  x0 = Point(2*(r+r+R),-R+r,z)
+  g4 = doughnut(R,r,x0)
+  x0 = Point(3*(r+r+R),z,z)
+  g5 = doughnut(R,r,x0)
+
+  f1 = first(g1.ls_to_function)
+  f2 = first(g2.ls_to_function)
+  f3 = first(g3.ls_to_function)
+  f4 = first(g4.ls_to_function)
+  f5 = first(g5.ls_to_function)
+  ls_to_function = [f1,f2,f3,f4,f5]
+  intersection = false
+
+  pmin, pmax = _olympic_rings_box(R,r)
+
+  AnalyticalGeometry(pmin,pmax,intersection,ls_to_function)
+end
+
+function _olympic_rings_box(R,r)
+  m = 0.1*r
+  A = 2*(R+r)+r+m
+  B = (R+r)+m
+  C = r+m
+  pmin = Point(-A,-B-(R-r),-C)
+  pmax = Point(A+2*(r+r+R),B,C)
+  pmin, pmax
+end
+
