@@ -13,13 +13,12 @@ using Gridap.Integration
 using Gridap.Polynomials
 using Gridap.Visualization
 
-#import Gridap.Geometry: UnstructuredGrid
-#import Gridap.Visualization: writevtk
+import Gridap.Geometry: UnstructuredGrid
 
 include("LookupTables.jl")
 
 include("Geometries.jl")
 
-#include("SubTriangulations.jl")
+include("SubTriangulations.jl")
 
 end # module

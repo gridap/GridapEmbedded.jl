@@ -2,7 +2,6 @@ module ImplicitGeometriesTests
 
 using Gridap
 using Gridap.Geometry
-using Gridap.ReferenceFEs
 using GridapEmbedded: doughnut
 using GridapEmbedded: discretize
 
@@ -13,10 +12,8 @@ geom = doughnut(R,r)
 
 n = 50
 partition = (n,n,n)
-desc = CartesianDescriptor(geom.pmin,geom.pmax,partition)
-grid = CartesianGrid(desc)
+grid = CartesianGrid(geom.pmin,geom.pmax,partition)
 
-x = get_node_coordinates(grid)
-geom_x = discretize(geom,x)
+geom_x = discretize(geom,grid)
 
 end # module

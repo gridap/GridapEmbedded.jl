@@ -13,7 +13,17 @@ struct DiscreteGeometry{D,T}
   ls_to_point_to_value::Vector{Vector{T}}
 end
 
-function discretize(g::AnalyticalGeometry,x)
+function discretize(geom::AnalyticalGeometry,model::DiscreteModel)
+  grid = get_grid(model)
+  discretize(geom,grid)
+end
+
+function discretize(geom::AnalyticalGeometry,grid::Grid)
+  x = get_node_coordinates(grid)
+  discretize(geom,x)
+end
+
+function discretize(g::AnalyticalGeometry,x::AbstractArray)
   T = eltype(eltype(x))
   npoints = length(x)
   ls_to_point_to_value = [ zeros(T,npoints) for i in 1:length(g.ls_to_function) ]
@@ -32,6 +42,8 @@ function _discretize!(point_to_value,fun,x)
     point_to_value[point] = fun(xi)
   end
 end
+
+# Factories
 
 function doughnut(R,r,x0=zero(Point{3,typeof(R)}))
 
@@ -58,3 +70,4 @@ function _doughnut_box(R,r,x0)
   pmax = Point(A,A,B) + x0
   (pmin, pmax)
 end
+
