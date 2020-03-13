@@ -71,3 +71,36 @@ function _doughnut_box(R,r,x0)
   (pmin, pmax)
 end
 
+function tube(R,L;x0=zero(Point{3,typeof(R)}),v=VectorValue(1,0,0))
+
+  d = v/norm(v)
+  pmin, pmax = _tube_box(R,L,x0,d)
+  intersection = true
+  walls = x -> _tube_walls(x,R,L,x0,d)
+  inlet = x -> _plane(x,x0,-d)
+  outlet = x -> _plane(x,x0+L*d,d)
+  ls_to_function = [ walls, inlet, outlet ]
+
+  AnalyticalGeometry(pmin,pmax,intersection,ls_to_function)
+end
+
+@inline function _tube_walls(x::Point,R,L,x0,v)
+  w = x-x0
+  A = w*v
+  H2 = w*w
+  B = H2-A*A
+  B - R^2
+end
+
+function _tube_box(R,L,x0,v)
+  pmin = x0 - R
+  pmax = x0 + L*v + R
+  pmin, pmax
+end
+
+@inline function _plane(x::Point,x0,v)
+  w = x-x0
+  A = w*v
+  A
+end
+
