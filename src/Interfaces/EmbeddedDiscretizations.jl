@@ -70,4 +70,21 @@ function writevtk(st::FacetSubTriangulation,filename::String)
     "dS"=>dS])
 end
 
+function Simplex(p::Polytope)
+  D = num_cell_dims(p)
+  Simplex(Val{D}())
+end
+
+function Simplex(::Val{D}) where D
+  extrusion = tfill(TET_AXIS,Val{D}())
+  ExtrusionPolytope(extrusion)
+end
+
+function Simplex(::Val{2})
+  TRI
+end
+
+function Simplex(::Val{3})
+  TET
+end
 

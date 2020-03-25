@@ -2,8 +2,8 @@ module ImplicitGeometriesTests
 
 using Gridap
 using Gridap.Geometry
-using GridapEmbedded: doughnut
-using GridapEmbedded: discretize
+using GridapEmbedded.LevelSetCutters
+using GridapEmbedded.LevelSetCutters: discretize
 
 const R = 1.2
 const r = 0.2

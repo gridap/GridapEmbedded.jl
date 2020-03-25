@@ -283,24 +283,6 @@ function _find_in_out_or_cut(vertex_to_value)
   return -1
 end
 
-function Simplex(p::Polytope)
-  D = num_cell_dims(p)
-  Simplex(Val{D}())
-end
-
-function Simplex(::Val{D}) where D
-  extrusion = tfill(TET_AXIS,Val{D}())
-  ExtrusionPolytope(extrusion)
-end
-
-function Simplex(::Val{2})
-  TRI
-end
-
-function Simplex(::Val{3})
-  TET
-end
-
 function _setup_normal(subfacet_to_points,point_to_coords::Vector{<:Point{1}},subfacet,pointoffset)
   T = eltype(eltype(point_to_coords))
   VectorValue(one(T))

@@ -1,8 +1,8 @@
 module LevelSetCuttersTests
 
 using Gridap
-using GridapEmbedded
-using GridapEmbedded: tube
+using GridapEmbedded.Interfaces
+using GridapEmbedded.LevelSetCutters
 
 const R = 0.7
 const L = 5
@@ -15,6 +15,5 @@ model = CartesianDiscreteModel(geom.pmin,geom.pmax,partition)
 cutter = LevelSetCutter()
 
 cutdisc = cut(cutter,model,geom)
-
 
 end # module

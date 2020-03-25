@@ -1,13 +1,11 @@
-module TriangulationsTests
+module SubTriangulationsTests
 
 using Gridap
 using Gridap.Geometry
 using Gridap.Visualization
-using GridapEmbedded: doughnut
-using GridapEmbedded: tube
-using GridapEmbedded: olympic_rings
-using GridapEmbedded: initial_sub_triangulation
-using GridapEmbedded: cut_sub_triangulation
+using GridapEmbedded.LevelSetCutters
+using GridapEmbedded.LevelSetCutters: initial_sub_triangulation
+using GridapEmbedded.LevelSetCutters: cut_sub_triangulation
 
 #const R = 1.2
 #const r = 0.2

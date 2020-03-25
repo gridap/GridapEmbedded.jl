@@ -1,11 +1,9 @@
 module LookupTablesTests
 
 using Test
-using GridapEmbedded
 using Gridap
 
-using GridapEmbedded: LookupTable
-using GridapEmbedded: compute_case
+using GridapEmbedded.LevelSetCutters: compute_case, LookupTable
 
 @test compute_case([0,0,0]) == 1
 @test compute_case([1,0,0]) == 2
