@@ -29,7 +29,7 @@ partition = (n,n,n)
 
 grid = CartesianGrid(geom.pmin,geom.pmax,partition)
 
-subtrian, subgeom = initial_sub_triangulation(grid,geom)
+subtrian, subgeom, bgcell_to_inoutcut = initial_sub_triangulation(grid,geom)
 
 st, ls_to_fst = cut_sub_triangulation(subtrian,subgeom)
 

@@ -37,11 +37,6 @@ function compute_case(values)
   compute_case(t,values,1)
 end
 
-const IN = -1
-const OUT = 1
-const INTERFACE = 0
-const CUT = 0
-
 function isout(v)
   v > 0
 end

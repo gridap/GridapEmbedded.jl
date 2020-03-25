@@ -1,0 +1,3 @@
+module CuttersTests
+
+end # module
