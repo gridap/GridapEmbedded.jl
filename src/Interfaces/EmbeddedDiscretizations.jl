@@ -29,6 +29,16 @@ struct EmbeddedDiscretization{Dp,T} <: GridapType
   tag_to_name::Vector{String}
 end
 
+function DiscreteModel(cut::EmbeddedDiscretization)
+  DiscreteModel(cut,IN)
+end
+
+function DiscreteModel(cut::EmbeddedDiscretization,in_or_out)
+  pred = i-> (i==CUT) || i==in_or_out
+  cell_list = findall(pred, cut.bgcell_to_inoutcut)
+  DiscreteModel(cut.bgmodel,cell_list)
+end
+
 function UnstructuredGrid(st::SubTriangulation{D}) where D
   reffe = LagrangianRefFE(Float64,Simplex(Val{D}()),1)
   cell_types = fill(Int8(1),length(st.cell_to_points))

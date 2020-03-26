@@ -21,6 +21,8 @@ export LevelSetCutter
 export doughnut
 export tube
 export olympic_rings
+export sphere
+export disc
 
 include("LookupTables.jl")
 
@@ -33,6 +35,11 @@ struct LevelSetCutter <: Cutter end
 function cut(cutter::LevelSetCutter,background::DiscreteModel,geom)
   data = _cut_ls(background,geom)
   EmbeddedDiscretization(background, data...)
+end
+
+function cut(background::DiscreteModel,geom::AnalyticalGeometry)
+  cutter = LevelSetCutter()
+  cut(cutter,background,geom)
 end
 
 function _cut_ls(model::DiscreteModel,geom)

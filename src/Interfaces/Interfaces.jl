@@ -9,6 +9,7 @@ using Gridap.Visualization
 
 import Gridap.Geometry: UnstructuredGrid
 import Gridap.Visualization: writevtk
+import Gridap.Visualization: DiscreteModel
 
 export IN
 export OUT

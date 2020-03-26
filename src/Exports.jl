@@ -14,3 +14,5 @@ end
 @publish LevelSetCutters doughnut
 @publish LevelSetCutters tube
 @publish LevelSetCutters olympic_rings
+@publish LevelSetCutters sphere
+@publish LevelSetCutters disc

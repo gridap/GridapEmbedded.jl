@@ -150,3 +150,39 @@ function _olympic_rings_box(R,r)
   pmin, pmax
 end
 
+function disc(R,x0=zero(Point{2,eltype(R)}))
+  pmin, pmax = _sphere_box(R,x0)
+  intersection = true
+  function fun(x)
+    _sphere(x,R,x0)
+  end
+  ls_to_function = [ fun,  ]
+  ls_to_name = ["disc"]
+  AnalyticalGeometry(pmin,pmax,intersection,ls_to_function,ls_to_name)
+end
+
+function sphere(R,x0=zero(Point{3,eltype(R)}))
+  pmin, pmax = _sphere_box(R,x0)
+  intersection = true
+  function fun(x)
+    _sphere(x,R,x0)
+  end
+  ls_to_function = [ fun,  ]
+  ls_to_name = ["sphere"]
+  AnalyticalGeometry(pmin,pmax,intersection,ls_to_function,ls_to_name)
+end
+
+@inline function _sphere(x::Point,R,x0)
+  w = x-x0
+  A = w*w - R^2
+  A
+end
+
+function _sphere_box(R,x0)
+  e = 1.01
+  pmin = x0 - e*R
+  pmax = x0 + e*R
+  pmin, pmax
+end
+
+
