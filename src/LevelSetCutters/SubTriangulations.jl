@@ -208,6 +208,8 @@ function _fill_new_sub_triangulation!(
       point = st.cell_to_points.data[a+lpoint]
       coords = st.point_to_coords[point]
       rst.point_to_coords[rpoint] = coords
+      rcoords = st.point_to_rcoords[point]
+      rst.point_to_rcoords[rpoint] = rcoords
       for (ils, point_to_val) in enumerate(geom.ls_to_point_to_value)
         val = point_to_val[point]
         rstgeom.ls_to_point_to_value[ils][rpoint] = val
@@ -232,6 +234,11 @@ function _fill_new_sub_triangulation!(
           dp = p2-p1
           p = p1 + c1*dp
           rst.point_to_coords[rpoint] = p
+          rp1 = st.point_to_rcoords[point1]
+          rp2 = st.point_to_rcoords[point2]
+          rdp = rp2-rp1
+          rp = rp1 + c1*rdp
+          rst.point_to_rcoords[rpoint] = rp
           for (ils, point_to_val) in enumerate(geom.ls_to_point_to_value)
             s1 = point_to_val[point1]
             s2 = point_to_val[point2]
@@ -306,12 +313,13 @@ function _fill_new_sub_triangulation!(
       point = st.facet_to_points.data[a+lpoint]
       coords = st.point_to_coords[point]
       rfst.point_to_coords[rpoint] = coords
+      rcoords = st.point_to_rcoords[point]
+      rfst.point_to_rcoords[rpoint] = rcoords
       for (ils, point_to_val) in enumerate(geom.ls_to_point_to_value)
         val = point_to_val[point]
         rfstgeom.ls_to_point_to_value[ils][rpoint] = val
       end
     end
-
 
     if CUT == facet_table.case_to_inoutcut[case]
       for (ledge, lpoints) in enumerate(reffacet.edge_to_points)
@@ -329,6 +337,11 @@ function _fill_new_sub_triangulation!(
           dp = p2-p1
           p = p1 + c1*dp
           rfst.point_to_coords[rpoint] = p
+          rp1 = st.point_to_rcoords[point1]
+          rp2 = st.point_to_rcoords[point2]
+          rdp = rp2-rp1
+          rp = rp1 + c1*rdp
+          rfst.point_to_rcoords[rpoint] = rp
           for (ils, point_to_val) in enumerate(geom.ls_to_point_to_value)
             s1 = point_to_val[point1]
             s2 = point_to_val[point2]
