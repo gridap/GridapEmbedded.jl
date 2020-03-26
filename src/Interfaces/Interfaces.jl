@@ -8,6 +8,7 @@ using Gridap.Geometry
 using Gridap.Visualization
 
 import Gridap.Geometry: UnstructuredGrid
+import Gridap.Geometry: Triangulation
 import Gridap.Visualization: writevtk
 import Gridap.Visualization: DiscreteModel
 import Gridap.Geometry: get_node_coordinates
@@ -32,6 +33,7 @@ export Cutter
 export cut
 export split_in_out
 export EmbeddedBoundary
+export GhostSkeleton
 
 const IN = -1
 const OUT = 1
