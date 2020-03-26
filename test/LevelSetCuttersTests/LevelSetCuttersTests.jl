@@ -16,6 +16,6 @@ cutter = LevelSetCutter()
 
 cutdisc = cut(cutter,model,geom)
 
-writevtk(cutdisc,"cutdisc")
+#writevtk(cutdisc,"cutdisc")
 
 end # module

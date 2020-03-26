@@ -4,6 +4,7 @@ struct AnalyticalGeometry{D,T}
   pmax::Point{D,T}
   intersection::Bool
   ls_to_function::Vector{<:Function}
+  ls_to_name::Vector{String}
 end
 
 struct DiscreteGeometry{D,T}
@@ -11,10 +12,11 @@ struct DiscreteGeometry{D,T}
   pmax::Point{D,T}
   intersection::Bool
   ls_to_point_to_value::Vector{Vector{T}}
+  ls_to_name::Vector{String}
 end
 
 function DiscreteGeometry(geom::DiscreteGeometry,ls_to_point_to_value)
-  DiscreteGeometry(geom.pmin,geom.pmax,geom.intersection,ls_to_point_to_value)
+  DiscreteGeometry(geom.pmin,geom.pmax,geom.intersection,ls_to_point_to_value,geom.ls_to_name)
 end
 
 function discretize(geom::AnalyticalGeometry,model::DiscreteModel)
@@ -36,7 +38,7 @@ function discretize(g::AnalyticalGeometry,x::AbstractArray)
     _discretize!(point_to_value,fun,x)
   end
 
-  DiscreteGeometry(g.pmin,g.pmax,g.intersection,ls_to_point_to_value)
+  DiscreteGeometry(g.pmin,g.pmax,g.intersection,ls_to_point_to_value,g.ls_to_name)
 end
 
 function _discretize!(point_to_value,fun,x)
@@ -57,8 +59,9 @@ function doughnut(R,r,x0=zero(Point{3,typeof(R)}))
     _doughnut_fun(x,R,r,x0)
   end
   ls_to_function = [ fun,  ]
+  ls_to_name = ["doughnut"]
 
-  AnalyticalGeometry(pmin,pmax,intersection,ls_to_function)
+  AnalyticalGeometry(pmin,pmax,intersection,ls_to_function,ls_to_name)
 end
 
 @inline function _doughnut_fun(x::Point,R,r,x0)
@@ -84,8 +87,9 @@ function tube(R,L;x0=zero(Point{3,typeof(R)}),v=VectorValue(1,0,0))
   inlet = x -> _plane(x,x0,-d)
   outlet = x -> _plane(x,x0+L*d,d)
   ls_to_function = [ walls, inlet, outlet ]
+  ls_to_name = [ "walls", "inlet", "outlet" ]
 
-  AnalyticalGeometry(pmin,pmax,intersection,ls_to_function)
+  AnalyticalGeometry(pmin,pmax,intersection,ls_to_function,ls_to_name)
 end
 
 @inline function _tube_walls(x::Point,R,L,x0,v)
@@ -129,10 +133,11 @@ function olympic_rings(R,r)
   f5 = first(g5.ls_to_function)
   ls_to_function = [f1,f2,f3,f4,f5]
   intersection = false
+  ls_to_name = ["ring1","ring2","ring3","ring4","ring5"]
 
   pmin, pmax = _olympic_rings_box(R,r)
 
-  AnalyticalGeometry(pmin,pmax,intersection,ls_to_function)
+  AnalyticalGeometry(pmin,pmax,intersection,ls_to_function,ls_to_name)
 end
 
 function _olympic_rings_box(R,r)
