@@ -23,7 +23,8 @@ end
 struct EmbeddedDiscretization{Dp,T} <: GridapType
   background::Union{DiscreteModel,Grid}
   bgcell_to_inoutcut::Vector{Int8}
-  subcells::SubTriangulation{Dp,T}
+  subcells_in::SubTriangulation{Dp,T}
+  subcells_out::SubTriangulation{Dp,T}
   tag_to_subfacets::Vector{FacetSubTriangulation{Dp,T}}
   tag_to_name::Vector{String}
 end
@@ -68,6 +69,47 @@ function writevtk(st::FacetSubTriangulation,filename::String)
     "normal"=>st.facet_to_normal,
     "bgcell"=>st.facet_to_bgcell,
     "dS"=>dS])
+end
+
+function split_in_out(st::SubTriangulation)
+ st_in = take_in_or_out(st,IN)
+ st_out = take_in_or_out(st,OUT)
+ st_in, st_out 
+end
+
+function take_in_or_out(st::SubTriangulation{D},in_or_out) where D
+  ntcells = 0
+  for inoutcut in st.cell_to_inoutcut
+    if  inoutcut == in_or_out
+      ntcells += 1
+    end
+  end
+  tcell_to_inoutcut = fill(Int8(in_or_out),ntcells)
+  tcell_to_bgcell = zeros(Int32,ntcells)
+  ntlpoints = D + 1
+  tcell_to_points_ptrs = fill(Int32(ntlpoints),ntcells+1)
+  length_to_ptrs!(tcell_to_points_ptrs)
+  ndata = tcell_to_points_ptrs[end]-1
+  tcell_to_points_data = zeros(Int,ndata)
+  tcell_to_points = Table(tcell_to_points_data,tcell_to_points_ptrs)
+  tcell = 0
+  for (cell, inoutcut) in enumerate(st.cell_to_inoutcut)
+    if  inoutcut == in_or_out
+      tcell += 1
+      tcell_to_bgcell[tcell] = st.cell_to_bgcell[cell]
+      a = tcell_to_points.ptrs[tcell]-1
+      b = st.cell_to_points.ptrs[cell]-1
+      for i in 1:ntlpoints
+        tcell_to_points.data[a+i] = st.cell_to_points.data[b+i]
+      end
+    end
+  end
+  SubTriangulation(
+    tcell_to_points,
+    tcell_to_inoutcut,
+    tcell_to_bgcell,
+    st.point_to_coords,
+    st.point_to_rcoords)
 end
 
 function Simplex(p::Polytope)

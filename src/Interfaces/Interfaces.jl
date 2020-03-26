@@ -19,6 +19,7 @@ export SubTriangulation
 export FacetSubTriangulation
 export Cutter
 export cut
+export split_in_out
 
 include("EmbeddedDiscretizations.jl")
 

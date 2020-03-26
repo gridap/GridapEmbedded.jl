@@ -43,8 +43,9 @@ end
 function _cut_ls(grid::Grid,geom)
   subtrian, subgeom, bgcell_to_inoutcut = initial_sub_triangulation(grid,geom)
   st, ls_to_fst = cut_sub_triangulation(subtrian,subgeom)
+  st_in, st_out = split_in_out(st)
   ls_to_name = [ "tag_$i" for i in 1:length(ls_to_fst)]
-  bgcell_to_inoutcut, st, ls_to_fst, ls_to_name
+  bgcell_to_inoutcut, st_in, st_out, ls_to_fst, ls_to_name
 end
 
 end #module
