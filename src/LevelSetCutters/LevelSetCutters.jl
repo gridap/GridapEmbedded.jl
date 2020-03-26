@@ -30,7 +30,7 @@ include("SubTriangulations.jl")
 
 struct LevelSetCutter <: Cutter end
 
-function cut(cutter::LevelSetCutter,background,geom)
+function cut(cutter::LevelSetCutter,background::DiscreteModel,geom)
   data = _cut_ls(background,geom)
   EmbeddedDiscretization(background, data...)
 end
