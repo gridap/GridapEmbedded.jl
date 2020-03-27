@@ -534,7 +534,7 @@ end
     inoutcut = _compute_in_out_or_cut(table,cell_to_points,point_to_value,cell)
     at_least_one_cut = at_least_one_cut || (inoutcut == CUT)
     all_in = all_in && (inoutcut == IN)
-    all_out = all_out && (inoutcut == IN)
+    all_out = all_out && (inoutcut == OUT)
     all_cut_or_in = all_cut_or_in  && ( (inoutcut == CUT) || (inoutcut == IN) )
     all_cut_or_out = all_cut_or_out  && ( (inoutcut == CUT) || (inoutcut == OUT) )
   end
