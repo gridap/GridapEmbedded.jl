@@ -16,10 +16,28 @@ ud(x) = u(x)
 # Select geometry
 const R = 0.7
 geom = sphere(R)
-
-# Setup background model
 n = 10
 partition = (n,n,n)
+
+##const R = 1.2
+##const r = 0.4
+##geom = doughnut(R,r)
+##n = 20
+##partition = (5*n,5*n,n)
+##
+##const R = 1.2
+##const r = 0.2
+##geom = olympic_rings(R,r)
+##n = 10
+##partition =(20*n,10*n,n)
+##
+##const R = 0.7
+##const L = 5.0
+##geom = tube(R,L,x0=Point(-0.5,0.0,-0.25))
+##n = 30
+##partition = (n,n,n)
+
+# Setup background model
 bgmodel = CartesianDiscreteModel(geom.pmin,geom.pmax,partition)
 dp = geom.pmax - geom.pmin
 const h = dp[1]/n
@@ -71,8 +89,7 @@ tol = 1.0e-9
 e = u - uh_Ω
 el2 = sqrt(sum(integrate(e*e,trian_Ω,quad_Ω)))
 @test el2 < tol
-#eh1 = sqrt(sum(integrate(e*e+a_Ω(e,e),trian_Ω,quad_Ω)))
-#@test eh1 < tol
-
+##eh1 = sqrt(sum(integrate(e*e+a_Ω(e,e),trian_Ω,quad_Ω)))
+##@test eh1 < tol
 
 end # module
