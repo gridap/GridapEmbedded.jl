@@ -7,6 +7,8 @@ end
 
 @publish Interfaces cut
 @publish Interfaces EmbeddedDiscretization
+@publish Interfaces EmbeddedBoundary
+@publish Interfaces GhostSkeleton
 @publish Interfaces IN
 @publish Interfaces OUT
 

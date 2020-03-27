@@ -73,7 +73,11 @@ function Triangulation(cut::EmbeddedDiscretization,in_or_out)
     @assert in_or_out == OUT
     st = cut.subcells_out
   end
-  SubTriangulationWrapper(st)
+  trian_cut = SubTriangulationWrapper(st)
+  trian = Triangulation(cut.bgmodel)
+  cell_to_mask = collect(Bool,cut.bgcell_to_inoutcut .== in_or_out)
+  trian_in_or_out = RestrictedTriangulation(trian,cell_to_mask)
+  lazy_append(trian_cut,trian_in_or_out)
 end
 
 function EmbeddedBoundary(cut::EmbeddedDiscretization,name::String)

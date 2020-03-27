@@ -79,7 +79,8 @@ end
 # API
 
 function UnstructuredGrid(st::FacetSubTriangulation{Dp}) where Dp
-  reffe = LagrangianRefFE(Float64,Simplex(Val{Dc-1}()),1)
+  Dc = Dp -1
+  reffe = LagrangianRefFE(Float64,Simplex(Val{Dc}()),1)
   cell_types = fill(Int8(1),length(st.facet_to_points))
   UnstructuredGrid(
     st.point_to_coords,
