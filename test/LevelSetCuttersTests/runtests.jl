@@ -1,4 +1,4 @@
-module LevelSetCuttersTests
+module LevelSetCuttersRun
 
 using Test
 
