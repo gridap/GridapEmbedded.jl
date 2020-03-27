@@ -1,6 +1,11 @@
-using GridapEmbedded
+module RunTests
+
 using Test
 
-@testset "GridapEmbedded.jl" begin
-    # Write your own tests here.
-end
+@time @testset "Interfaces" begin include("InterfacesTests/runtests.jl") end
+
+@time @testset "LevelSetCutters" begin include("LevelSetCuttersTests/runtests.jl") end
+
+@time @testset "GridapEmbedded" begin include("GridapEmbeddedTests/runtests.jl") end
+
+end # module

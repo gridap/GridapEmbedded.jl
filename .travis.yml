@@ -1,7 +1,16 @@
 # Documentation: http://docs.travis-ci.com/user/languages/julia/
+addons:
+  apt:
+    update: true
+    packages:
+    - gcc
+    - libqhull-r7
+    - libqhull-dev
 language: julia
 os:
   - linux
+dist:
+  - bionic
 julia:
   - 1.0
   - 1.3
