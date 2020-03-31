@@ -89,7 +89,7 @@ tol = 1.0e-9
 e = u - uh_Ω
 el2 = sqrt(sum(integrate(e*e,trian_Ω,quad_Ω)))
 @test el2 < tol
-##eh1 = sqrt(sum(integrate(e*e+a_Ω(e,e),trian_Ω,quad_Ω)))
-##@test eh1 < tol
+eh1 = sqrt(sum(integrate(e*e+a_Ω(e,e),trian_Ω,quad_Ω)))
+@test eh1 < tol
 
 end # module
