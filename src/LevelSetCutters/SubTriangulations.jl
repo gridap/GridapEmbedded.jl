@@ -422,6 +422,7 @@ function _simplexify_and_isolate_cells_in_cutgrid(cutgrid,cutgeom)
     num_vertices(simplex))
 
   tcell_to_tpoints, tpoint_to_coords, tpoint_to_rcoords, ls_to_tpoint_to_value = out
+  _ensure_positive_jacobians!(tcell_to_tpoints,tpoint_to_coords,simplex)
 
   ntcells = length(tcell_to_tpoints)
   tcell_to_inoutcut = fill(Int8(CUT),ntcells)

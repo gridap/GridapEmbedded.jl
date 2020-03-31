@@ -176,10 +176,10 @@ function _ensure_positive_jacobians!(subcell_to_points,point_to_coords,p::Polyto
   vertex_to_coords = get_vertex_coordinates(p)
   shapefuns_grad = collect1d(evaluate_field(gradient(shapefuns),vertex_to_coords)[1,:])
 
-   _ensure_positive_jacobians!(subcell_to_points,point_to_coords,shapefuns_grad)
+   _ensure_positive_jacobians_work!(subcell_to_points,point_to_coords,shapefuns_grad)
 end
 
-function _ensure_positive_jacobians!(subcell_to_points,point_to_coords,shapefuns_grad)
+function _ensure_positive_jacobians_work!(subcell_to_points,point_to_coords,shapefuns_grad)
   for (subcell,points) in enumerate(subcell_to_points)
     Ta = eltype(shapefuns_grad)
     Tb = eltype(point_to_coords)
@@ -193,6 +193,25 @@ function _ensure_positive_jacobians!(subcell_to_points,point_to_coords,shapefuns
       n2 = subcell_to_points[subcell][2]
       subcell_to_points[subcell][1] = n2
       subcell_to_points[subcell][2] = n1
+    end
+  end
+end
+
+function _ensure_positive_jacobians_work!(subcell_to_points::Table,point_to_coords,shapefuns_grad)
+  Ta = eltype(shapefuns_grad)
+  Tb = eltype(point_to_coords)
+  for (subcell,points) in enumerate(subcell_to_points)
+    J = zero(outer(zero(Ta),zero(Tb)))
+    for (i,point) in enumerate(points)
+      J += outer(shapefuns_grad[i],point_to_coords[point])
+    end
+    dV = det(J)
+    if dV < 0
+      a = subcell_to_points.ptrs[subcell]
+      n1 = subcell_to_points.data[a]
+      n2 = subcell_to_points.data[a+1]
+      subcell_to_points.data[a] = n2
+      subcell_to_points.data[a+1] = n1
     end
   end
 end
