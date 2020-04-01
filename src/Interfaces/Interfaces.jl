@@ -34,6 +34,7 @@ export cut
 export split_in_out
 export EmbeddedBoundary
 export GhostSkeleton
+export cell_measure
 
 const IN = -1
 const OUT = 1

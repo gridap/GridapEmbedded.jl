@@ -11,6 +11,7 @@ end
 @publish Interfaces GhostSkeleton
 @publish Interfaces IN
 @publish Interfaces OUT
+@publish Interfaces cell_measure
 
 @publish LevelSetCutters LevelSetCutter
 @publish LevelSetCutters doughnut
