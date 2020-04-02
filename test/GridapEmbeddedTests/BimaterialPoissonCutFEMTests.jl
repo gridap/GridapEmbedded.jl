@@ -8,7 +8,7 @@ using Test
 
 # Formulation: cutfem paper section 2.1
 # Stabilization coefficient like in reference [21] of this paper
-# Stabilization rhs contribution associated with the flux jump at the interface also like in [21]
+# rhs contribution associated with the flux jump at the interface also like in [21]
 
 # Manufactured solution
 const α1 = 4.0
@@ -70,6 +70,23 @@ const κ1 = (α2*meas_K1_Γ) ./ (α2*meas_K1_Γ .+ α1*meas_K2_Γ)
 const κ2 = (α1*meas_K2_Γ) ./ (α2*meas_K1_Γ .+ α1*meas_K2_Γ)
 const β = (γ_hat*meas_KΓ_Γ) ./ ( meas_K1_Γ/α1 .+ meas_K2_Γ/α2 )
 
+# Jump and mean operators for this formulation
+
+function jump_u(u)
+  u1,u2 = u
+  u1 - u2
+end
+
+function mean_q(u)
+  u1,u2 = u
+  κ1*α1*n_Γ*∇(u1) + κ2*α2*n_Γ*∇(u2)
+end
+
+function mean_u(u)
+  u1,u2 = u
+  κ2*u1 + κ1*u2
+end
+
 # Setup FESpace
 
 V1 = TestFESpace(
@@ -91,6 +108,8 @@ U1= TrialFESpace(V1)
 U2 = TrialFESpace(V2,ud)
 V = MultiFieldFESpace([V1,V2])
 U = MultiFieldFESpace([U1,U2])
+
+# Weak form
 
 function a_Ω1(u,v)
   u1,u2 = u
@@ -114,31 +133,12 @@ function l_Ω2(v)
   v2*f2
 end
 
-#function jump(u)
-#  u1,u2 = u
-#  u1 - u2
-#end
-#
-#function mean_q(u)
-#  u1,u2 = u
-#  κ1*α1*n_Γ*∇(u1) + κ2*α2*n_Γ*∇(u2)
-#end
-
 function a_Γ(u,v)
-  # TODO: Following line not yet working
-  # β*jump(v)*jump(u)  - jump(v)*mean_q(u) - mean_q(v)*jump(u)
-  
-  u1,u2 = u
-  v1,v2 = v
-  A = β*v1*u1 - β*v1*u2 - β*v2*u1 + β*v2*u2
-  B = v2*κ1*α1*n_Γ*∇(u1) + v2*κ2*α2*n_Γ*∇(u2)  - v1*κ1*α1*n_Γ*∇(u1) - v1*κ2*α2*n_Γ*∇(u2)
-  C = u2*κ1*α1*n_Γ*∇(v1) + u2*κ2*α2*n_Γ*∇(v2)  - u1*κ1*α1*n_Γ*∇(v1) - u1*κ2*α2*n_Γ*∇(v2)
-  A + B + C
+  β*jump_u(v)*jump_u(u) - jump_u(v)*mean_q(u) - mean_q(v)*jump_u(u)
 end
 
 function l_Γ(v)
-  v1,v2 = v
-  v1*κ2*n_Γ*j + v2*κ1*n_Γ*j
+  mean_u(v)*(n_Γ*j)
 end
 
 # FE problem
