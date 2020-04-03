@@ -1,9 +1,11 @@
 module GridapEmbedded
 
-include("Interfaces/Interfaces.jl")
+include("CSG/CSG.jl")
 
-include("LevelSetCutters/LevelSetCutters.jl")
+#include("Interfaces/Interfaces.jl")
 
-include("Exports.jl")
+#include("LevelSetCutters/LevelSetCutters.jl")
+
+#include("Exports.jl")
 
 end # module
