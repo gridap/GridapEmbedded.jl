@@ -5,7 +5,6 @@ function cut_sub_triangulation(st::SubTriangulation{Dc,T},ls_to_point_to_value) 
   ls_to_cell_to_inout = Vector{Int8}[]
   
   while length(_ls_to_point_to_value)>0
-    @show "i"
     point_to_value = popfirst!(_ls_to_point_to_value)
     out = _cut_sub_triangulation(_st,point_to_value,_ls_to_point_to_value,ls_to_cell_to_inout)
     _st, _ls_to_point_to_value, ls_to_cell_to_inout, cell_to_inout = out
@@ -172,28 +171,30 @@ function _fill_new_sub_triangulation!(
 end
 
 function initial_sub_triangulation(grid::Grid,geom::AnalyticalGeometry)
-  geom_x = discretize(geom,grid)
-  initial_sub_triangulation(grid,geom_x)
+  _, oid_to_ls = _find_unique_leaves(get_tree(geom))
+  out = initial_sub_triangulation(grid,discretize(geom,grid))
+  out[1], out[2], out[3], oid_to_ls
 end
 
 function initial_sub_triangulation(grid::Grid,geom::DiscreteGeometry)
   ugrid = UnstructuredGrid(grid)
-  _initial_sub_triangulation(ugrid,geom)
+  tree = get_tree(geom)
+  ls_to_point_to_value, oid_to_ls = _find_unique_leaves(tree)
+  out = _initial_sub_triangulation(ugrid,ls_to_point_to_value)
+  out[1], out[2], out[3], oid_to_ls
 end
 
-function _initial_sub_triangulation(grid::UnstructuredGrid,geom::DiscreteGeometry)
+function _initial_sub_triangulation(grid::UnstructuredGrid,ls_to_point_to_value)
 
-  cutgrid, ls_to_cutpoint_to_value, ls_to_bgcell_to_inoutcut, oid_to_ls = _extract_grid_of_cut_cells(grid,geom)
+  cutgrid, ls_to_cutpoint_to_value, ls_to_bgcell_to_inoutcut = _extract_grid_of_cut_cells(grid,ls_to_point_to_value)
 
   subtrian, ls_to_subpoint_to_value = _simplexify_and_isolate_cells_in_cutgrid(cutgrid,ls_to_cutpoint_to_value)
 
-  subtrian, ls_to_subpoint_to_value, ls_to_bgcell_to_inoutcut, oid_to_ls
+  subtrian, ls_to_subpoint_to_value, ls_to_bgcell_to_inoutcut
 end
 
-function _extract_grid_of_cut_cells(grid,geom)
+function _extract_grid_of_cut_cells(grid,ls_to_point_to_value)
 
-  tree = get_tree(geom)
-  ls_to_point_to_value, oid_to_ls = _find_unique_leaves(tree)
 
   p = _check_and_get_polytope(grid)
   table = LookupTable(p)
@@ -210,7 +211,7 @@ function _extract_grid_of_cut_cells(grid,geom)
   ls_to_cutpoint_to_value = [
     point_to_value[cutgrid.node_to_oldnode] for point_to_value in ls_to_point_to_value ]
 
-  cutgrid, ls_to_cutpoint_to_value, ls_to_cell_to_inoutcut, oid_to_ls
+  cutgrid, ls_to_cutpoint_to_value, ls_to_cell_to_inoutcut
 end
 
 function _find_cut_cells(ls_to_cell_to_inoutcut)
