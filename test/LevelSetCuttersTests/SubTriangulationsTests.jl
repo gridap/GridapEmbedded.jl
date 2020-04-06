@@ -3,39 +3,46 @@ module SubTriangulationsTests
 using Gridap
 using Gridap.Geometry
 using Gridap.Visualization
+using GridapEmbedded.CSG
 using GridapEmbedded.LevelSetCutters
 using GridapEmbedded.LevelSetCutters: initial_sub_triangulation
 using GridapEmbedded.LevelSetCutters: cut_sub_triangulation
 
-#const R = 1.2
-#const r = 0.2
-#geom = doughnut(R,r)
-#n = 25
-#partition = (2*n,2*n,n)
+R = 0.85
 
-const R = 0.7
-const L = 5
-geom = tube(R,L,x0=Point(-0.5,0.0,-0.25),v=VectorValue(2,1,1))
-n = 50
-partition = (n,n,n)
+geo1 = disk(R,name="disk1")
+geo2 = disk(R,x0=Point(1,1),name="disk2")
+geo3 = disk(R,x0=Point(1,0),name="disk3")
+geo4 = union(union(geo1,geo2),geo3)
 
-#const R = 1.2
-#const r = 0.2
-#n = 20
-#partition =(8*n,4*n,n)
-#geom = olympic_rings(R,r)
+n = 40
+partition = (n,n)
+pmin = Point(-1,-1)
+pmax = Point(2,2)
+grid = CartesianGrid(pmin,pmax,partition)
 
-grid = CartesianGrid(geom.pmin,geom.pmax,partition)
+out = initial_sub_triangulation(grid,geo4)
 
-subtrian, subgeom, bgcell_to_inoutcut = initial_sub_triangulation(grid,geom)
+subtrian, ls_to_point_to_value, ls_to_bgcell_to_inoutcut, oid_to_ls = out
 
-st, ls_to_fst = cut_sub_triangulation(subtrian,subgeom)
+write_vtk_file(grid,"grid",celldata=[ "ls_$i"=>j for (i,j) in enumerate(ls_to_bgcell_to_inoutcut)])
 
-write_vtk_file(grid,"grid")
-writevtk(st,"st")
+write_vtk_file(UnstructuredGrid(subtrian),"subtrian",
+  nodaldata=["lsv_$i"=>j for (i,j) in enumerate(ls_to_point_to_value)])
 
-for (i,fst) in enumerate(ls_to_fst)
-  writevtk(fst,"fst_$i")
-end
+subtrian, ls_to_cell_to_inout = cut_sub_triangulation(subtrian,ls_to_point_to_value)
+
+write_vtk_file(UnstructuredGrid(subtrian),"subtrian2",
+  celldata=["inout_$i"=>j for (i,j) in enumerate(ls_to_cell_to_inout)])
+
+
+#st, ls_to_fst = cut_sub_triangulation(subtrian,subgeom)
+#
+#write_vtk_file(grid,"grid")
+#writevtk(st,"st")
+#
+#for (i,fst) in enumerate(ls_to_fst)
+#  writevtk(fst,"fst_$i")
+#end
 
 end #module

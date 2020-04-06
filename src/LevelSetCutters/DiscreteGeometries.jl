@@ -36,15 +36,8 @@ end
 function discretize(a::AnalyticalGeometry,point_to_coords::Vector{<:Point})
 
   tree = get_tree(a)
-  i_to_fun = map(n->first(n.data),collect(Leaves(tree)))
-
-  i_to_oid = map(objectid,i_to_fun)
-  j_to_oid = unique(i_to_oid)
-  j_to_i = collect(Int,indexin(j_to_oid,i_to_oid))
-  j_to_fun = i_to_fun[j_to_i]
+  j_to_fun, oid_to_j = _find_unique_leaves(tree)
   j_to_ls = [ fun.(point_to_coords) for fun in j_to_fun ]
-
-  oid_to_j = Dict{UInt,Int}( [oid=>j for (j,oid) in enumerate(j_to_oid)] )
 
   function conversion(data)
     f,name,meta = data
@@ -58,5 +51,17 @@ function discretize(a::AnalyticalGeometry,point_to_coords::Vector{<:Point})
 
   DiscreteGeometry(newtree,point_to_coords)
 
+end
+
+function _find_unique_leaves(tree)
+
+  i_to_fun = map(n->first(n.data),collect(Leaves(tree)))
+  i_to_oid = map(objectid,i_to_fun)
+  j_to_oid = unique(i_to_oid)
+  j_to_i = collect(Int,indexin(j_to_oid,i_to_oid))
+  j_to_fun = i_to_fun[j_to_i]
+  oid_to_j = Dict{UInt,Int}( [oid=>j for (j,oid) in enumerate(j_to_oid)] )
+
+  j_to_fun, oid_to_j
 end
 

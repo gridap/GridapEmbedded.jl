@@ -43,10 +43,28 @@ const CUT = 0
 
 include("SubTriangulations.jl")
 
-include("FacetSubTriangulations.jl")
+#include("FacetSubTriangulations.jl")
+#
+#include("EmbeddedDiscretizations.jl")
+#
+#include("Cutters.jl")
 
-include("EmbeddedDiscretizations.jl")
+function Simplex(p::Polytope)
+  D = num_cell_dims(p)
+  Simplex(Val{D}())
+end
 
-include("Cutters.jl")
+function Simplex(::Val{D}) where D
+  extrusion = tfill(TET_AXIS,Val{D}())
+  ExtrusionPolytope(extrusion)
+end
+
+function Simplex(::Val{2})
+  TRI
+end
+
+function Simplex(::Val{3})
+  TET
+end
 
 end # module

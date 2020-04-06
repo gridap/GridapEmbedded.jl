@@ -141,24 +141,6 @@ function writevtk(cutdisc::EmbeddedDiscretization,filename::String)
   nothing
 end
 
-function Simplex(p::Polytope)
-  D = num_cell_dims(p)
-  Simplex(Val{D}())
-end
-
-function Simplex(::Val{D}) where D
-  extrusion = tfill(TET_AXIS,Val{D}())
-  ExtrusionPolytope(extrusion)
-end
-
-function Simplex(::Val{2})
-  TRI
-end
-
-function Simplex(::Val{3})
-  TET
-end
-
 function cell_measure(trian_Ω1,n_bgcells)
   trian_cut_1 = trian_Ω1
   quad_cut_1 = CellQuadrature(trian_cut_1,0)

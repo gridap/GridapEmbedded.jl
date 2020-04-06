@@ -7,9 +7,9 @@ import GridapEmbedded.CSG: get_tree
 import GridapEmbedded.CSG: similar_geometry
 import GridapEmbedded.CSG: compatible_geometries
 
-#using GridapEmbedded.Interfaces
+using GridapEmbedded.Interfaces
 #import GridapEmbedded.Interfaces: cut
-#using GridapEmbedded.Interfaces: Simplex
+using GridapEmbedded.Interfaces: Simplex
 
 using LinearAlgebra
 using MiniQhull
@@ -36,9 +36,9 @@ include("AnalyticalGeometries.jl")
 
 include("DiscreteGeometries.jl")
 
-#include("LookupTables.jl")
-#
-#include("SubTriangulations.jl")
+include("LookupTables.jl")
+
+include("SubTriangulations.jl")
 #
 #struct LevelSetCutter <: Cutter end
 #
