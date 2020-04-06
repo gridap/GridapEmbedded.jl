@@ -4,6 +4,7 @@ using Gridap.Helpers
 using Test
 
 import AbstractTrees: children
+import AbstractTrees: printnode
 
 export Node
 export Leaf

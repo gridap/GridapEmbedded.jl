@@ -37,6 +37,16 @@ function Base.show(io::IO,a::Leaf)
   print(io,")")
 end
 
+function printnode(io::IO,a::Node)
+  print(io,"Node(")
+  show(IOContext(io, :compact => true),a.data)
+  print(io,")")
+end
+
+function printnode(io::IO,a::Leaf)
+  show(IOContext(io, :compact => true),a)
+end
+
 function replace_data(filter,a::Node)
   data = filter(a.data)
   c1 = replace_data(filter,a.leftchild)

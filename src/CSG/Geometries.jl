@@ -18,6 +18,7 @@ function test_geometry(a::Geometry)
   get_metadata(a)
   geo = similar_geometry(a,get_tree(a))
   @test isa(geo,Geometry)
+  _a,_b = compatible_geometries(a,a)
 end
 
 function get_name(geo::Geometry)
