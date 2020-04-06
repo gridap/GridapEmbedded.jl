@@ -1,7 +1,8 @@
 module LevelSetCutters
 
+using AbstractTrees
 import GridapEmbedded.CSG
-using GridapEmbedded.CSG: Node, Leaf
+using GridapEmbedded.CSG: Node, Leaf, replace_data
 import GridapEmbedded.CSG: get_tree
 import GridapEmbedded.CSG: similar_geometry
 import GridapEmbedded.CSG: compatible_geometries
@@ -29,8 +30,11 @@ export tube
 export olympic_rings
 export sphere
 export disk
+export discretize
 
 include("AnalyticalGeometries.jl")
+
+include("DiscreteGeometries.jl")
 
 #include("LookupTables.jl")
 #
