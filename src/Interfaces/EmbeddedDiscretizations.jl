@@ -4,8 +4,8 @@ struct EmbeddedDiscretization{Dp,T} <: GridapType
   ls_to_bgcell_to_inoutcut::Vector{Vector{Int8}}
   subcells::SubTriangulation{Dp,T}
   ls_to_subcell_to_inout::Vector{Vector{Int8}}
-  ls_to_subfacets::Vector{FacetSubTriangulation{Dp,T}}
-  ls_to_ls_to_subfacet_to_inout::Vector{Vector{Vector{Int8}}}
+  subfacets::FacetSubTriangulation{Dp,T}
+  ls_to_subfacet_to_inout::Vector{Vector{Int8}}
   oid_to_ls::Dict{UInt,Int}
   geo::CSG.Geometry
 end

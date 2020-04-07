@@ -26,7 +26,10 @@ function cut_sub_triangulation(st::SubTriangulation{Dc,T},ls_to_point_to_value) 
     pushfirst!(ls_to_n_to_facet_inout,n_to_facet_to_inout)
   end
 
-  _st, ls_to_cell_to_inout, ls_to_fst, ls_to_n_to_facet_inout
+  #TODO avoid temporary copies
+  fst, ls_to_facet_to_inout = merge_facet_sub_triangulations(ls_to_fst,ls_to_n_to_facet_inout)
+
+  _st, ls_to_cell_to_inout, fst, ls_to_facet_to_inout
 end
 
 function cut_sub_triangulation(st::FacetSubTriangulation,ls_to_point_to_value)

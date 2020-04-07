@@ -7,6 +7,7 @@ struct FacetSubTriangulation{Dp,T} <: GridapType
   point_to_rcoords::Vector{Point{Dp,T}}
 end
 
+
 # Implementation of the Gridap.Triangulation interface
 
 struct FacetSubTriangulationWrapper{Dc,Dp,T} <: Triangulation{Dc,Dp}
@@ -105,18 +106,17 @@ function writevtk(st::FacetSubTriangulation,filename::String,celldata=[])
   write_vtk_file(ug,filename,celldata=_celldata)
 end
 
-function merge_facet_sub_triangulations(tag_to_subfacets)
+function merge_facet_sub_triangulations(ls_to_subfacets,ls_to_ls_to_facet_to_inout)
 
-  fst = empty(first(tag_to_subfacets))
-  facet_to_tag = Int8[]
-
-  for (i,fst_i) in enumerate(tag_to_subfacets)
-    facet_to_tag_i = fill(Int8(i),length(fst_i.facet_to_normal))
+  fst = empty(first(ls_to_subfacets))
+  ls_to_facet_to_inout = [ empty(first(ls_to_f_to_i))  for ls_to_f_to_i in ls_to_ls_to_facet_to_inout  ]
+  for (i,fst_i) in enumerate(ls_to_subfacets)
     append!(fst,fst_i)
-    append!(facet_to_tag,facet_to_tag_i)
+    for (j,facet_to_inout) in enumerate(ls_to_ls_to_facet_to_inout[i])
+      append!(ls_to_facet_to_inout[j],facet_to_inout)
+    end
   end
-
-  fst, facet_to_tag
+  fst, ls_to_facet_to_inout
 end
 
 function Base.empty(st::FacetSubTriangulation{Dp,T}) where {Dp,T}

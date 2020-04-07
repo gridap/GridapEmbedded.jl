@@ -7,41 +7,7 @@ using GridapEmbedded.CSG
 using GridapEmbedded.LevelSetCutters
 using GridapEmbedded.LevelSetCutters: initial_sub_triangulation
 using GridapEmbedded.LevelSetCutters: cut_sub_triangulation
-
-using GridapEmbedded.Interfaces
-
-function compute_inout(a::Leaf)
-  first(a.data)
-end
-
-function compute_inout(a::Node)
-  cell_to_inout_1 = compute_inout(a.leftchild)
-  cell_to_inout_2 = compute_inout(a.rightchild)
-  op = first(a.data)
-  if op  == :∪
-    return _compute_inout_union.(cell_to_inout_1,cell_to_inout_2)
-  elseif op == :∩
-    return _compute_inout_intersection.(cell_to_inout_1,cell_to_inout_2)
-  else
-    @error "operation $op not implemented"
-  end
-end
-
-function _compute_inout_union(inout_1,inout_2)
-  if (inout_1==IN) || (inout_2==IN)
-    Int8(IN)
-  else
-    Int8(OUT)
-  end
-end
-
-function _compute_inout_intersection(inout_1,inout_2)
-  if (inout_1==IN) && (inout_2==IN)
-    Int8(IN)
-  else
-    Int8(OUT)
-  end
-end
+using GridapEmbedded.Interfaces: merge_facet_sub_triangulations
 
 R = 0.85
 
@@ -68,32 +34,17 @@ subtrian, ls_to_point_to_value, ls_to_bgcell_to_inoutcut, oid_to_ls = out
 #write_vtk_file(UnstructuredGrid(subtrian),"subtrian",
 #  nodaldata=["lsv_$i"=>j for (i,j) in enumerate(ls_to_point_to_value)])
 
-subtrian, ls_to_cell_to_inout, ls_to_fst, ls_to_n_to_facet_to_inout = cut_sub_triangulation(subtrian,ls_to_point_to_value)
-
-
-function conversion(data)
-  f,name,meta = data
-  oid = objectid(f)
-  ls = oid_to_ls[oid]
-  cell_to_inout = ls_to_cell_to_inout[ls]
-  cell_to_inout, name, meta
-end
-
-tree = replace_data(identity,conversion,get_tree(geo6))
-
-cell_to_inout = compute_inout(tree)
+subtrian, ls_to_cell_to_inout, fst, ls_to_facet_to_inout = cut_sub_triangulation(subtrian,ls_to_point_to_value)
 
 celldata = ["inout_$i"=>j for (i,j) in enumerate(ls_to_cell_to_inout)]
-push!(celldata,"inout"=>cell_to_inout)
 
 #write_vtk_file(UnstructuredGrid(subtrian),"subtrian2",celldata=celldata)
 
-for (i,fst) in enumerate(ls_to_fst)
-  celldata1 = ["inout_$k"=>j for (k,j) in enumerate(ls_to_n_to_facet_to_inout[i])]
-  celldata2 = ["normal"=> fst.facet_to_normal]
-  celldata = vcat(celldata1,celldata2)
+celldata1 = ["inout_$k"=>j for (k,j) in enumerate(ls_to_facet_to_inout)]
+celldata2 = ["normal"=> fst.facet_to_normal]
+celldata = vcat(celldata1,celldata2)
+#write_vtk_file(UnstructuredGrid(fst),"fst", celldata=celldata)
 
-  #write_vtk_file(UnstructuredGrid(fst),"fst_$i", celldata=celldata)
-end
+
 
 end #module

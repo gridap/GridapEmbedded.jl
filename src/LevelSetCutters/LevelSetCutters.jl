@@ -10,6 +10,7 @@ import GridapEmbedded.CSG: compatible_geometries
 using GridapEmbedded.Interfaces
 import GridapEmbedded.Interfaces: cut
 using GridapEmbedded.Interfaces: Simplex
+using GridapEmbedded.Interfaces: merge_facet_sub_triangulations
 
 using LinearAlgebra
 using MiniQhull
@@ -64,8 +65,8 @@ function _cut_ls(grid::Grid,geom)
   out = initial_sub_triangulation(grid,geom)
   subcells0, ls_to_point_to_value, ls_to_bgcell_to_inoutcut, oid_to_ls = out
   out2 = cut_sub_triangulation(subcells0,ls_to_point_to_value)
-  subcells, ls_to_cell_to_inout, ls_to_subfacets, ls_to_ls_to_facet_to_inout  = out2
-  ls_to_bgcell_to_inoutcut, subcells, ls_to_cell_to_inout, ls_to_subfacets, ls_to_ls_to_facet_to_inout, oid_to_ls
+  subcells, ls_to_cell_to_inout, subfacets, ls_to_facet_to_inout  = out2
+  ls_to_bgcell_to_inoutcut, subcells, ls_to_cell_to_inout, subfacets, ls_to_facet_to_inout, oid_to_ls
 end
 
 end #module
