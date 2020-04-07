@@ -69,7 +69,7 @@ write_vtk_file(grid,"grid",celldata=[ "ls_$i"=>j for (i,j) in enumerate(ls_to_bg
 write_vtk_file(UnstructuredGrid(subtrian),"subtrian",
   nodaldata=["lsv_$i"=>j for (i,j) in enumerate(ls_to_point_to_value)])
 
-subtrian, ls_to_cell_to_inout = cut_sub_triangulation(subtrian,ls_to_point_to_value)
+subtrian, ls_to_cell_to_inout, ls_to_fst = cut_sub_triangulation(subtrian,ls_to_point_to_value)
 
 
 function conversion(data)
@@ -89,6 +89,9 @@ push!(celldata,"inout"=>cell_to_inout)
 
 write_vtk_file(UnstructuredGrid(subtrian),"subtrian2",celldata=celldata)
 
+for (i,fst) in enumerate(ls_to_fst)
+  writevtk(fst,"fst_$i")
+end
 
 
 

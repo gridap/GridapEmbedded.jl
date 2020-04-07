@@ -43,8 +43,8 @@ const CUT = 0
 
 include("SubTriangulations.jl")
 
-#include("FacetSubTriangulations.jl")
-#
+include("FacetSubTriangulations.jl")
+
 #include("EmbeddedDiscretizations.jl")
 #
 #include("Cutters.jl")

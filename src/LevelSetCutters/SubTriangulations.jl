@@ -3,35 +3,38 @@ function cut_sub_triangulation(st::SubTriangulation{Dc,T},ls_to_point_to_value) 
 
   _ls_to_point_to_value = [ point_to_value for point_to_value in ls_to_point_to_value ]
   ls_to_cell_to_inout = Vector{Int8}[]
+  ls_to_fst = FacetSubTriangulation{Dc,T}[]
   
   while length(_ls_to_point_to_value)>0
     point_to_value = popfirst!(_ls_to_point_to_value)
     out = _cut_sub_triangulation(_st,point_to_value,_ls_to_point_to_value,ls_to_cell_to_inout)
-    _st, _ls_to_point_to_value, ls_to_cell_to_inout, cell_to_inout = out
+    _st, _ls_to_point_to_value, ls_to_cell_to_inout, cell_to_inout, _fst = out
     push!(ls_to_cell_to_inout,cell_to_inout)
+    push!(ls_to_fst,_fst)
   end
 
-  _st, ls_to_cell_to_inout
+  _st, ls_to_cell_to_inout, ls_to_fst
 end
 
 function _cut_sub_triangulation(st::SubTriangulation,point_to_value,i_to_point_to_value,j_to_cell_to_inout)
 
   refcell, reffacet, cell_table, facet_table = _setup_tables(st)
-  nrcells, nrpoints = _cut_sub_triangulation_count(st,cell_table,point_to_value)
-  rst, i_to_rpoint_to_value, j_to_rcell_to_inout, rcell_to_inout = _allocate_new_sub_triangulation(
-    st,refcell,nrcells,nrpoints,i_to_point_to_value,j_to_cell_to_inout)
+  nrcells, nrpoints, nrfacets = _cut_sub_triangulation_count(st,cell_table,point_to_value)
+  rst, i_to_rpoint_to_value, j_to_rcell_to_inout, rcell_to_inout, rfst = _allocate_new_sub_triangulation(
+    st,refcell,reffacet,nrcells,nrpoints,nrfacets,i_to_point_to_value,j_to_cell_to_inout)
   _fill_new_sub_triangulation!(
     rst,
     i_to_rpoint_to_value,
     j_to_rcell_to_inout,
     rcell_to_inout,
+    rfst,
     cell_table,
     refcell,
     st,
     point_to_value,
     i_to_point_to_value,
     j_to_cell_to_inout)
-  rst, i_to_rpoint_to_value, j_to_rcell_to_inout, rcell_to_inout
+  rst, i_to_rpoint_to_value, j_to_rcell_to_inout, rcell_to_inout, rfst
 end
 
 struct MiniCell
@@ -52,16 +55,18 @@ end
 function _cut_sub_triangulation_count(st::SubTriangulation,cell_table,point_to_value)
   nrcells = 0
   nrpoints = 0
+  nrfacets = 0
   for cell in 1:length(st.cell_to_points)
     case = compute_case(st.cell_to_points,point_to_value,cell)
     nrcells += length(cell_table.case_to_subcell_to_inout[case])
     nrpoints += length(cell_table.case_to_point_to_coordinates[case])
+    nrfacets += length(cell_table.case_to_subfacet_to_normal[case])
   end
-  nrcells, nrpoints
+  nrcells, nrpoints, nrfacets
 end
 
 function _allocate_new_sub_triangulation(
-  st::SubTriangulation{Dc,T},refcell,nrcells,nrpoints,i_to_point_to_value,j_to_cell_to_inout) where {Dc,T}
+  st::SubTriangulation{Dc,T},refcell,reffacet,nrcells,nrpoints,nrfacets,i_to_point_to_value,j_to_cell_to_inout) where {Dc,T}
 
   nlp = refcell.num_points
   rcell_to_rpoints_data = zeros(eltype(st.cell_to_points.data),nlp*nrcells)
@@ -81,7 +86,22 @@ function _allocate_new_sub_triangulation(
     rpoint_to_coords,
     rpoint_to_rcoords)
 
-  _st, i_to_rpoint_to_value, j_to_rcell_to_inout, rcell_to_inout
+  nlpf = reffacet.num_points
+  rfacet_to_rpoints_data = zeros(eltype(st.cell_to_points.data),nlpf*nrfacets)
+  rfacet_to_rpoints_ptrs = fill(eltype(st.cell_to_points.ptrs)(nlpf),nrfacets+1)
+  length_to_ptrs!(rfacet_to_rpoints_ptrs)
+  rfacet_to_rpoints = Table(rfacet_to_rpoints_data,rfacet_to_rpoints_ptrs)
+  rfacet_to_normal = zeros(VectorValue{Dc,T},nrfacets)
+  rfacet_to_bgcell = zeros(eltype(st.cell_to_bgcell),nrfacets)
+
+  _fst = FacetSubTriangulation(
+    rfacet_to_rpoints,
+    rfacet_to_normal,
+    rfacet_to_bgcell,
+    rpoint_to_coords,
+    rpoint_to_rcoords)
+
+  _st, i_to_rpoint_to_value, j_to_rcell_to_inout, rcell_to_inout, _fst
 end
 
 function _fill_new_sub_triangulation!(
@@ -89,6 +109,7 @@ function _fill_new_sub_triangulation!(
   i_to_rpoint_to_value,
   j_to_rcell_to_inout,
   rcell_to_inout,
+  rfst,
   cell_table,
   refcell,
   st,
@@ -152,7 +173,6 @@ function _fill_new_sub_triangulation!(
       end
     end
 
-    celloffset = rcell
     nsubcells = length(cell_table.case_to_subcell_to_inout[case])
     for subcell in 1:nsubcells
       rcell += 1
@@ -165,6 +185,22 @@ function _fill_new_sub_triangulation!(
         q += 1
         rst.cell_to_points.data[q] = subpoint + pointoffset
       end
+    end
+
+    nsubfacets = length(cell_table.case_to_subfacet_to_normal[case])
+    for subfacet in 1:nsubfacets
+      rfacet += 1
+      for subpoint in cell_table.case_to_subfacet_to_points[case][subfacet]
+        z += 1
+        rfst.facet_to_points.data[z] = subpoint + pointoffset
+      end
+      rfst.facet_to_bgcell[rfacet] = st.cell_to_bgcell[cell]
+      normal = _setup_normal(
+        cell_table.case_to_subfacet_to_points[case],
+        rfst.point_to_coords,
+        subfacet,pointoffset)
+      orientation = cell_table.case_to_subfacet_to_orientation[case][subfacet]
+      rfst.facet_to_normal[rfacet] = orientation*normal
     end
 
   end
