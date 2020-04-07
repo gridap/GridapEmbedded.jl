@@ -6,6 +6,17 @@ struct SubTriangulation{Dp,T} <: GridapType
   point_to_rcoords::Vector{Point{Dp,T}}
 end
 
+function SubTriangulation(st::SubTriangulation,newcells::AbstractVector{<:Integer})
+  cell_to_points = Table(reindex(st.cell_to_points,newcells))
+  cell_to_bgcell = st.cell_to_bgcell[newcells]
+  SubTriangulation(
+    cell_to_points,
+    cell_to_bgcell,
+    st.point_to_coords,
+    st.point_to_rcoords)
+end
+
+
 # Implementation of Triangulation interface
 
 struct SubTriangulationWrapper{Dp,T} <: Triangulation{Dp,Dp}

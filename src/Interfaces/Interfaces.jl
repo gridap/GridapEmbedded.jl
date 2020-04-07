@@ -28,6 +28,8 @@ export IN
 export OUT
 export INTERFACE
 export CUT
+export CUTIN
+export CUTOUT
 export EmbeddedDiscretization
 export SubTriangulation
 export FacetSubTriangulation
@@ -42,6 +44,12 @@ const IN = -1
 const OUT = 1
 const INTERFACE = 0
 const CUT = 0
+
+struct CutInOrOut
+  in_or_out::Int
+end
+const CUTIN = CutInOrOut(IN)
+const CUTOUT = CutInOrOut(OUT)
 
 include("SubTriangulations.jl")
 

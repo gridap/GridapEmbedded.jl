@@ -63,6 +63,12 @@ function Base.intersect(a::Geometry,b::Geometry;name::String="",meta=nothing)
   similar_geometry(_a,tree)
 end
 
+function Base.setdiff(a::Geometry,b::Geometry;name::String="",meta=nothing)
+  _a, _b = compatible_geometries(a,b)
+  tree = setdiff(get_tree(_a),get_tree(_b),name,meta)
+  similar_geometry(_a,tree)
+end
+
 const intersection = intersect
 
 function Base.union(a::Node,b::Node,name::String,meta)
@@ -71,5 +77,9 @@ end
 
 function Base.intersect(a::Node,b::Node,name::String,meta)
   Node((:∩, name, meta),a,b)
+end
+
+function Base.setdiff(a::Node,b::Node,name::String,meta)
+  Node((:-, name, meta),a,b)
 end
 
