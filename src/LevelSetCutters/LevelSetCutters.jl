@@ -30,6 +30,9 @@ export tube
 export olympic_rings
 export sphere
 export disk
+export cylinder
+export plane
+export cube
 export discretize
 
 include("AnalyticalGeometries.jl")
