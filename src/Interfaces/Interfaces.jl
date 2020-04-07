@@ -22,6 +22,8 @@ import Gridap.Geometry: get_face_to_cell_map
 import Gridap.Geometry: restrict
 import Gridap.Geometry: get_cell_id
 
+using GridapEmbedded.CSG
+
 export IN
 export OUT
 export INTERFACE
@@ -45,9 +47,9 @@ include("SubTriangulations.jl")
 
 include("FacetSubTriangulations.jl")
 
-#include("EmbeddedDiscretizations.jl")
-#
-#include("Cutters.jl")
+include("EmbeddedDiscretizations.jl")
+
+include("Cutters.jl")
 
 function Simplex(p::Polytope)
   D = num_cell_dims(p)

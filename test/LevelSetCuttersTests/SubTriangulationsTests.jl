@@ -8,7 +8,6 @@ using GridapEmbedded.LevelSetCutters
 using GridapEmbedded.LevelSetCutters: initial_sub_triangulation
 using GridapEmbedded.LevelSetCutters: cut_sub_triangulation
 
-
 using GridapEmbedded.Interfaces
 
 function compute_inout(a::Leaf)
@@ -64,10 +63,10 @@ out = initial_sub_triangulation(grid,geo4)
 
 subtrian, ls_to_point_to_value, ls_to_bgcell_to_inoutcut, oid_to_ls = out
 
-write_vtk_file(grid,"grid",celldata=[ "ls_$i"=>j for (i,j) in enumerate(ls_to_bgcell_to_inoutcut)])
-
-write_vtk_file(UnstructuredGrid(subtrian),"subtrian",
-  nodaldata=["lsv_$i"=>j for (i,j) in enumerate(ls_to_point_to_value)])
+#write_vtk_file(grid,"grid",celldata=[ "ls_$i"=>j for (i,j) in enumerate(ls_to_bgcell_to_inoutcut)])
+#
+#write_vtk_file(UnstructuredGrid(subtrian),"subtrian",
+#  nodaldata=["lsv_$i"=>j for (i,j) in enumerate(ls_to_point_to_value)])
 
 subtrian, ls_to_cell_to_inout, ls_to_fst, ls_to_n_to_facet_to_inout = cut_sub_triangulation(subtrian,ls_to_point_to_value)
 
@@ -87,26 +86,14 @@ cell_to_inout = compute_inout(tree)
 celldata = ["inout_$i"=>j for (i,j) in enumerate(ls_to_cell_to_inout)]
 push!(celldata,"inout"=>cell_to_inout)
 
-write_vtk_file(UnstructuredGrid(subtrian),"subtrian2",celldata=celldata)
+#write_vtk_file(UnstructuredGrid(subtrian),"subtrian2",celldata=celldata)
 
 for (i,fst) in enumerate(ls_to_fst)
   celldata1 = ["inout_$k"=>j for (k,j) in enumerate(ls_to_n_to_facet_to_inout[i])]
   celldata2 = ["normal"=> fst.facet_to_normal]
   celldata = vcat(celldata1,celldata2)
 
-  write_vtk_file(UnstructuredGrid(fst),"fst_$i", celldata=celldata)
+  #write_vtk_file(UnstructuredGrid(fst),"fst_$i", celldata=celldata)
 end
-
-
-
-
-#st, ls_to_fst = cut_sub_triangulation(subtrian,subgeom)
-#
-#write_vtk_file(grid,"grid")
-#writevtk(st,"st")
-#
-#for (i,fst) in enumerate(ls_to_fst)
-#  writevtk(fst,"fst_$i")
-#end
 
 end #module
