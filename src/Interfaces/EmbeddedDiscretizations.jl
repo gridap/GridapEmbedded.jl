@@ -183,7 +183,47 @@ function _compute_inout_setdiff(inout_1,inout_2)
   end
 end
 
+function EmbeddedBoundary(cut::EmbeddedDiscretization,geo::CSG.Geometry)
 
+  function conversion(data)
+    f,name,meta = data
+    oid = objectid(f)
+    ls = cut.oid_to_ls[oid]
+    cell_to_inoutcut = cut.ls_to_subfacet_to_inout[ls]
+    cell_to_inoutcut, name, meta
+  end
+
+  tree = get_tree(geo)
+  newtree = replace_data(identity,conversion,tree)
+  subfacet_to_inoutcut = compute_inoutcut(newtree)
+  newsubfacets = findall(subfacet_to_inoutcut .== INTERFACE)
+  fst = FacetSubTriangulation(cut.subfacets,newsubfacets)
+  FacetSubTriangulationWrapper(fst)
+
+end
+
+function EmbeddedBoundary(cut::EmbeddedDiscretization,geo1::CSG.Geometry,geo2::CSG.Geometry)
+
+  function conversion(data)
+    f,name,meta = data
+    oid = objectid(f)
+    ls = cut.oid_to_ls[oid]
+    cell_to_inoutcut = cut.ls_to_subfacet_to_inout[ls]
+    cell_to_inoutcut, name, meta
+  end
+
+  tree1 = get_tree(geo1)
+  tree2 = get_tree(geo2)
+  newtree1 = replace_data(identity,conversion,tree1)
+  newtree2 = replace_data(identity,conversion,tree2)
+  subfacet_to_inoutcut1 = compute_inoutcut(newtree1)
+  subfacet_to_inoutcut2 = compute_inoutcut(newtree2)
+  mask = apply( (i,j)->(i==INTERFACE) && (j==INTERFACE), subfacet_to_inoutcut1, subfacet_to_inoutcut2 )
+  newsubfacets = findall( mask )
+  fst = FacetSubTriangulation(cut.subfacets,newsubfacets)
+  FacetSubTriangulationWrapper(fst)
+
+end
 
 
 

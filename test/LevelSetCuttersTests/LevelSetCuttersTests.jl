@@ -56,11 +56,14 @@ trian7cutin = Triangulation(cutgeo,geo7,(CUTIN,IN))
 trian8cutin = Triangulation(cutgeo,geo8,(CUTIN,IN))
 #writevtk(trian8cutin,"trian8cutin")
 
+trian5_Γ = EmbeddedBoundary(cutgeo,geo5)
+#writevtk(trian5_Γ,"trian5_G")
 
+trian8_Γ = EmbeddedBoundary(cutgeo,geo8)
+#writevtk(trian8_Γ,"trian8_G")
 
-
-
-
+trian82_Γ = EmbeddedBoundary(cutgeo,geo8,geo2)
+#writevtk(trian82_Γ,"trian82_G")
 
 
 #writevtk(cutdisc,"cutdisc")

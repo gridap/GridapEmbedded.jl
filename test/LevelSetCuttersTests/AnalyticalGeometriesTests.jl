@@ -61,6 +61,15 @@ cutgeo = cut(model,geo8)
 trian1 = Triangulation(cutgeo)
 writevtk(trian1,"trian1")
 
+trian4_Γ = EmbeddedBoundary(cutgeo,geo8,geo4)
+writevtk(trian4_Γ,"trian4_G")
+
+trian5_Γ = EmbeddedBoundary(cutgeo,geo8,geo5)
+writevtk(trian5_Γ,"trian5_G")
+
+trian6_Γ = EmbeddedBoundary(cutgeo,geo8,geo6)
+writevtk(trian6_Γ,"trian6_G")
+
 
 
 end # module
