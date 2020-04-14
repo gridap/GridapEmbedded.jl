@@ -183,6 +183,10 @@ function _compute_inout_setdiff(inout_1,inout_2)
   end
 end
 
+function EmbeddedBoundary(cut::EmbeddedDiscretization)
+  EmbeddedBoundary(cut,cut.geo)
+end
+
 function EmbeddedBoundary(cut::EmbeddedDiscretization,geo::CSG.Geometry)
 
   function conversion(data)
@@ -222,6 +226,54 @@ function EmbeddedBoundary(cut::EmbeddedDiscretization,geo1::CSG.Geometry,geo2::C
   newsubfacets = findall( mask )
   fst = FacetSubTriangulation(cut.subfacets,newsubfacets)
   FacetSubTriangulationWrapper(fst)
+
+end
+
+function GhostSkeleton(cut::EmbeddedDiscretization)
+  GhostSkeleton(cut,cut.geo)
+end
+
+function GhostSkeleton(cut::EmbeddedDiscretization,geo::CSG.Geometry)
+  GhostSkeleton(cut,geo,IN)
+end
+
+function GhostSkeleton(cut::EmbeddedDiscretization,geo::CSG.Geometry,in_or_out)
+
+  @assert in_or_out in (IN,OUT)
+  cell_to_inoutcut = compute_bgcell_to_inoutcut(cut,geo)
+  model = cut.bgmodel
+  topo = get_grid_topology(model)
+  D = num_cell_dims(model)
+  facet_to_cells = Table(get_faces(topo,D-1,D))
+  facet_to_mask = fill(false,length(facet_to_cells))
+  _fill_ghost_skeleton_mask!(facet_to_mask,facet_to_cells,cell_to_inoutcut,in_or_out)
+
+  SkeletonTriangulation(model,facet_to_mask)
+end
+
+function _fill_ghost_skeleton_mask!(facet_to_mask,facet_to_cells::Table,cell_to_inoutcut,in_or_out)
+
+  nfacets = length(facet_to_cells)
+  for facet in 1:nfacets
+    a = facet_to_cells.ptrs[facet]
+    b = facet_to_cells.ptrs[facet+1]
+    ncells_around = b-a
+    ncells_around_cut = 0
+    ncells_around_active = 0
+    for cell_around in 1:ncells_around
+      cell = facet_to_cells.data[a-1+cell_around]
+      inoutcut = cell_to_inoutcut[cell]
+      if (inoutcut == CUT)
+        ncells_around_cut += 1
+      end
+      if (inoutcut == CUT) || (inoutcut == in_or_out)
+        ncells_around_active += 1
+      end
+    end
+    if (ncells_around_cut >0) && (ncells_around_active == 2)
+      facet_to_mask[facet] = true
+    end
+  end
 
 end
 
