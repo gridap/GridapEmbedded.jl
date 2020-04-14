@@ -35,6 +35,24 @@ geo8 = union(geo6,geo7)
 #print_tree(stdout,get_tree(geo5))
 #print_tree(stdout,get_tree(geo8))
 
+R = 1.2
+r = 0.2
+geo1 = olympic_rings(R,r)
+box = get_metadata(geo1)
+n = 7
+partition =(20*n,10*n,n)
+model = CartesianDiscreteModel(box.pmin,box.pmax,partition)
+
+cutgeo = cut(model,geo1)
+
+trian = Triangulation(model)
+#writevtk(trian,"trian")
+
+trian1 = Triangulation(cutgeo)
+#writevtk(trian1,"trian1")
+
+trian_Γ = EmbeddedBoundary(cutgeo)
+#writevtk(trian_Γ,"trian_G",cellfields=["normal"=>get_normal_vector(trian_Γ)])
 
 R = 0.7
 L = 5.0

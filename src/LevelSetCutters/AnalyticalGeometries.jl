@@ -154,3 +154,33 @@ function _tube_box(R,L,x0,v)
   BoundingBox(pmin, pmax)
 end
 
+function olympic_rings(R,r,name="olympic_rings")
+
+  box = _olympic_rings_box(R,r)
+
+  z = zero(R)
+  geo1 = doughnut(R,r,name="ring1",x0=Point(-(r+r+R),z,z))
+  geo2 = doughnut(R,r,name="ring2",x0=Point(r+r+R,z,z))
+  geo3 = doughnut(R,r,name="ring3",x0=Point(z,-R+r,z))
+  geo4 = doughnut(R,r,name="ring4",x0=Point(2*(r+r+R),-R+r,z))
+  geo5 = doughnut(R,r,name="ring5",x0=Point(3*(r+r+R),z,z))
+  
+  geo12 = union(geo1,geo2)
+  geo123 = union(geo12,geo3)
+  geo1234 = union(geo123,geo4)
+  geo12345 = union(geo1234,geo5,name=name,meta=box)
+
+  geo12345
+
+end
+
+function _olympic_rings_box(R,r)
+  m = 0.1*r
+  A = 2*(R+r)+r+m
+  B = (R+r)+m
+  C = r+m
+  pmin = Point(-A,-B-(R-r),-C)
+  pmax = Point(A+2*(r+r+R),B,C)
+  BoundingBox(pmin, pmax)
+end
+
