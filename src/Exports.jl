@@ -5,6 +5,8 @@ macro publish(mod,name)
   end
 end
 
+@publish CSG get_metadata
+
 @publish Interfaces cut
 @publish Interfaces EmbeddedDiscretization
 @publish Interfaces EmbeddedBoundary
@@ -15,7 +17,10 @@ end
 
 @publish LevelSetCutters LevelSetCutter
 @publish LevelSetCutters doughnut
-@publish LevelSetCutters tube
-@publish LevelSetCutters olympic_rings
+#@publish LevelSetCutters tube
+#@publish LevelSetCutters olympic_rings
 @publish LevelSetCutters sphere
-@publish LevelSetCutters disc
+@publish LevelSetCutters disk
+@publish LevelSetCutters cylinder
+@publish LevelSetCutters plane
+@publish LevelSetCutters cube

@@ -277,5 +277,19 @@ function _fill_ghost_skeleton_mask!(facet_to_mask,facet_to_cells::Table,cell_to_
 
 end
 
+function cell_measure(trian_Ω1,n_bgcells)
+  trian_cut_1 = trian_Ω1
+  quad_cut_1 = CellQuadrature(trian_cut_1,0)
+  subcell1_to_dV = integrate(1,trian_cut_1,quad_cut_1)
+  subcell1_to_bgcell = get_cell_id(trian_cut_1)
+  bgcell_to_dV = zeros(n_bgcells)
+  _meas_K_fill!(bgcell_to_dV,subcell1_to_dV,subcell1_to_bgcell)
+  bgcell_to_dV
+end
 
+function _meas_K_fill!(bgcell_to_dV,subcell1_to_dV,subcell1_to_bgcell)
+  for (subcell1, bgcell) in enumerate(subcell1_to_bgcell)
+    bgcell_to_dV[bgcell] += subcell1_to_dV[subcell1]
+  end
+end
 

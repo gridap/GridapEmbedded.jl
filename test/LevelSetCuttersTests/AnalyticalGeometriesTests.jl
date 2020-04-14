@@ -35,16 +35,11 @@ geo8 = union(geo6,geo7)
 #print_tree(stdout,get_tree(geo5))
 #print_tree(stdout,get_tree(geo8))
 
-
-
 n = 40
 partition = (n,n,n)
 pmin = 0.8*Point(-1,-1,-1)
 pmax = 0.8*Point(1,1,1)
 model = CartesianDiscreteModel(pmin,pmax,partition)
-
-trian = Triangulation(model)
-writevtk(trian,"trian")
 
 R = 0.5
 geo1 = cylinder(R,v=VectorValue(1,0,0))
@@ -56,20 +51,24 @@ geo6 = cube(L=1.5)
 geo7 = intersect(geo6,geo5)
 geo8 = setdiff(geo7,geo4)
 
+#using AbstractTrees
+#print_tree(stdout,get_tree(geo8))
+
 cutgeo = cut(model,geo8)
 
+trian = Triangulation(model)
+#writevtk(trian,"trian")
+
 trian1 = Triangulation(cutgeo)
-writevtk(trian1,"trian1")
+#writevtk(trian1,"trian1")
 
 trian4_Γ = EmbeddedBoundary(cutgeo,geo8,geo4)
-writevtk(trian4_Γ,"trian4_G")
+#writevtk(trian4_Γ,"trian4_G")
 
 trian5_Γ = EmbeddedBoundary(cutgeo,geo8,geo5)
-writevtk(trian5_Γ,"trian5_G")
+#writevtk(trian5_Γ,"trian5_G")
 
 trian6_Γ = EmbeddedBoundary(cutgeo,geo8,geo6)
-writevtk(trian6_Γ,"trian6_G")
-
-
+#writevtk(trian6_Γ,"trian6_G")
 
 end # module
