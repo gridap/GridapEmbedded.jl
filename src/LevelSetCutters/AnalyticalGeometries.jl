@@ -136,4 +136,21 @@ function cube(;L=1,x0=Point(0,0,0),name="cube")
 
 end
 
+function tube(R,L;x0=zero(Point{3,typeof(R)}),v=VectorValue(1,0,0),name="tube")
+
+  d = v/norm(v)
+  box = _tube_box(R,L,x0,d)
+
+  walls = cylinder(R,x0=x0,v=d,name="walls")
+  inlet = plane(x0=x0,v=-d,name="inlet")
+  outlet = plane(x0=x0+L*d,v=d,name="outlet")
+  intersect(intersect(inlet,outlet),walls,name=name,meta=box)
+
+end
+
+function _tube_box(R,L,x0,v)
+  pmin = x0 - R
+  pmax = x0 + L*v + R
+  BoundingBox(pmin, pmax)
+end
 

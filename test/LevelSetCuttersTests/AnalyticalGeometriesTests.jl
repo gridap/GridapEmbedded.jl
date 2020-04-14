@@ -35,6 +35,27 @@ geo8 = union(geo6,geo7)
 #print_tree(stdout,get_tree(geo5))
 #print_tree(stdout,get_tree(geo8))
 
+
+R = 0.7
+L = 5.0
+geo1 = tube(R,L,x0=Point(-0.5,0.0,-0.25),v=VectorValue(1.0,0.0,0.25))
+box = get_metadata(geo1)
+
+n = 40
+partition = (n,n,n)
+model = CartesianDiscreteModel(box.pmin,box.pmax,partition)
+
+cutgeo = cut(model,geo1)
+
+trian = Triangulation(model)
+#writevtk(trian,"trian")
+
+trian1 = Triangulation(cutgeo)
+#writevtk(trian1,"trian1")
+
+trian_Γ = EmbeddedBoundary(cutgeo)
+#writevtk(trian_Γ,"trian_G",cellfields=["normal"=>get_normal_vector(trian_Γ)])
+
 n = 40
 partition = (n,n,n)
 pmin = 0.8*Point(-1,-1,-1)
