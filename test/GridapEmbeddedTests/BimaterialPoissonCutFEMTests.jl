@@ -26,7 +26,8 @@ ud(x) = u(x)
 
 # Select geometry
 const R = 0.7
-geom = disc(R)
+geo1 = disk(R)
+geo2 = ! geo1
 n = 30
 domain = (-1,1,-1,1)
 partition = (n,n)
@@ -35,16 +36,16 @@ partition = (n,n)
 bgmodel = simplexify(CartesianDiscreteModel(domain,partition))
 
 # Cut the background model
-cutdisc = cut(bgmodel,geom)
+cutgeo = cut(bgmodel,union(geo1,geo2))
 
 # Setup models
-model1 = DiscreteModel(cutdisc,IN)
-model2 = DiscreteModel(cutdisc,OUT)
+model1 = DiscreteModel(cutgeo,geo1)
+model2 = DiscreteModel(cutgeo,geo2)
 
 # Setup integration meshes
-trian_Ω1 = Triangulation(cutdisc,IN)
-trian_Ω2 = Triangulation(cutdisc,OUT)
-trian_Γ = EmbeddedBoundary(cutdisc)
+trian_Ω1 = Triangulation(cutgeo,geo1)
+trian_Ω2 = Triangulation(cutgeo,geo2)
+trian_Γ = EmbeddedBoundary(cutgeo,geo1,geo2)
 
 # Setup normal vectors
 const n_Γ = get_normal_vector(trian_Γ)
@@ -57,13 +58,22 @@ quad_Γ = CellQuadrature(trian_Γ,2*order)
 
 # Setup stabilization parameters
 
-meas_K1 = cell_measure(trian_Ω1.a,num_cells(bgmodel)) # TODO .a
-meas_K2 = cell_measure(trian_Ω2.a,num_cells(bgmodel)) # TODO .a
+meas_K1 = cell_measure(trian_Ω1,num_cells(bgmodel))
+meas_K2 = cell_measure(trian_Ω2,num_cells(bgmodel))
 meas_KΓ = cell_measure(trian_Γ,num_cells(bgmodel))
 
 meas_K1_Γ = reindex(meas_K1,trian_Γ)
 meas_K2_Γ = reindex(meas_K2,trian_Γ)
 meas_KΓ_Γ = reindex(meas_KΓ,trian_Γ)
+
+#writevtk(model1,"model1")
+#writevtk(model2,"model2")
+#writevtk(trian_Ω1,"trian1")
+#writevtk(trian_Ω2,"trian2")
+#writevtk(trian_Γ,"trianG",
+#  celldata=["K1"=>meas_K1_Γ,"K2"=>meas_K2_Γ,"KG"=>meas_KΓ_Γ],
+#  cellfields=["normal"=>n_Γ])
+
 
 γ_hat = 2
 const κ1 = (α2*meas_K1_Γ) ./ (α2*meas_K1_Γ .+ α1*meas_K2_Γ)
