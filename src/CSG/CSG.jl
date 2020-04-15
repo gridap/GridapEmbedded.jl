@@ -7,6 +7,7 @@ import AbstractTrees: children
 import AbstractTrees: printnode
 
 export Node
+export UnaryNode
 export Leaf
 export replace_data
 export Geometry

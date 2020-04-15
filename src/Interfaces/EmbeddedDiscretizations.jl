@@ -60,6 +60,16 @@ function compute_inoutcut(a::Node)
   end
 end
 
+function compute_inoutcut(a::UnaryNode)
+  cell_to_inoutcut_1 = compute_inoutcut(a.leftchild)
+  op = first(a.data)
+  if op  == :!
+    return _compute_inoutcut_complementary.(cell_to_inoutcut_1)
+  else
+    @error "operation $op not implemented"
+  end
+end
+
 function _compute_inoutcut_union(inout_1,inout_2)
   inout_12 = (inout_1,inout_2)
   if (inout_1==OUT) && (inout_2==OUT)
@@ -90,6 +100,16 @@ function _compute_inoutcut_setdiff(inout_1,inout_2)
     Int8(CUT)
   else
     Int8(OUT)
+  end
+end
+
+function _compute_inoutcut_complementary(inout_1)
+  if (inout_1==OUT)
+    Int8(IN)
+  elseif (inout_1==IN)
+    Int8(OUT)
+  else
+    Int8(CUT)
   end
 end
 
@@ -159,6 +179,16 @@ function compute_inout(a::Node)
   end
 end
 
+function compute_inout(a::UnaryNode)
+  cell_to_inout_1 = compute_inout(a.leftchild)
+  op = first(a.data)
+  if op  == :!
+    return _compute_inout_complementary.(cell_to_inout_1)
+  else
+    @error "operation $op not implemented"
+  end
+end
+
 function _compute_inout_union(inout_1,inout_2)
   if (inout_1==IN) || (inout_2==IN)
     Int8(IN)
@@ -180,6 +210,14 @@ function _compute_inout_setdiff(inout_1,inout_2)
     Int8(IN)
   else
     Int8(OUT)
+  end
+end
+
+function _compute_inout_complementary(inout_1)
+  if (inout_1==IN)
+    Int8(OUT)
+  else
+    Int8(IN)
   end
 end
 

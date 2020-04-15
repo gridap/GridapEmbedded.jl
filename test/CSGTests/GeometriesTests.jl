@@ -37,4 +37,14 @@ test_geometry(e)
 
 #print_tree(stdout,get_tree(e))
 
+t = time()
+f = !(d,name="f",meta=t)
+test_geometry(f)
+#print_tree(stdout,get_tree(f))
+
+meta = "hi!"
+g = replace_metadata(f,meta)
+test_geometry(g)
+@test get_metadata(g) === meta
+
 end # module
