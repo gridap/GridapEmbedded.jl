@@ -14,6 +14,7 @@ ud(x) = u(x)
 ∇(::typeof(u)) = ∇u
 
 # Select geometry
+
 const R = 0.7
 geom = sphere(R)
 n = 10
@@ -38,8 +39,9 @@ partition = (n,n,n)
 ##partition = (n,n,n)
 
 # Setup background model
-bgmodel = CartesianDiscreteModel(geom.pmin,geom.pmax,partition)
-dp = geom.pmax - geom.pmin
+box = get_metadata(geom)
+bgmodel = CartesianDiscreteModel(box.pmin,box.pmax,partition)
+dp = box.pmax - box.pmin
 const h = dp[1]/n
 
 # Cut the background model

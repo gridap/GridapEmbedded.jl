@@ -22,10 +22,14 @@ import Gridap.Geometry: get_face_to_cell_map
 import Gridap.Geometry: restrict
 import Gridap.Geometry: get_cell_id
 
+using GridapEmbedded.CSG
+
 export IN
 export OUT
 export INTERFACE
 export CUT
+export CUTIN
+export CUTOUT
 export EmbeddedDiscretization
 export SubTriangulation
 export FacetSubTriangulation
@@ -41,6 +45,12 @@ const OUT = 1
 const INTERFACE = 0
 const CUT = 0
 
+struct CutInOrOut
+  in_or_out::Int
+end
+const CUTIN = CutInOrOut(IN)
+const CUTOUT = CutInOrOut(OUT)
+
 include("SubTriangulations.jl")
 
 include("FacetSubTriangulations.jl")
@@ -48,5 +58,23 @@ include("FacetSubTriangulations.jl")
 include("EmbeddedDiscretizations.jl")
 
 include("Cutters.jl")
+
+function Simplex(p::Polytope)
+  D = num_cell_dims(p)
+  Simplex(Val{D}())
+end
+
+function Simplex(::Val{D}) where D
+  extrusion = tfill(TET_AXIS,Val{D}())
+  ExtrusionPolytope(extrusion)
+end
+
+function Simplex(::Val{2})
+  TRI
+end
+
+function Simplex(::Val{3})
+  TET
+end
 
 end # module

@@ -2,9 +2,11 @@ module LevelSetCuttersRun
 
 using Test
 
-@testset "LookupTables" begin include("LookupTablesTests.jl") end
+@testset "AnalyticalGeometries" begin include("AnalyticalGeometriesTests.jl") end
 
-@testset "Geometries" begin include("GeometriesTests.jl") end
+@testset "DiscreteGeometries" begin include("DiscreteGeometriesTests.jl") end
+
+@testset "LookupTables" begin include("LookupTablesTests.jl") end
 
 @testset "SubTriangulations" begin include("SubTriangulationsTests.jl") end
 

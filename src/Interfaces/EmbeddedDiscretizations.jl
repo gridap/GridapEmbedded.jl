@@ -1,31 +1,284 @@
 
 struct EmbeddedDiscretization{Dp,T} <: GridapType
   bgmodel::DiscreteModel
-  bgcell_to_inoutcut::Vector{Int8}
-  subcells_in::SubTriangulation{Dp,T}
-  subcells_out::SubTriangulation{Dp,T}
-  tag_to_subfacets::Vector{FacetSubTriangulation{Dp,T}}
-  tag_to_name::Vector{String}
+  ls_to_bgcell_to_inoutcut::Vector{Vector{Int8}}
+  subcells::SubTriangulation{Dp,T}
+  ls_to_subcell_to_inout::Vector{Vector{Int8}}
+  subfacets::FacetSubTriangulation{Dp,T}
+  ls_to_subfacet_to_inout::Vector{Vector{Int8}}
+  oid_to_ls::Dict{UInt,Int}
+  geo::CSG.Geometry
 end
 
 function DiscreteModel(cut::EmbeddedDiscretization)
-  DiscreteModel(cut,IN)
+  DiscreteModel(cut,cut.geo)
 end
 
-function DiscreteModel(cut::EmbeddedDiscretization,in_or_out)
-  pred = i-> (i==CUT) || i==in_or_out
-  cell_list = findall(pred, cut.bgcell_to_inoutcut)
+function DiscreteModel(cut::EmbeddedDiscretization,geo)
+  DiscreteModel(cut,geo,(IN,CUT))
+end
+
+function DiscreteModel(cut::EmbeddedDiscretization,geo::CSG.Geometry,in_or_out)
+  pred = i-> i in in_or_out
+  bgcell_to_inoutcut = compute_bgcell_to_inoutcut(cut,geo)
+  cell_list = findall(pred, bgcell_to_inoutcut)
   DiscreteModel(cut.bgmodel,cell_list)
 end
 
-function GhostSkeleton(cut::EmbeddedDiscretization)
-  GhostSkeleton(cut,IN)
+function compute_bgcell_to_inoutcut(cut::EmbeddedDiscretization,geo::CSG.Geometry)
+
+  tree = get_tree(geo)
+
+  function conversion(data)
+    f,name,meta = data
+    oid = objectid(f)
+    ls = cut.oid_to_ls[oid]
+    cell_to_inoutcut = cut.ls_to_bgcell_to_inoutcut[ls]
+    cell_to_inoutcut, name, meta
+  end
+
+  newtree = replace_data(identity,conversion,tree)
+  compute_inoutcut(newtree)
 end
 
-function GhostSkeleton(cut::EmbeddedDiscretization,in_or_out)
+function compute_inoutcut(a::Leaf)
+  first(a.data)
+end
+
+function compute_inoutcut(a::Node)
+  cell_to_inoutcut_1 = compute_inoutcut(a.leftchild)
+  cell_to_inoutcut_2 = compute_inoutcut(a.rightchild)
+  op = first(a.data)
+  if op  == :∪
+    return _compute_inoutcut_union.(cell_to_inoutcut_1,cell_to_inoutcut_2)
+  elseif op == :∩
+    return _compute_inoutcut_intersection.(cell_to_inoutcut_1,cell_to_inoutcut_2)
+  elseif op == :-
+    return _compute_inoutcut_setdiff.(cell_to_inoutcut_1,cell_to_inoutcut_2)
+  else
+    @error "operation $op not implemented"
+  end
+end
+
+function compute_inoutcut(a::UnaryNode)
+  cell_to_inoutcut_1 = compute_inoutcut(a.leftchild)
+  op = first(a.data)
+  if op  == :!
+    return _compute_inoutcut_complementary.(cell_to_inoutcut_1)
+  else
+    @error "operation $op not implemented"
+  end
+end
+
+function _compute_inoutcut_union(inout_1,inout_2)
+  inout_12 = (inout_1,inout_2)
+  if (inout_1==OUT) && (inout_2==OUT)
+    Int8(OUT)
+  elseif (inout_12 == (CUT,CUT)) || (inout_12 == (CUT,OUT)) || (inout_12 == (OUT,CUT))
+    Int8(CUT)
+  else
+    Int8(IN)
+  end
+end
+
+function _compute_inoutcut_intersection(inout_1,inout_2)
+  inout_12 = (inout_1,inout_2)
+  if (inout_1==IN) && (inout_2==IN)
+    Int8(IN)
+  elseif (inout_12 == (CUT,CUT)) || (inout_12 == (CUT,IN)) || (inout_12 == (IN,CUT))
+    Int8(CUT)
+  else
+    Int8(OUT)
+  end
+end
+
+function _compute_inoutcut_setdiff(inout_1,inout_2)
+  inout_12 = (inout_1,inout_2)
+  if (inout_1==IN) && (inout_2==OUT)
+    Int8(IN)
+  elseif (inout_12 == (CUT,CUT)) || (inout_12 == (CUT,OUT)) || (inout_12 == (IN,CUT))
+    Int8(CUT)
+  else
+    Int8(OUT)
+  end
+end
+
+function _compute_inoutcut_complementary(inout_1)
+  if (inout_1==OUT)
+    Int8(IN)
+  elseif (inout_1==IN)
+    Int8(OUT)
+  else
+    Int8(CUT)
+  end
+end
+
+function Triangulation(cut::EmbeddedDiscretization)
+  Triangulation(cut,cut.geo)
+end
+
+function Triangulation(cut::EmbeddedDiscretization,geo::CSG.Geometry)
+  Triangulation(cut,geo,(CUTIN,IN))
+end
+
+function Triangulation(cut::EmbeddedDiscretization,geo::CSG.Geometry,in_or_out::Tuple)
+  trian1 = Triangulation(cut,geo,in_or_out[1])
+  trian2 = Triangulation(cut,geo,in_or_out[2])
+  lazy_append(trian1,trian2)
+end
+
+function Triangulation(cut::EmbeddedDiscretization,geo::CSG.Geometry,in_or_out::CutInOrOut)
+  bgcell_to_inoutcut = compute_bgcell_to_inoutcut(cut,geo)
+  subcell_to_inoutcut = reindex(bgcell_to_inoutcut,cut.subcells.cell_to_bgcell)
+  subcell_to_inout = compute_subcell_to_inout(cut,geo)
+  mask = apply( (a,b) -> a==CUT && b==in_or_out.in_or_out, subcell_to_inoutcut, subcell_to_inout   )
+  newsubcells = findall(mask)
+  st = SubTriangulation(cut.subcells,newsubcells)
+  SubTriangulationWrapper(st)
+end
+
+function Triangulation(cut::EmbeddedDiscretization,geo::CSG.Geometry,in_or_out::Integer)
+  bgcell_to_inoutcut = compute_bgcell_to_inoutcut(cut,geo)
+  cell_to_mask = collect(Bool,bgcell_to_inoutcut .== in_or_out)
+  trian = Triangulation(cut.bgmodel)
+  RestrictedTriangulation(trian,cell_to_mask)
+end
+
+function compute_subcell_to_inout(cut::EmbeddedDiscretization,geo::CSG.Geometry)
+
+  tree = get_tree(geo)
+
+  function conversion(data)
+    f,name,meta = data
+    oid = objectid(f)
+    ls = cut.oid_to_ls[oid]
+    subcell_to_inout = cut.ls_to_subcell_to_inout[ls]
+    subcell_to_inout, name, meta
+  end
+
+  newtree = replace_data(identity,conversion,tree)
+  compute_inoutcut(newtree)
+end
+
+function compute_inout(a::Leaf)
+  first(a.data)
+end
+
+function compute_inout(a::Node)
+  cell_to_inout_1 = compute_inout(a.leftchild)
+  cell_to_inout_2 = compute_inout(a.rightchild)
+  op = first(a.data)
+  if op  == :∪
+    return _compute_inout_union.(cell_to_inout_1,cell_to_inout_2)
+  elseif op == :∩
+    return _compute_inout_intersection.(cell_to_inout_1,cell_to_inout_2)
+  elseif op == :-
+    return _compute_inout_setdiff.(cell_to_inout_1,cell_to_inout_2)
+  else
+    @error "operation $op not implemented"
+  end
+end
+
+function compute_inout(a::UnaryNode)
+  cell_to_inout_1 = compute_inout(a.leftchild)
+  op = first(a.data)
+  if op  == :!
+    return _compute_inout_complementary.(cell_to_inout_1)
+  else
+    @error "operation $op not implemented"
+  end
+end
+
+function _compute_inout_union(inout_1,inout_2)
+  if (inout_1==IN) || (inout_2==IN)
+    Int8(IN)
+  else
+    Int8(OUT)
+  end
+end
+
+function _compute_inout_intersection(inout_1,inout_2)
+  if (inout_1==IN) && (inout_2==IN)
+    Int8(IN)
+  else
+    Int8(OUT)
+  end
+end
+
+function _compute_inout_setdiff(inout_1,inout_2)
+  if (inout_1==IN) && (inout_2==OUT)
+    Int8(IN)
+  else
+    Int8(OUT)
+  end
+end
+
+function _compute_inout_complementary(inout_1)
+  if (inout_1==IN)
+    Int8(OUT)
+  else
+    Int8(IN)
+  end
+end
+
+function EmbeddedBoundary(cut::EmbeddedDiscretization)
+  EmbeddedBoundary(cut,cut.geo)
+end
+
+function EmbeddedBoundary(cut::EmbeddedDiscretization,geo::CSG.Geometry)
+
+  function conversion(data)
+    f,name,meta = data
+    oid = objectid(f)
+    ls = cut.oid_to_ls[oid]
+    cell_to_inoutcut = cut.ls_to_subfacet_to_inout[ls]
+    cell_to_inoutcut, name, meta
+  end
+
+  tree = get_tree(geo)
+  newtree = replace_data(identity,conversion,tree)
+  subfacet_to_inoutcut = compute_inoutcut(newtree)
+  newsubfacets = findall(subfacet_to_inoutcut .== INTERFACE)
+  fst = FacetSubTriangulation(cut.subfacets,newsubfacets)
+  FacetSubTriangulationWrapper(fst)
+
+end
+
+function EmbeddedBoundary(cut::EmbeddedDiscretization,geo1::CSG.Geometry,geo2::CSG.Geometry)
+
+  function conversion(data)
+    f,name,meta = data
+    oid = objectid(f)
+    ls = cut.oid_to_ls[oid]
+    cell_to_inoutcut = cut.ls_to_subfacet_to_inout[ls]
+    cell_to_inoutcut, name, meta
+  end
+
+  tree1 = get_tree(geo1)
+  tree2 = get_tree(geo2)
+  newtree1 = replace_data(identity,conversion,tree1)
+  newtree2 = replace_data(identity,conversion,tree2)
+  subfacet_to_inoutcut1 = compute_inoutcut(newtree1)
+  subfacet_to_inoutcut2 = compute_inoutcut(newtree2)
+  mask = apply( (i,j)->(i==INTERFACE) && (j==INTERFACE), subfacet_to_inoutcut1, subfacet_to_inoutcut2 )
+  newsubfacets = findall( mask )
+  fst = FacetSubTriangulation(cut.subfacets,newsubfacets)
+  FacetSubTriangulationWrapper(fst)
+
+end
+
+function GhostSkeleton(cut::EmbeddedDiscretization)
+  GhostSkeleton(cut,cut.geo)
+end
+
+function GhostSkeleton(cut::EmbeddedDiscretization,geo::CSG.Geometry)
+  GhostSkeleton(cut,geo,IN)
+end
+
+function GhostSkeleton(cut::EmbeddedDiscretization,geo::CSG.Geometry,in_or_out)
 
   @assert in_or_out in (IN,OUT)
-  cell_to_inoutcut = cut.bgcell_to_inoutcut
+  cell_to_inoutcut = compute_bgcell_to_inoutcut(cut,geo)
   model = cut.bgmodel
   topo = get_grid_topology(model)
   D = num_cell_dims(model)
@@ -62,103 +315,6 @@ function _fill_ghost_skeleton_mask!(facet_to_mask,facet_to_cells::Table,cell_to_
 
 end
 
-function Triangulation(cut::EmbeddedDiscretization)
-  Triangulation(cut,IN)
-end
-
-function Triangulation(cut::EmbeddedDiscretization,in_or_out)
-  if in_or_out == IN
-    st = cut.subcells_in
-  else
-    @assert in_or_out == OUT
-    st = cut.subcells_out
-  end
-  trian_cut = SubTriangulationWrapper(st)
-  trian = Triangulation(cut.bgmodel)
-  cell_to_mask = collect(Bool,cut.bgcell_to_inoutcut .== in_or_out)
-  trian_in_or_out = RestrictedTriangulation(trian,cell_to_mask)
-  lazy_append(trian_cut,trian_in_or_out)
-end
-
-function EmbeddedBoundary(cut::EmbeddedDiscretization,name::String)
-  tag = findfirst(i->i==name,cut.tag_to_name)
-  EmbeddedBoundary(cut,tag)
-end
-
-function EmbeddedBoundary(cut::EmbeddedDiscretization,names::Vector{String})
-  tags = findall(i->i in names,cut.tag_to_name)
-  EmbeddedBoundary(cut,tags)
-end
-
-function EmbeddedBoundary(cut::EmbeddedDiscretization,tags::Vector{<:Integer})
-  if length(tags) == 1
-    tag = first(tags)
-    return EmbeddedBoundary(cut,tag)
-  else
-    fst = empty(first(cut.tag_to_subfacets))
-    for (tag_i,fst_i) in enumerate(cut.tag_to_subfacets)
-      if tag_i in tags
-        append!(fst,fst_i)
-      end
-    end
-    return FacetSubTriangulationWrapper(fst)
-  end
-end
-
-function EmbeddedBoundary(cut::EmbeddedDiscretization,tag::Integer)
-  FacetSubTriangulationWrapper(cut.tag_to_subfacets[tag])
-end
-
-function EmbeddedBoundary(cut::EmbeddedDiscretization)
-  EmbeddedBoundary(cut,cut.tag_to_name)
-end
-
-function writevtk(cutdisc::EmbeddedDiscretization,filename::String)
-
-  filename_bg = filename * "_background"
-  grid = get_grid(cutdisc.bgmodel)
-  write_vtk_file(grid,filename_bg,celldata=["inoutcut"=>cutdisc.bgcell_to_inoutcut])
-
-  filename_in = filename * "_subcells_in"
-  writevtk(cutdisc.subcells_in,filename_in)
-
-  filename_out = filename * "_subcells_out"
-  writevtk(cutdisc.subcells_out,filename_out)
-
-  filename_subfacets = filename * "_subfacets"
-  subfacets, facet_to_tag = merge_facet_sub_triangulations(cutdisc.tag_to_subfacets)
-  celldata = ["tag" => facet_to_tag]
-  ntags = length(cutdisc.tag_to_subfacets)
-  for tag in 1:ntags
-    name = cutdisc.tag_to_name[tag]
-    data = copy(facet_to_tag)
-    mask = facet_to_tag .!= tag
-    data[mask] .= 0
-    push!(celldata,name=>data)
-  end
-  writevtk(subfacets,filename_subfacets,celldata)
-
-  nothing
-end
-
-function Simplex(p::Polytope)
-  D = num_cell_dims(p)
-  Simplex(Val{D}())
-end
-
-function Simplex(::Val{D}) where D
-  extrusion = tfill(TET_AXIS,Val{D}())
-  ExtrusionPolytope(extrusion)
-end
-
-function Simplex(::Val{2})
-  TRI
-end
-
-function Simplex(::Val{3})
-  TET
-end
-
 function cell_measure(trian_Ω1,n_bgcells)
   trian_cut_1 = trian_Ω1
   quad_cut_1 = CellQuadrature(trian_cut_1,0)
@@ -174,3 +330,4 @@ function _meas_K_fill!(bgcell_to_dV,subcell1_to_dV,subcell1_to_bgcell)
     bgcell_to_dV[bgcell] += subcell1_to_dV[subcell1]
   end
 end
+
