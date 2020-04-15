@@ -6,4 +6,6 @@ using Test
 
 @testset "BimaterialPoissonCutFEM" begin include("BimaterialPoissonCutFEMTests.jl") end
 
+@testset "EmbeddedBimaterialPoissonCutFEM" begin include("EmbeddedBimaterialPoissonCutFEMTests.jl") end
+
 end
