@@ -113,6 +113,74 @@ function _compute_inoutcut_complementary(inout_1)
   end
 end
 
+function compute_inoutboundary(a::Leaf)
+  d = first(a.data)
+  d, ones(Int8,length(d))
+end
+
+function compute_inoutboundary(a::Node)
+  cell_to_inoutcut_1, orientation1 = compute_inoutboundary(a.leftchild)
+  cell_to_inoutcut_2, orientation2 = compute_inoutboundary(a.rightchild)
+  op = first(a.data)
+  if op  == :∪
+    r1 = _compute_inoutcut_union.(cell_to_inoutcut_1,cell_to_inoutcut_2)
+    r2 = _compute_orientation_union.(cell_to_inoutcut_1,cell_to_inoutcut_2,orientation1,orientation2)
+    return r1, r2
+  elseif op == :∩
+    r1 = _compute_inoutcut_intersection.(cell_to_inoutcut_1,cell_to_inoutcut_2)
+    r2 = _compute_orientation_intersect.(cell_to_inoutcut_1,cell_to_inoutcut_2,orientation1,orientation2)
+    return r1, r2
+  elseif op == :-
+    r1 = _compute_inoutcut_setdiff.(cell_to_inoutcut_1,cell_to_inoutcut_2)
+    r2 = _compute_orientation_setdiff.(cell_to_inoutcut_1,cell_to_inoutcut_2,orientation1,orientation2)
+    return r1, r2
+  else
+    @error "operation $op not implemented"
+  end
+end
+
+function compute_inoutboundary(a::UnaryNode)
+  cell_to_inoutboundary_1, orientation1 = compute_inoutboundary(a.leftchild)
+  op = first(a.data)
+  if op  == :!
+    r1 = _compute_inoutcut_complementary.(cell_to_inoutboundary_1)
+    r2 = _compute_orientation_complementary.(cell_to_inoutboundary_1,orientation1)
+    return r1, r2
+  else
+    @error "operation $op not implemented"
+  end
+end
+
+function _compute_orientation_union(iob1,iob2,d1,d2)
+  if iob1 == INTERFACE
+    d1
+  elseif iob2 == INTERFACE
+    d2
+  else
+    d1
+  end
+end
+
+const _compute_orientation_intersect = _compute_orientation_union
+
+function _compute_orientation_setdiff(iob1,iob2,d1,d2)
+  if iob1 == INTERFACE
+    d1
+  elseif iob2 == INTERFACE
+    -d2
+  else
+    d1
+  end
+end
+
+function _compute_orientation_complementary(iob1,d1)
+  if iob1 == INTERFACE
+    -d1
+  else
+    d1
+  end
+end
+
 function Triangulation(cut::EmbeddedDiscretization)
   Triangulation(cut,cut.geo)
 end
@@ -237,9 +305,10 @@ function EmbeddedBoundary(cut::EmbeddedDiscretization,geo::CSG.Geometry)
 
   tree = get_tree(geo)
   newtree = replace_data(identity,conversion,tree)
-  subfacet_to_inoutcut = compute_inoutcut(newtree)
+  subfacet_to_inoutcut, orientation = compute_inoutboundary(newtree)
   newsubfacets = findall(subfacet_to_inoutcut .== INTERFACE)
-  fst = FacetSubTriangulation(cut.subfacets,newsubfacets)
+  neworientation = orientation[newsubfacets]
+  fst = FacetSubTriangulation(cut.subfacets,newsubfacets,neworientation)
   FacetSubTriangulationWrapper(fst)
 
 end
@@ -258,11 +327,12 @@ function EmbeddedBoundary(cut::EmbeddedDiscretization,geo1::CSG.Geometry,geo2::C
   tree2 = get_tree(geo2)
   newtree1 = replace_data(identity,conversion,tree1)
   newtree2 = replace_data(identity,conversion,tree2)
-  subfacet_to_inoutcut1 = compute_inoutcut(newtree1)
+  subfacet_to_inoutcut1, orientation = compute_inoutboundary(newtree1)
   subfacet_to_inoutcut2 = compute_inoutcut(newtree2)
   mask = apply( (i,j)->(i==INTERFACE) && (j==INTERFACE), subfacet_to_inoutcut1, subfacet_to_inoutcut2 )
   newsubfacets = findall( mask )
-  fst = FacetSubTriangulation(cut.subfacets,newsubfacets)
+  neworientation = orientation[newsubfacets]
+  fst = FacetSubTriangulation(cut.subfacets,newsubfacets,neworientation)
   FacetSubTriangulationWrapper(fst)
 
 end

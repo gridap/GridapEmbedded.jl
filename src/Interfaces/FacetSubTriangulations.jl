@@ -7,9 +7,10 @@ struct FacetSubTriangulation{Dp,T} <: GridapType
   point_to_rcoords::Vector{Point{Dp,T}}
 end
 
-function FacetSubTriangulation(st::FacetSubTriangulation,newfacets::AbstractVector{<:Integer})
+function FacetSubTriangulation(
+  st::FacetSubTriangulation,newfacets::AbstractVector{<:Integer},orientation::AbstractVector)
   facet_to_points = Table(reindex(st.facet_to_points,newfacets))
-  facet_to_normal = st.facet_to_normal[newfacets]
+  facet_to_normal = st.facet_to_normal[newfacets] .* orientation
   facet_to_bgcell = st.facet_to_bgcell[newfacets]
   FacetSubTriangulation(
     facet_to_points,
