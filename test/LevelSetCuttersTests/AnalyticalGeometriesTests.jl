@@ -52,6 +52,27 @@ trian1 = Triangulation(cutgeo)
 trian_Γ = EmbeddedBoundary(cutgeo)
 #writevtk(trian_Γ,"trian_G",cellfields=["normal"=>get_normal_vector(trian_Γ)])
 
+
+geo2 = disk(0.8*R)
+box = get_metadata(geo2)
+geo3 = disk(0.4*R,x0=Point(0.8*R,0.0))
+geo1 = setdiff(geo2,geo3)
+
+partition = (10,10)
+model = CartesianDiscreteModel(box.pmin,box.pmax,partition)
+
+cutgeo = cut(model,geo1)
+
+trian = Triangulation(model)
+#writevtk(trian,"trian")
+
+trian1 = Triangulation(cutgeo)
+#writevtk(trian1,"trian1")
+
+trian_Γ = EmbeddedBoundary(cutgeo)
+#writevtk(trian_Γ,"trian_G",cellfields=["normal"=>get_normal_vector(trian_Γ)])
+
+
 R = 1.2
 r = 0.2
 geo1 = olympic_rings(R,r)
