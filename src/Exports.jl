@@ -17,8 +17,8 @@ end
 
 @publish LevelSetCutters LevelSetCutter
 @publish LevelSetCutters doughnut
-#@publish LevelSetCutters tube
-#@publish LevelSetCutters olympic_rings
+@publish LevelSetCutters tube
+@publish LevelSetCutters olympic_rings
 @publish LevelSetCutters sphere
 @publish LevelSetCutters disk
 @publish LevelSetCutters cylinder
