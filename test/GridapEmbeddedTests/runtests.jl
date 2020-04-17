@@ -8,4 +8,6 @@ using Test
 
 @testset "EmbeddedBimaterialPoissonCutFEM" begin include("EmbeddedBimaterialPoissonCutFEMTests.jl") end
 
+@testset "StokesCutFEM" begin include("StokesCutFEMTests.jl") end
+
 end
