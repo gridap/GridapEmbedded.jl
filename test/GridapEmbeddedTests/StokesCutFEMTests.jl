@@ -6,19 +6,21 @@ using GridapEmbedded
 using Test
 using LinearAlgebra: tr
 
-u(x) = VectorValue(x[1]*x[1], x[2], x[3])
-∇u(x) = TensorValue(2*x[1],0.0,0.0, 0.0,1.0,0.0, 0.0,0.0,1.0)
-Δu(x) = VectorValue(2.0,0.0,0.0)
+# Manufactured solution
+u(x) = VectorValue(2*x[1],-2*x[2])
+∇u(x) = TensorValue(2.0,0.0,0.0,-2.0)
+Δu(x) = VectorValue(0.0,0.0)
 
 p(x) = x[1] - x[2]
-∇p(x) = VectorValue(1.0,-1.0,0.0)
-
-f(x) = - Δu(x) + ∇p(x)
-g(x) = tr(∇u(x))
-ud(x) = u(x)
+∇p(x) = VectorValue(1.0,-1.0)
 
 ∇(::typeof(u)) = ∇u
 ∇(::typeof(p)) = ∇p
+
+# Forcing data
+f(x) = - Δu(x) + ∇p(x)
+g(x) = tr(∇u(x))
+ud(x) = u(x)
 
 # Formulation taken from
 # André Massing · Mats G. Larson · Anders Logg · Marie E. Rognes,
@@ -27,13 +29,13 @@ ud(x) = u(x)
 
 # Select geometry
 R = 0.7
-L = 5.0
-geo1 = tube(R,L,x0=Point(-0.5,0.0,-0.25),v=VectorValue(1.0,0.0,0.25))
+geo1 = disk(R)
 box = get_metadata(geo1)
 
 # Cut the background model
-n = 8
-partition = (5*n,n,2*n)
+n = 10
+partition = (n,n)
+D = length(partition)
 bgmodel = simplexify(CartesianDiscreteModel(box.pmin,box.pmax,partition))
 
 # Cut the background model
@@ -65,7 +67,7 @@ quad_Γg = CellQuadrature(trian_Γg,2*order)
 # Setup FESpace
 
 V = TestFESpace(
-  model=model,valuetype=VectorValue{3,Float64},reffe=:PLagrangian,
+  model=model,valuetype=VectorValue{D,Float64},reffe=:PLagrangian,
   order=order,conformity=:H1)
 
 _Q = TestFESpace(
@@ -88,7 +90,8 @@ Y = MultiFieldFESpace([V,Q])
 β0 = 0.25
 β1 = 0.2
 β2 = 0.1
-γ = 10
+β3 = 0.05
+γ = 10.0
 h = (box.pmax-box.pmin)[1]/partition[1]
 
 # Weak form
@@ -99,7 +102,7 @@ c_Ω(p,q) = (β1*h^2)*∇(p)*∇(q)
 a_Γ(u,v) = - (n_Γ*∇(u))*v - u*(n_Γ*∇(v)) + (γ/h)*u*v
 b_Γ(v,p) = (n_Γ*v)*p
 i_Γg(u,v) = (β2*h)*jump(n_Γg*∇(u))*jump(n_Γg*∇(v))
-j_Γg(p,q) = (β0*h)*jump(p)*jump(q)
+j_Γg(p,q) = (β3*h^3)*jump(n_Γg*∇(p))*jump(n_Γg*∇(q))
 ϕ_Ω(q) = (β1*h^2)*∇(q)*f
 
 function A_Ω(X,Y)
@@ -133,17 +136,34 @@ end
 
 function L_Γ(Y)
   v,q = Y
-  (γ/h)*v*ud - ud*(n_Γ*∇(v)) + (q*n_Γ)*ud
-  #ud*( (γ/h)*ud*v - (n_Γ*∇(v)) + q*n_Γ ) TODO
+  ud*( (γ/h)*v - n_Γ*∇(v) + q*n_Γ )
 end
 
 # FE problem
-
 t_Ω = AffineFETerm(A_Ω,L_Ω,trian_Ω,quad_Ω)
 t_Γ = AffineFETerm(A_Γ,L_Γ,trian_Γ,quad_Γ)
 #t_Γi = LinearFETerm(A_Γi,trian_Γi,quad_Γi)
 t_Γg = LinearFETerm(J_Γg,trian_Γg,quad_Γg)
 op = AffineFEOperator(X,Y,t_Ω,t_Γ,t_Γg)#,t_Γi)
 uh, ph = solve(op)
+
+# Postprocess
+uh_Ω = restrict(uh,trian_Ω)
+ph_Ω = restrict(ph,trian_Ω)
+eu_Ω = u - uh_Ω
+ep_Ω = p - ph_Ω
+#writevtk(trian_Ω,"results",
+#  cellfields=["uh"=>uh_Ω,"ph"=>ph_Ω,"eu"=>eu_Ω,"ep"=>ep_Ω])
+
+# Checks
+tol = 1.0e-9
+l2(v) = v*v
+h1(v) = inner(∇(v),∇(v))
+eu_l2 = sqrt(sum(integrate(l2(eu_Ω),trian_Ω,quad_Ω)))
+eu_h1 = sqrt(sum(integrate(h1(eu_Ω),trian_Ω,quad_Ω)))
+ep_l2 = sqrt(sum(integrate(l2(ep_Ω),trian_Ω,quad_Ω)))
+@test eu_l2 < tol
+@test eu_h1 < tol
+@test ep_l2 < tol
 
 end # module
