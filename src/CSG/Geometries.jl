@@ -92,3 +92,32 @@ function Base.:!(a::Node,name::String,meta)
   Node((:!, name, meta),a)
 end
 
+function get_geometry(a::Geometry,name::String)
+  tree = get_tree(a)
+  treei = get_geometry_node(tree,name)
+  similar_geometry(a,treei)
+end
+
+function get_geometry_names(geo::Geometry)
+  tree = get_tree(geo)
+  names = String[]
+  for a in PreOrderDFS(tree)
+    _, name, = a.data
+    if name != ""
+      push!(names,name)
+    end
+  end
+  names
+end
+
+function get_geometry_node(a::Node,name::String)
+  for ai in PreOrderDFS(a)
+    _, namei, = ai.data
+    if namei == name
+      return ai
+    end
+  end
+  @unreachable "There is no entity called $name"
+end
+
+

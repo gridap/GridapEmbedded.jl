@@ -28,6 +28,12 @@ test_geometry(d)
 @test _d === get_name(d)
 @test t === get_metadata(d)
 
+_a = get_geometry(c,"a")
+@test get_tree(_a) === get_tree(a)
+
+names = get_geometry_names(c)
+@test sort(names) == ["a","b","c"]
+
 #print_tree(stdout,get_tree(d))
 
 meta = "hi!"

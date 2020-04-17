@@ -2,6 +2,7 @@ module CSG
 
 using Gridap.Helpers
 using Test
+using AbstractTrees
 
 import AbstractTrees: children
 import AbstractTrees: printnode
@@ -19,6 +20,8 @@ export similar_geometry
 export compatible_geometries
 export test_geometry
 export intersection
+export get_geometry
+export get_geometry_names
 
 include("Nodes.jl")
 

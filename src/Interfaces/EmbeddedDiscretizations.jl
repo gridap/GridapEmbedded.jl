@@ -18,6 +18,11 @@ function DiscreteModel(cut::EmbeddedDiscretization,geo)
   DiscreteModel(cut,geo,(IN,CUT))
 end
 
+function DiscreteModel(cut::EmbeddedDiscretization,name::String,in_or_out)
+  geo = get_geometry(cut.geo,name)
+  DiscreteModel(cut,geo,in_or_out)
+end
+
 function DiscreteModel(cut::EmbeddedDiscretization,geo::CSG.Geometry,in_or_out)
   pred = i-> i in in_or_out
   bgcell_to_inoutcut = compute_bgcell_to_inoutcut(cut,geo)
@@ -185,8 +190,13 @@ function Triangulation(cut::EmbeddedDiscretization)
   Triangulation(cut,cut.geo)
 end
 
-function Triangulation(cut::EmbeddedDiscretization,geo::CSG.Geometry)
+function Triangulation(cut::EmbeddedDiscretization,geo)
   Triangulation(cut,geo,(CUTIN,IN))
+end
+
+function Triangulation(cut::EmbeddedDiscretization,name::String,in_or_out)
+  geo = get_geometry(cut.geo,name)
+  Triangulation(cut,geo,in_or_out)
 end
 
 function Triangulation(cut::EmbeddedDiscretization,geo::CSG.Geometry,in_or_out::Tuple)
@@ -293,6 +303,11 @@ function EmbeddedBoundary(cut::EmbeddedDiscretization)
   EmbeddedBoundary(cut,cut.geo)
 end
 
+function EmbeddedBoundary(cut::EmbeddedDiscretization,name::String)
+  geo2 = get_geometry(cut.geo,name)
+  EmbeddedBoundary(cut,geo2)
+end
+
 function EmbeddedBoundary(cut::EmbeddedDiscretization,geo::CSG.Geometry)
 
   function conversion(data)
@@ -311,6 +326,12 @@ function EmbeddedBoundary(cut::EmbeddedDiscretization,geo::CSG.Geometry)
   fst = FacetSubTriangulation(cut.subfacets,newsubfacets,neworientation)
   FacetSubTriangulationWrapper(fst)
 
+end
+
+function EmbeddedBoundary(cut::EmbeddedDiscretization,name1::String,name2::String)
+  geo1 = get_geometry(cut.geo,name1)
+  geo2 = get_geometry(cut.geo,name2)
+  EmbeddedBoundary(cut,geo1,geo2)
 end
 
 function EmbeddedBoundary(cut::EmbeddedDiscretization,geo1::CSG.Geometry,geo2::CSG.Geometry)
