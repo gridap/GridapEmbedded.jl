@@ -43,7 +43,6 @@ function main(;n,outputfile=nothing)
   uin(x) = uin(x,x0,R,vmax)
   
   # Background model
-  n = 10
   partition = (4*n,n,n)
   D = length(partition)
   bgmodel = simplexify(CartesianDiscreteModel(pmin,pmax,partition))
