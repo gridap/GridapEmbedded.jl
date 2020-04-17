@@ -6,6 +6,8 @@ macro publish(mod,name)
 end
 
 @publish CSG get_metadata
+@publish CSG get_geometry
+@publish CSG get_geometry_names
 
 @publish Interfaces cut
 @publish Interfaces EmbeddedDiscretization

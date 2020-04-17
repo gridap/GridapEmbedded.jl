@@ -10,4 +10,6 @@ using Test
 
 @time @testset "GridapEmbedded" begin include("GridapEmbeddedTests/runtests.jl") end
 
+include(joinpath(@__DIR__,"..","examples","runexamples.jl"))
+
 end # module

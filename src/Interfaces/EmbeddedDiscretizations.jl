@@ -362,8 +362,13 @@ function GhostSkeleton(cut::EmbeddedDiscretization)
   GhostSkeleton(cut,cut.geo)
 end
 
-function GhostSkeleton(cut::EmbeddedDiscretization,geo::CSG.Geometry)
+function GhostSkeleton(cut::EmbeddedDiscretization,geo)
   GhostSkeleton(cut,geo,IN)
+end
+
+function GhostSkeleton(cut::EmbeddedDiscretization,name::String,in_or_out)
+  geo = get_geometry(cut.geo,name)
+  GhostSkeleton(cut,geo,in_or_out)
 end
 
 function GhostSkeleton(cut::EmbeddedDiscretization,geo::CSG.Geometry,in_or_out)
