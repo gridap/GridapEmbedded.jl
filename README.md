@@ -20,4 +20,4 @@ We impose a dirichlet boundary condition `ud = 1` on the walls of the internal c
 
 <img src="https://github.com/gridap/GridapEmbedded.jl/blob/preparing_release/examples/PoissonCSGCutFEM_solution.png?raw=true" width="300"> 
 
-Find the source code to reproduce this example [here](https://github.com/gridap/GridapEmbedded.jl/blob/preparing_release/examples/PoissonCSGCutFEM.jl).
+Find the source code to reproduce this example [examples/PoissonCSGCutFEM.jl](https://github.com/gridap/GridapEmbedded.jl/blob/preparing_release/examples/PoissonCSGCutFEM.jl).
