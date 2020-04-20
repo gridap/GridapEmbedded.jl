@@ -2,13 +2,13 @@ module RunExamples
 
 using Test
 
-@time @testset "poisson_csg_cutfem" begin
-  include("poisson_csg_cutfem.jl")
+@time @testset "PoissonCSGCutFEM" begin
+  include("PoissonCSGCutFEM.jl")
   PoissonCSGCutFEM.main(n=30)
 end
 
-@time @testset "stokes_tube_with_obstacle_cutfem" begin
-  include("stokes_tube_with_obstacle_cutfem.jl")
+@time @testset "StokesTubeWithObstacleCutFEM" begin
+  include("StokesTubeWithObstacleCutFEM.jl")
   StokesTubeWithObstacleCutFEM.main(n=10)
 end
 

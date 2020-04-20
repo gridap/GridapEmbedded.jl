@@ -79,6 +79,4 @@ function main(;n,outputfile=nothing)
 
 end
 
-main(n=40,outputfile="results")
-
 end # module
