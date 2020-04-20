@@ -70,15 +70,15 @@ V = TestFESpace(
   model=model,valuetype=VectorValue{D,Float64},reffe=:PLagrangian,
   order=order,conformity=:H1)
 
-_Q = TestFESpace(
+Q = TestFESpace(
   model=model,valuetype=Float64,reffe=:PLagrangian,
-  order=order,conformity=:H1)
+  order=order,conformity=:H1,constraint=:zeromean)
 
-# TODO
-using Gridap.FESpaces: ZeroMeanFESpace
-trian = Triangulation(bgmodel)
-quad = CellQuadrature(trian,1)
-Q = ZeroMeanFESpace(_Q,trian,quad)
+## TODO
+#using Gridap.FESpaces: ZeroMeanFESpace
+#trian = Triangulation(bgmodel)
+#quad = CellQuadrature(trian,1)
+#Q = ZeroMeanFESpace(_Q,trian,quad)
 
 U = TrialFESpace(V)
 P = TrialFESpace(Q)
