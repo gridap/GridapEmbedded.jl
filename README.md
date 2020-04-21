@@ -26,7 +26,7 @@ julia> include("examples/PoissonCSGCutFEM/PoissonCSGCutFEM.jl")
 julia> PoissonCSGCutFEM.main(n=40,outputfile="results1")
 ```
 
-<img src="https://upload.wikimedia.org/wikipedia/commons/8/8b/Csg_tree.png" width="300"><img src="https://github.com/gridap/GridapEmbedded.jl/blob/preparing_release/examples/PoissonCSGCutFEM/PoissonCSGCutFEM_solution.png?raw=true" width="300">
+<img src="https://upload.wikimedia.org/wikipedia/commons/8/8b/Csg_tree.png" width="300"><img src="https://github.com/gridap/GridapEmbedded.jl/blob/master/examples/PoissonCSGCutFEM/PoissonCSGCutFEM_solution.png?raw=true" width="300">
 
 *left picture by wikipedia.org*
 
@@ -35,7 +35,7 @@ julia> include("examples/StokesTubeWithObstacleCutFEM/StokesTubeWithObstacleCutF
 julia> StokesTubeWithObstacleCutFEM.main(n=10,outputfile="results2")
 ```
 
-<img src="https://github.com/gridap/GridapEmbedded.jl/blob/preparing_release/examples/StokesTubeWithObstacleCutFEM/StokesTubeWithObstacleCutFEM_solution.png?raw=true" width="600">
+<img src="https://github.com/gridap/GridapEmbedded.jl/blob/master/examples/StokesTubeWithObstacleCutFEM/StokesTubeWithObstacleCutFEM_solution.png?raw=true" width="600">
 
 
 
