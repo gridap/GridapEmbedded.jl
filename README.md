@@ -30,7 +30,12 @@ julia> PoissonCSGCutFEM.main(n=40,outputfile="results1")
 
 *left picture by wikipedia.org*
 
+```julia
+julia> include("examples/StokesTubeWithObstacleCutFEM/StokesTubeWithObstacleCutFEM.jl")
+julia> StokesTubeWithObstacleCutFEM.main(n=10,outputfile="results2")
+```
 
+<img src="https://github.com/gridap/GridapEmbedded.jl/blob/preparing_release/examples/StokesTubeWithObstacleCutFEM/StokesTubeWithObstacleCutFEM_solution.png?raw=true" width="600">
 
 
 
