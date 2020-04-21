@@ -1,7 +1,8 @@
 module EmbeddedBimaterialPoissonCutFEMTests
 
 using Gridap
-using Gridap.Arrays
+using Gridap.Arrays: reindex
+using Gridap.Geometry: cell_measure
 using GridapEmbedded
 
 # Material Parameters and loads

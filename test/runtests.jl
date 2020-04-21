@@ -2,14 +2,23 @@ module RunTests
 
 using Test
 
-@time @testset "CSG" begin include("CSGTests/runtests.jl") end
+using MiniQhull
 
-@time @testset "Interfaces" begin include("InterfacesTests/runtests.jl") end
+if MiniQhull.QHULL_WRAPPER_LOADED[]
 
-@time @testset "LevelSetCutters" begin include("LevelSetCuttersTests/runtests.jl") end
+  @time @testset "CSG" begin include("CSGTests/runtests.jl") end
+  
+  @time @testset "Interfaces" begin include("InterfacesTests/runtests.jl") end
+  
+  @time @testset "LevelSetCutters" begin include("LevelSetCuttersTests/runtests.jl") end
+  
+  @time @testset "GridapEmbedded" begin include("GridapEmbeddedTests/runtests.jl") end
+  
+  include(joinpath(@__DIR__,"..","examples","runexamples.jl"))
 
-@time @testset "GridapEmbedded" begin include("GridapEmbeddedTests/runtests.jl") end
+else
+  @warn "MiniQhull not properly installed. Tests are not executed."
 
-include(joinpath(@__DIR__,"..","examples","runexamples.jl"))
+end
 
 end # module
