@@ -37,7 +37,12 @@ julia> StokesTubeWithObstacleCutFEM.main(n=10,outputfile="results2")
 
 <img src="https://github.com/gridap/GridapEmbedded.jl/blob/master/examples/StokesTubeWithObstacleCutFEM/StokesTubeWithObstacleCutFEM_solution.png?raw=true" width="600">
 
+### Bimaterial problems
 
+```julia
+julia> include("examples/BimaterialLinElastCutFEM/BimaterialLinElastCutFEM.jl")
+julia> BimaterialLinElastCutFEM.main(n=4,outputfile="results3")
+```
 
-
+<img src="https://raw.githubusercontent.com/gridap/GridapEmbedded.jl/master/examples/BimaterialLinElastCutFEM/BimaterialLinElastCutFEM_solution.png" width="400">
 
