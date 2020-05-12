@@ -1,19 +1,4 @@
 
-# TODO move to gridap
-function Gridap.Arrays.reindex(cf::Gridap.Geometry.CellFieldLike,a::AbstractVector)
-  Gridap.Geometry.similar_object(cf,reindex(get_array(cf),a))
-end
-
-# TODO move to gridap
-function Gridap.Arrays.reindex(cf::Gridap.FESpaces.CellDofBasis,a::AbstractVector)
-  Gridap.Geometry.similar_object(cf,reindex(get_array(cf),a))
-end
-
-# TODO move to gridap
-function Gridap.Geometry.similar_object(cf::Gridap.FESpaces.CellDofBasis,a::AbstractArray)
-  GenericCellDofBasis(Gridap.Geometry.RefStyle(cf),a)
-end
-
 function AgFEMSpace(f::ExtendedFESpace,acell_to_cellin::AbstractVector)
 
   trian = f.trian
@@ -117,3 +102,4 @@ function _setup_agfem_constraints(
 
   aggdof_to_fdof, aggdof_to_dofs, aggdof_to_coeffs
 end
+
