@@ -25,3 +25,6 @@ end
 @publish LevelSetCutters cylinder
 @publish LevelSetCutters plane
 @publish LevelSetCutters cube
+
+@publish AgFEM AgFEMSpace
+
