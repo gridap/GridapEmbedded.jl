@@ -22,8 +22,6 @@ colors = color_aggregates(aggregates,bgmodel)
 
 trian = Triangulation(bgmodel)
 
-writevtk(trian,"trian",celldata=["cellin"=>aggregates,"color"=>colors])
-
-
+#writevtk(trian,"trian",celldata=["cellin"=>aggregates,"color"=>colors])
 
 end # module

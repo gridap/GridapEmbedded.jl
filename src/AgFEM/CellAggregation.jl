@@ -51,6 +51,8 @@ function _compute_aggregates_barrier(
 
   c1 = array_cache(cell_to_faces)
   c2 = array_cache(face_to_cells)
+  c3 = array_cache(cell_to_coords)
+  c4 = array_cache(cell_to_coords)
 
   max_iters = 20
 
@@ -59,7 +61,8 @@ function _compute_aggregates_barrier(
     all_aggregated = true
     for (cell, inoutcut) in enumerate(cell_to_inoutcut)
       if inoutcut == CUT && ! cell_to_touched[cell]
-        neigh_cell = _find_best_neighbor(c1,c2,cell,cell_to_faces,face_to_cells,cell_to_touched)
+        neigh_cell = _find_best_neighbor(
+          c1,c2,c3,c4,cell,cell_to_faces,face_to_cells,cell_to_coords,cell_to_touched,cell_to_cellin)
         if neigh_cell > 0
           cellin = cell_to_cellin[neigh_cell]
           cell_to_cellin[cell] = cellin
@@ -79,20 +82,34 @@ function _compute_aggregates_barrier(
   cell_to_cellin
 end
 
-function _find_best_neighbor(c1,c2,cell,cell_to_faces,face_to_cells,cell_to_touched)
+function _find_best_neighbor(
+  c1,c2,c3,c4,cell,cell_to_faces,face_to_cells,cell_to_coords,cell_to_touched,cell_to_cellin)
   #TODO skip faces that are out
-  #TODO take into account cell coordinates
   faces = getindex!(c1,cell_to_faces,cell)
+  dmin = Inf
+  T = eltype(eltype(face_to_cells))
+  best_neigh_cell = zero(T)
+  i_to_coords = getindex!(c3,cell_to_coords,cell)
   for face in faces
     neigh_cells = getindex!(c2,face_to_cells,face)
     for neigh_cell in neigh_cells
       if neigh_cell != cell && cell_to_touched[neigh_cell]
-        return neigh_cell
+        cellin = cell_to_cellin[neigh_cell]
+        j_to_coords = getindex!(c4,cell_to_coords,cellin)
+        d = 0.0
+        for p in i_to_coords
+          for q in j_to_coords
+            d = max(d,Float64(norm(p-q)))
+          end
+        end
+        if (1.0+1.0e-9)*d < dmin
+          dmin = d
+          best_neigh_cell = neigh_cell
+        end
       end
     end
   end
-  T = eltype(eltype(face_to_cells))
-  zero(T)
+  best_neigh_cell
 end
 
 function _touch_aggregated_cells!(cell_to_touched,cell_to_cellin)
