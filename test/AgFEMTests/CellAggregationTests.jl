@@ -22,6 +22,11 @@ colors = color_aggregates(aggregates,bgmodel)
 
 trian = Triangulation(bgmodel)
 
-#writevtk(trian,"trian",celldata=["cellin"=>aggregates,"color"=>colors])
+aggregates_out = aggregate(strategy,cutdisc,geom,OUT)
+
+colors_out = color_aggregates(aggregates_out,bgmodel)
+
+#writevtk(trian,"trian",
+#  celldata=["cellin"=>aggregates,"color"=>colors,"cellin_out"=>aggregates_out,"color_out"=>colors_out])
 
 end # module
