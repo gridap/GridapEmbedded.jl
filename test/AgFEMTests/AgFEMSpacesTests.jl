@@ -24,16 +24,13 @@ V = TestFESpace(
 
 vh = FEFunction(V,collect(1:num_free_dofs(V)))
 
+cell_to_cellin = [0,0,9,8,8,9,8,8,9]
 
-acell_to_cellin = [9,8,8,9,8,8,9]
-
-writevtk(V.trian,"V_trian",celldata=["cellin"=>acell_to_cellin])
-
-Vagg = AgFEMSpace(V,acell_to_cellin)
+Vagg = AgFEMSpace(V,cell_to_cellin)
 
 vhagg = FEFunction(Vagg,rand(num_free_dofs(Vagg)))
 
-writevtk(trian,"trian",nsubcells=10,cellfields=["vh"=>vh,"vhagg"=>vhagg],celldata=["acell"=>V.trian.oldcell_to_cell])
-writevtk(trian_Ω,"trian_0")
+#writevtk(trian,"trian",nsubcells=10,cellfields=["vh"=>vh,"vhagg"=>vhagg],celldata=["acell"=>V.trian.oldcell_to_cell])
+#writevtk(trian_Ω,"trian_0")
 
 end # module

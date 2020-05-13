@@ -1,9 +1,12 @@
 
-function AgFEMSpace(f::ExtendedFESpace,acell_to_cellin::AbstractVector)
+function AgFEMSpace(f::SingleFieldFESpace,cell_to_cellin::AbstractVector)
 
-  trian = f.trian
-  acell_to_cell = trian.cell_to_oldcell
-  cell_to_acell = trian.oldcell_to_cell
+  cell_to_isactive = apply(i->(i>0),cell_to_cellin)
+  acell_to_cell = findall( cell_to_isactive  )
+  acell_to_cellin = cell_to_cellin[acell_to_cell]
+  cell_to_acell = zeros(Int32,length(cell_to_cellin))
+  cell_to_acell[cell_to_isactive] .= 1:length(acell_to_cell)
+
   acell_to_dofs = reindex(get_cell_dofs(f),acell_to_cell)
   n_fdofs = num_free_dofs(f) 
   acell_to_basis = reindex(get_cell_basis(f),acell_to_cellin)
