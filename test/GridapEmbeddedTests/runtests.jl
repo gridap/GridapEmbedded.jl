@@ -12,4 +12,6 @@ using Test
 
 @testset "StokesCutFEM" begin include("StokesCutFEMTests.jl") end
 
+@testset "StokesAgFEM" begin include("StokesAgFEMTests.jl") end
+
 end
