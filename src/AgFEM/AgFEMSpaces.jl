@@ -1,5 +1,5 @@
 
-function AgFEMSpace(f::SingleFieldFESpace,cell_to_cellin::AbstractVector)
+function AgFEMSpace(f::SingleFieldFESpace,cell_to_cellin::AbstractVector,g::SingleFieldFESpace=f)
 
   cell_to_isactive = apply(i->(i>0),cell_to_cellin)
   acell_to_cell = findall( cell_to_isactive  )
@@ -9,11 +9,15 @@ function AgFEMSpace(f::SingleFieldFESpace,cell_to_cellin::AbstractVector)
 
   acell_to_dofs = reindex(get_cell_dofs(f),acell_to_cell)
   n_fdofs = num_free_dofs(f) 
-  acell_to_basis = reindex(get_cell_basis(f),acell_to_cellin)
-  acell_to_dof_basis = reindex(get_cell_dof_basis(f),acell_to_cell)
-  @notimplementedif is_in_ref_space(acell_to_basis)
-  @notimplementedif is_in_ref_space(acell_to_dof_basis)
-  acell_to_coeffs = evaluate(acell_to_dof_basis,acell_to_basis)
+  acell_to_fbasis = reindex(get_cell_basis(f),acell_to_cellin)
+  acell_to_gbasis = reindex(get_cell_basis(g),acell_to_cellin)
+  acell_to_dof_fbasis = reindex(get_cell_dof_basis(f),acell_to_cell)
+  acell_to_dof_gbasis = reindex(get_cell_dof_basis(g),acell_to_cellin)
+  @notimplementedif is_in_ref_space(acell_to_dof_fbasis)
+  @notimplementedif is_in_ref_space(acell_to_gbasis)
+  @assert RefStyle(acell_to_fbasis) == RefStyle(acell_to_dof_gbasis)
+  acell_to_coeffs = evaluate(acell_to_dof_fbasis,acell_to_gbasis)
+  acell_to_proj = evaluate(acell_to_dof_gbasis,acell_to_fbasis)
 
   aggdof_to_fdof, aggdof_to_dofs, aggdof_to_coeffs = _setup_agfem_constraints(
     n_fdofs,
@@ -21,7 +25,8 @@ function AgFEMSpace(f::SingleFieldFESpace,cell_to_cellin::AbstractVector)
     acell_to_cell,
     cell_to_acell,
     acell_to_dofs,
-    acell_to_coeffs)
+    acell_to_coeffs,
+    acell_to_proj)
 
   FESpaceWithLinearConstraints(aggdof_to_fdof,aggdof_to_dofs,aggdof_to_coeffs,f)
 end
@@ -32,7 +37,8 @@ function _setup_agfem_constraints(
   acell_to_cell,
   cell_to_acell,
   acell_to_dofs,
-  acell_to_coeffs)
+  acell_to_coeffs,
+  acell_to_proj)
 
   n_acells = length(acell_to_cell)
   fdof_to_isagg = fill(true,n_fdofs)
@@ -86,18 +92,25 @@ function _setup_agfem_constraints(
   aggdof_to_dofs = Table(aggdof_to_dofs_data,aggdof_to_dofs_ptrs)
 
   cache2 = array_cache(acell_to_coeffs)
+  cache3 = array_cache(acell_to_proj)
 
-  aggdof_to_coefs_data = zeros(Float64,ndata)
+  T = eltype(eltype(acell_to_coeffs))
+  z = zero(T)
+
+  aggdof_to_coefs_data = zeros(T,ndata)
   for aggdof in 1:n_aggdofs
     fdof = aggdof_to_fdof[aggdof]
     acell = fdof_to_acell[fdof]
     coeffs = getindex!(cache2,acell_to_coeffs,acell)
+    proj = getindex!(cache3,acell_to_proj,acell)
     ldof = fdof_to_ldof[fdof]
     p = aggdof_to_dofs_ptrs[aggdof]-1
-    n_coeffs = size(coeffs,2)
-    for i in 1:n_coeffs
-      coeff = coeffs[ldof,i]
-      aggdof_to_coefs_data[p+i] = coeff
+    for b in 1:size(proj,2)
+      coeff = z
+      for c in 1:size(coeffs,2)
+        coeff += coeffs[ldof,c]*proj[c,b]
+      end
+      aggdof_to_coefs_data[p+b] = coeff
     end
   end
 
