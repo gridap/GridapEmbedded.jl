@@ -1,5 +1,13 @@
 
 function AgFEMSpace(f::SingleFieldFESpace,cell_to_cellin::AbstractVector,g::SingleFieldFESpace=f)
+  AgFEMSpace(f,cell_to_cellin,get_cell_basis(g),get_cell_dof_basis(g))
+end
+
+function AgFEMSpace(
+  f::SingleFieldFESpace,
+  cell_to_cellin::AbstractVector,
+  cell_to_basis_ext::CellBasis,
+  cell_to_dof_basis_ext::CellDofBasis)
 
   cell_to_isactive = apply(i->(i>0),cell_to_cellin)
   acell_to_cell = findall( cell_to_isactive  )
@@ -10,9 +18,9 @@ function AgFEMSpace(f::SingleFieldFESpace,cell_to_cellin::AbstractVector,g::Sing
   acell_to_dofs = reindex(get_cell_dofs(f),acell_to_cell)
   n_fdofs = num_free_dofs(f) 
   acell_to_fbasis = reindex(get_cell_basis(f),acell_to_cellin)
-  acell_to_gbasis = reindex(get_cell_basis(g),acell_to_cellin)
+  acell_to_gbasis = reindex(cell_to_basis_ext,acell_to_cellin)
   acell_to_dof_fbasis = reindex(get_cell_dof_basis(f),acell_to_cell)
-  acell_to_dof_gbasis = reindex(get_cell_dof_basis(g),acell_to_cellin)
+  acell_to_dof_gbasis = reindex(cell_to_dof_basis_ext,acell_to_cellin)
   @notimplementedif is_in_ref_space(acell_to_dof_fbasis)
   @notimplementedif is_in_ref_space(acell_to_gbasis)
   @assert RefStyle(acell_to_fbasis) == RefStyle(acell_to_dof_gbasis)
