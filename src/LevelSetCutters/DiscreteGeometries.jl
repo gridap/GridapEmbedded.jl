@@ -65,3 +65,9 @@ function _find_unique_leaves(tree)
   j_to_fun, oid_to_j
 end
 
+function discrete_geometry(
+  point_to_value::AbstractVector,point_to_coords::AbstractVector;name::String="")
+  data = (point_to_value,name,nothing)
+  tree = Leaf(data)
+  DiscreteGeometry(tree,point_to_coords)
+end

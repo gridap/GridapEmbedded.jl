@@ -35,6 +35,7 @@ export cylinder
 export plane
 export cube
 export discretize
+export discrete_geometry
 
 include("AnalyticalGeometries.jl")
 
