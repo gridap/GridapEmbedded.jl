@@ -1,9 +1,9 @@
 
-struct SubTriangulation{Dp,T} <: GridapType
+struct SubTriangulation{Dr,Dp,T} <: GridapType
   cell_to_points::Table{Int,Int32}
   cell_to_bgcell::Vector{Int32}
   point_to_coords::Vector{Point{Dp,T}}
-  point_to_rcoords::Vector{Point{Dp,T}}
+  point_to_rcoords::Vector{Point{Dr,T}}
 end
 
 function SubTriangulation(st::SubTriangulation,newcells::AbstractVector{<:Integer})
@@ -20,12 +20,12 @@ end
 # Implementation of Triangulation interface
 
 struct SubTriangulationWrapper{Dp,T} <: Triangulation{Dp,Dp}
-  subcells::SubTriangulation{Dp,T}
+  subcells::SubTriangulation{Dp,Dp,T}
   cell_types::Vector{Int8}
   reffes::Vector{LagrangianRefFE{Dp}}
   subcell_to_cell_map
 
-  function SubTriangulationWrapper(st::SubTriangulation{Dp,T}) where {Dp,T}
+  function SubTriangulationWrapper(st::SubTriangulation{Dp,Dp,T}) where {Dp,T}
     reffe = LagrangianRefFE(Float64,Simplex(Val{Dp}()),1)
     cell_types = fill(Int8(1),length(st.cell_to_points))
     reffes = [reffe]

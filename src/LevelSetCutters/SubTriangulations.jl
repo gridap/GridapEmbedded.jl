@@ -1,4 +1,4 @@
-function cut_sub_triangulation(st::SubTriangulation{Dc,T},ls_to_point_to_value) where {Dc,T}
+function cut_sub_triangulation(st::SubTriangulation{Dc,Dc,T},ls_to_point_to_value) where {Dc,T}
   _st = st
 
   nls = length(ls_to_point_to_value)
@@ -135,7 +135,7 @@ function _cut_sub_triangulation_count(st::FacetSubTriangulation,facet_table,poin
 end
 
 function _allocate_new_sub_triangulation(
-  st::SubTriangulation{Dc,T},refcell,reffacet,nrcells,nrpoints,nrfacets,i_to_point_to_value,j_to_cell_to_inout) where {Dc,T}
+  st::SubTriangulation{Dc,Dc,T},refcell,reffacet,nrcells,nrpoints,nrfacets,i_to_point_to_value,j_to_cell_to_inout) where {Dc,T}
 
   nlp = refcell.num_points
   rcell_to_rpoints_data = zeros(eltype(st.cell_to_points.data),nlp*nrcells)
