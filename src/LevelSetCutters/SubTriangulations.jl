@@ -1,52 +1,52 @@
-function cut_sub_triangulation(st::SubTriangulation{Dc,Dc,T},ls_to_point_to_value) where {Dc,T}
-  _st = st
-
-  nls = length(ls_to_point_to_value)
-  lsids = collect(1:nls)
-
-  _ls_to_point_to_value = ls_to_point_to_value[lsids]
-
-  ls_to_cell_to_inout = Vector{Int8}[]
-  ls_to_fst = FacetSubTriangulation{Dc,T}[]
-  ls_to_n_to_facet_inout = Vector{Vector{Int8}}[]
-  
-  while length(lsids)>0
-    lsid = pop!(lsids)
-
-    point_to_value = _ls_to_point_to_value[lsid]
-
-    out = _cut_sub_triangulation(_st,point_to_value,_ls_to_point_to_value,ls_to_cell_to_inout)
-    _st, _ls_to_point_to_value, ls_to_cell_to_inout, cell_to_inout, _fst = out
-
-    _fst, n_to_facet_to_inout = cut_sub_triangulation(_fst,_ls_to_point_to_value[union(1:(lsid-1),(lsid+1):nls)])
-    insert!(n_to_facet_to_inout,lsid,fill(Int8(INTERFACE),length(_fst.facet_to_bgcell)))
-
-    pushfirst!(ls_to_cell_to_inout,cell_to_inout)
-    pushfirst!(ls_to_fst,_fst)
-    pushfirst!(ls_to_n_to_facet_inout,n_to_facet_to_inout)
-  end
-
-  #TODO avoid temporary copies
-  fst, ls_to_facet_to_inout = merge_facet_sub_triangulations(ls_to_fst,ls_to_n_to_facet_inout)
-
-  _st, ls_to_cell_to_inout, fst, ls_to_facet_to_inout
-end
-
-function cut_sub_triangulation(st::FacetSubTriangulation,ls_to_point_to_value)
-  _st = st
-
-  _ls_to_point_to_value = [ point_to_value for point_to_value in ls_to_point_to_value ]
-  ls_to_facet_to_inout = Vector{Int8}[]
-  
-  while length(_ls_to_point_to_value)>0
-    point_to_value = pop!(_ls_to_point_to_value)
-    out = _cut_sub_triangulation(_st,point_to_value,_ls_to_point_to_value,ls_to_facet_to_inout)
-    _st, _ls_to_point_to_value, ls_to_facet_to_inout, facet_to_inout = out
-    pushfirst!(ls_to_facet_to_inout,facet_to_inout)
-  end
-
-  _st, ls_to_facet_to_inout
-end
+#function cut_sub_triangulation(st::SubTriangulation{Dc,Dc,T},ls_to_point_to_value) where {Dc,T}
+#  _st = st
+#
+#  nls = length(ls_to_point_to_value)
+#  lsids = collect(1:nls)
+#
+#  _ls_to_point_to_value = ls_to_point_to_value[lsids]
+#
+#  ls_to_cell_to_inout = Vector{Int8}[]
+#  ls_to_fst = FacetSubTriangulation{Dc,T}[]
+#  ls_to_n_to_facet_inout = Vector{Vector{Int8}}[]
+#  
+#  while length(lsids)>0
+#    lsid = pop!(lsids)
+#
+#    point_to_value = _ls_to_point_to_value[lsid]
+#
+#    out = _cut_sub_triangulation(_st,point_to_value,_ls_to_point_to_value,ls_to_cell_to_inout)
+#    _st, _ls_to_point_to_value, ls_to_cell_to_inout, cell_to_inout, _fst = out
+#
+#    _fst, n_to_facet_to_inout = cut_sub_triangulation(_fst,_ls_to_point_to_value[union(1:(lsid-1),(lsid+1):nls)])
+#    insert!(n_to_facet_to_inout,lsid,fill(Int8(INTERFACE),length(_fst.facet_to_bgcell)))
+#
+#    pushfirst!(ls_to_cell_to_inout,cell_to_inout)
+#    pushfirst!(ls_to_fst,_fst)
+#    pushfirst!(ls_to_n_to_facet_inout,n_to_facet_to_inout)
+#  end
+#
+#  #TODO avoid temporary copies
+#  fst, ls_to_facet_to_inout = merge_facet_sub_triangulations(ls_to_fst,ls_to_n_to_facet_inout)
+#
+#  _st, ls_to_cell_to_inout, fst, ls_to_facet_to_inout
+#end
+#
+#function cut_sub_triangulation(st::FacetSubTriangulation,ls_to_point_to_value)
+#  _st = st
+#
+#  _ls_to_point_to_value = [ point_to_value for point_to_value in ls_to_point_to_value ]
+#  ls_to_facet_to_inout = Vector{Int8}[]
+#  
+#  while length(_ls_to_point_to_value)>0
+#    point_to_value = pop!(_ls_to_point_to_value)
+#    out = _cut_sub_triangulation(_st,point_to_value,_ls_to_point_to_value,ls_to_facet_to_inout)
+#    _st, _ls_to_point_to_value, ls_to_facet_to_inout, facet_to_inout = out
+#    pushfirst!(ls_to_facet_to_inout,facet_to_inout)
+#  end
+#
+#  _st, ls_to_facet_to_inout
+#end
 
 function _cut_sub_triangulation(st::SubTriangulation,point_to_value,i_to_point_to_value,j_to_cell_to_inout)
 

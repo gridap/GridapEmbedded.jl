@@ -44,6 +44,8 @@ include("LookupTables.jl")
 
 include("SubTriangulations.jl")
 
+include("CutTriangulations.jl")
+
 struct LevelSetCutter <: Cutter end
 
 function cut(cutter::LevelSetCutter,background::DiscreteModel,geom)
