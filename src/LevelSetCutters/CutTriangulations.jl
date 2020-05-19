@@ -1,7 +1,7 @@
-#struct MiniCell
-#  num_points::Int
-#  edge_to_points::Vector{Vector{Int}}
-#end
+struct MiniCell
+  num_points::Int
+  edge_to_points::Vector{Vector{Int}}
+end
 
 function MiniCell(p::Polytope)
   MiniCell(num_vertices(p),get_faces(p,1,0))
@@ -434,5 +434,196 @@ end
 function set_point_data!( s::FacetSubTriangulation, m::FacetSubTriangulation, d...)
   set_point_data!(s.point_to_coords, m.point_to_coords, d...)
   set_point_data!(s.point_to_rcoords, m.point_to_rcoords, d...)
+end
+
+function initial_sub_triangulation(grid::Grid,geom::AnalyticalGeometry)
+  _, oid_to_ls = _find_unique_leaves(get_tree(geom))
+  out = initial_sub_triangulation(grid,discretize(geom,grid))
+  out[1], out[2], out[3], oid_to_ls
+end
+
+function initial_sub_triangulation(grid::Grid,geom::DiscreteGeometry)
+  ugrid = UnstructuredGrid(grid)
+  tree = get_tree(geom)
+  ls_to_point_to_value, oid_to_ls = _find_unique_leaves(tree)
+  out = _initial_sub_triangulation(ugrid,ls_to_point_to_value)
+  out[1], out[2], out[3], oid_to_ls
+end
+
+function _initial_sub_triangulation(grid::UnstructuredGrid,ls_to_point_to_value)
+
+  cutgrid, ls_to_cutpoint_to_value, ls_to_bgcell_to_inoutcut = _extract_grid_of_cut_cells(grid,ls_to_point_to_value)
+
+  subtrian, ls_to_subpoint_to_value = _simplexify_and_isolate_cells_in_cutgrid(cutgrid,ls_to_cutpoint_to_value)
+
+  subtrian, ls_to_subpoint_to_value, ls_to_bgcell_to_inoutcut
+end
+
+function _extract_grid_of_cut_cells(grid,ls_to_point_to_value)
+
+
+  p = _check_and_get_polytope(grid)
+  table = LookupTable(p)
+  cell_to_points = get_cell_nodes(grid)
+
+  ls_to_cell_to_inoutcut = [
+    _compute_in_out_or_cut(table,cell_to_points,point_to_value)
+    for point_to_value in ls_to_point_to_value]
+
+  cutcell_to_cell = _find_cut_cells(ls_to_cell_to_inoutcut)
+
+  cutgrid = GridPortion(grid,cutcell_to_cell)
+
+  ls_to_cutpoint_to_value = [
+    point_to_value[cutgrid.node_to_oldnode] for point_to_value in ls_to_point_to_value ]
+
+  cutgrid, ls_to_cutpoint_to_value, ls_to_cell_to_inoutcut
+end
+
+function _find_cut_cells(ls_to_cell_to_inoutcut)
+  ncells = length(first(ls_to_cell_to_inoutcut))
+  cell_to_iscut = fill(false,ncells)
+  for cell in 1:ncells
+    for cell_to_inoutcut in ls_to_cell_to_inoutcut
+      inoutcut = cell_to_inoutcut[cell]
+      if inoutcut == CUT
+        cell_to_iscut[cell] = true
+      end
+    end
+  end
+  findall(cell_to_iscut)
+end
+
+function _check_and_get_polytope(grid)
+  reffes = get_reffes(grid)
+  @notimplementedif length(reffes) != 1
+  reffe = first(reffes)
+  order = 1
+  @notimplementedif get_order(reffe) != order
+  p = get_polytope(reffe)
+  p
+end
+
+function _simplexify_and_isolate_cells_in_cutgrid(cutgrid,ls_to_cutpoint_to_value)
+
+  p = _check_and_get_polytope(cutgrid)
+
+  ltcell_to_lpoints, simplex = simplexify(p)
+  lpoint_to_lcoords = get_vertex_coordinates(p)
+  _ensure_positive_jacobians!(ltcell_to_lpoints,lpoint_to_lcoords,simplex)
+
+  out = _simplexify(
+    get_node_coordinates(cutgrid),
+    get_cell_nodes(cutgrid),
+    ltcell_to_lpoints,
+    lpoint_to_lcoords,
+    ls_to_cutpoint_to_value,
+    num_vertices(p),
+    num_vertices(simplex))
+
+  tcell_to_tpoints, tpoint_to_coords, tpoint_to_rcoords, ls_to_tpoint_to_value = out
+  _ensure_positive_jacobians!(tcell_to_tpoints,tpoint_to_coords,simplex)
+
+  ntcells = length(tcell_to_tpoints)
+  nltcells = length(ltcell_to_lpoints)
+  tcell_to_cell = _setup_cell_to_bgcell(cutgrid.cell_to_oldcell,nltcells,ntcells)
+
+  subtrian = SubTriangulation(
+    tcell_to_tpoints,
+    tcell_to_cell,
+    tpoint_to_coords,
+    tpoint_to_rcoords)
+
+  subtrian, ls_to_tpoint_to_value
+end
+
+function _setup_cell_to_bgcell(pcell_to_bgcell,nlcells,ncells)
+  cell_to_bgcell = zeros(Int32,ncells)
+  cell = 1
+  for bgcell in pcell_to_bgcell
+    for lcell in 1:nlcells
+      cell_to_bgcell[cell] = bgcell
+      cell += 1
+    end
+  end
+  cell_to_bgcell
+end
+
+function _simplexify(
+  point_to_coords,
+  cell_to_points::Table,
+  ltcell_to_lpoints,
+  lpoint_to_lcoords,
+  ls_to_point_to_value,
+  nlpoints,
+  nsp)
+
+  ncells = length(cell_to_points)
+  nltcells = length(ltcell_to_lpoints)
+  ntcells = ncells*nltcells
+  ntpoints = ncells*nlpoints
+
+  tcell_to_tpoints_data = zeros(eltype(cell_to_points.data),nsp*ntcells)
+  tcell_to_tpoints_ptrs = fill(eltype(cell_to_points.ptrs)(nsp),ntcells+1)
+  length_to_ptrs!(tcell_to_tpoints_ptrs)
+  tcell_to_tpoints = Table(tcell_to_tpoints_data,tcell_to_tpoints_ptrs)
+  tpoint_to_coords = zeros(eltype(point_to_coords),ntpoints)
+  tpoint_to_rcoords = zeros(eltype(point_to_coords),ntpoints)
+  T = eltype(first(ls_to_point_to_value))
+  ls_to_tpoint_to_value = [ zeros(T,ntpoints) for i in 1:length(ls_to_point_to_value)]
+
+  tpoint = 0
+  tcell = 0
+  for cell in 1:ncells
+
+    for ltcell in 1:nltcells
+      tcell += 1
+      q = tcell_to_tpoints.ptrs[tcell] - 1
+      lpoints = ltcell_to_lpoints[ltcell]
+      for (j,lpoint) in enumerate(lpoints)
+        tcell_to_tpoints.data[q+j] = tpoint + lpoint
+      end
+    end
+
+    a = cell_to_points.ptrs[cell]-1
+    for lpoint in 1:nlpoints
+      tpoint += 1
+      point = cell_to_points.data[a+lpoint]
+      coords = point_to_coords[point]
+      rcoords = lpoint_to_lcoords[lpoint]
+      tpoint_to_coords[tpoint] = coords
+      tpoint_to_rcoords[tpoint] = rcoords
+      for (i,point_to_val) in enumerate(ls_to_point_to_value)
+        val = point_to_val[point]
+        ls_to_tpoint_to_value[i][tpoint] = val
+      end
+    end
+
+  end
+
+  tcell_to_tpoints, tpoint_to_coords, tpoint_to_rcoords, ls_to_tpoint_to_value
+end
+
+@inline function _compute_in_out_or_cut(
+  table::LookupTable,
+  cell_to_points::Table,
+  point_to_value::AbstractVector,
+  cell::Integer)
+
+  case = compute_case(cell_to_points,point_to_value,cell)
+  table.case_to_inoutcut[case]
+end
+
+function _compute_in_out_or_cut(
+  table::LookupTable,
+  cell_to_points::Table,
+  point_to_value::AbstractVector)
+
+  ncells = length(cell_to_points)
+  cell_to_inoutcut = zeros(Int8,ncells)
+  for cell in 1:ncells
+    cell_to_inoutcut[cell] = _compute_in_out_or_cut(table,cell_to_points,point_to_value,cell)
+  end
+  cell_to_inoutcut
 end
 

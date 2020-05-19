@@ -42,8 +42,6 @@ include("DiscreteGeometries.jl")
 
 include("LookupTables.jl")
 
-include("SubTriangulations.jl")
-
 include("CutTriangulations.jl")
 
 struct LevelSetCutter <: Cutter end
@@ -66,7 +64,7 @@ end
 function _cut_ls(grid::Grid,geom)
   out = initial_sub_triangulation(grid,geom)
   subcells0, ls_to_point_to_value, ls_to_bgcell_to_inoutcut, oid_to_ls = out
-  out2 = cut_sub_triangulation(subcells0,ls_to_point_to_value)
+  out2 = cut_sub_triangulation_with_boundary_several_levelsets(subcells0,ls_to_point_to_value)
   subcells, ls_to_cell_to_inout, subfacets, ls_to_facet_to_inout  = out2
   ls_to_bgcell_to_inoutcut, subcells, ls_to_cell_to_inout, subfacets, ls_to_facet_to_inout, oid_to_ls
 end
