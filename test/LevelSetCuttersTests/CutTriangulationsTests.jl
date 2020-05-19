@@ -3,6 +3,7 @@ module CutTriangulationsTests
 using Gridap
 using Gridap.Geometry
 using Gridap.Visualization
+using Gridap.ReferenceFEs
 using GridapEmbedded.CSG
 using GridapEmbedded.LevelSetCutters
 using GridapEmbedded.LevelSetCutters: initial_sub_triangulation
@@ -23,7 +24,9 @@ n = 40
 partition = (n,n)
 pmin = Point(-1,-1)
 pmax = Point(2,2)
-grid = CartesianGrid(pmin,pmax,partition)
+model = CartesianDiscreteModel(pmin,pmax,partition)
+
+grid = get_grid(model)
 
 out = initial_sub_triangulation(grid,geo4)
 
@@ -69,5 +72,22 @@ subtrian, ls_to_cell_to_inoutcut, subtrian_b, ls_to_facet_to_inoutcut =
 #celldata = vcat(celldata1,celldata2)
 #
 #writevtk(UnstructuredGrid(subtrian_b),"subtrian2_b",celldata=celldata)
+
+
+fgrid = Grid(ReferenceFE{1},model)
+
+out = initial_sub_triangulation(fgrid,geo4)
+subtrian0, ls_to_point_to_value, ls_to_bgcell_to_inoutcut, oid_to_ls = out
+
+subtrian, ls_to_cell_to_inoutcut = cut_sub_triangulation_several_levelsets(subtrian0,ls_to_point_to_value)
+
+#celldata1 = ["inout_$i"=>cell_to_inout for (i,cell_to_inout) in enumerate(ls_to_cell_to_inoutcut)]
+#celldata2 = ["bgcell"=>subtrian.cell_to_bgcell]
+#celldata = vcat(celldata1,celldata2)
+#
+#writevtk(UnstructuredGrid(subtrian),"fsubtrian",celldata=celldata)
+
+
+
 
 end # module

@@ -506,6 +506,9 @@ end
 
 function _simplexify_and_isolate_cells_in_cutgrid(cutgrid,ls_to_cutpoint_to_value)
 
+  Dc = num_cell_dims(cutgrid)
+  Dp = num_point_dims(cutgrid)
+
   p = _check_and_get_polytope(cutgrid)
 
   ltcell_to_lpoints, simplex = simplexify(p)
@@ -519,14 +522,23 @@ function _simplexify_and_isolate_cells_in_cutgrid(cutgrid,ls_to_cutpoint_to_valu
     lpoint_to_lcoords,
     ls_to_cutpoint_to_value,
     num_vertices(p),
-    num_vertices(simplex))
+    num_vertices(simplex),
+    Dc)
 
   tcell_to_tpoints, tpoint_to_coords, tpoint_to_rcoords, ls_to_tpoint_to_value = out
-  _ensure_positive_jacobians!(tcell_to_tpoints,tpoint_to_coords,simplex)
 
   ntcells = length(tcell_to_tpoints)
   nltcells = length(ltcell_to_lpoints)
   tcell_to_cell = _setup_cell_to_bgcell(cutgrid.cell_to_oldcell,nltcells,ntcells)
+
+  if Dc == Dp
+    _ensure_positive_jacobians!(tcell_to_tpoints,tpoint_to_coords,simplex)
+  elseif Dc+1 == Dp
+    tcell_to_cutcell = _setup_cell_to_bgcell(1:num_cells(cutgrid),nltcells,ntcells)
+    _ensure_positive_jacobians_facets!(tcell_to_tpoints,tpoint_to_coords,simplex,cutgrid,tcell_to_cutcell)
+  else
+    @notimplemented
+  end
 
   subtrian = SubTriangulation(
     tcell_to_tpoints,
@@ -556,19 +568,21 @@ function _simplexify(
   lpoint_to_lcoords,
   ls_to_point_to_value,
   nlpoints,
-  nsp)
+  nsp,
+  Dc)
 
   ncells = length(cell_to_points)
   nltcells = length(ltcell_to_lpoints)
   ntcells = ncells*nltcells
   ntpoints = ncells*nlpoints
+  T = eltype(eltype(point_to_coords))
 
   tcell_to_tpoints_data = zeros(eltype(cell_to_points.data),nsp*ntcells)
   tcell_to_tpoints_ptrs = fill(eltype(cell_to_points.ptrs)(nsp),ntcells+1)
   length_to_ptrs!(tcell_to_tpoints_ptrs)
   tcell_to_tpoints = Table(tcell_to_tpoints_data,tcell_to_tpoints_ptrs)
   tpoint_to_coords = zeros(eltype(point_to_coords),ntpoints)
-  tpoint_to_rcoords = zeros(eltype(point_to_coords),ntpoints)
+  tpoint_to_rcoords = zeros(Point{Dc,T},ntpoints)
   T = eltype(first(ls_to_point_to_value))
   ls_to_tpoint_to_value = [ zeros(T,ntpoints) for i in 1:length(ls_to_point_to_value)]
 
@@ -627,3 +641,45 @@ function _compute_in_out_or_cut(
   cell_to_inoutcut
 end
 
+function _ensure_positive_jacobians_facets!(
+  tcell_to_tpoints,tpoint_to_coords,simplex,cutgrid,tcell_to_cutcell)
+
+  n_tcells = length(tcell_to_tpoints)
+  tcell_to_ctype = ones(Int8,n_tcells)
+  ctype_to_reffe = [LagrangianRefFE(Float64,simplex,1)]
+  tgrid = UnstructuredGrid(tpoint_to_coords,tcell_to_tpoints,ctype_to_reffe,tcell_to_ctype)
+
+  tmap = get_cell_map(tgrid)
+  cutmap = reindex(get_cell_map(cutgrid),tcell_to_cutcell)
+
+  ctype_to_q = map(r->[first(get_node_coordinates(r))],ctype_to_reffe)
+  tcell_to_q = CompressedArray(ctype_to_q,tcell_to_ctype)
+
+  tjac = gradient(tmap)
+  jac = gradient(cutmap)
+  tjac_q = evaluate(tjac,tcell_to_q)
+  jac_q = evaluate(jac,tcell_to_q)
+
+  c1 = array_cache(tjac_q)
+  c2 = array_cache(jac_q)
+
+  _ensure_positive_jacobians_facets_work!(tcell_to_tpoints,c1,c2,tjac_q,jac_q)
+
+end
+
+function  _ensure_positive_jacobians_facets_work!(tcell_to_tpoints,c1,c2,tjac_q,jac_q)
+  n_tcells = length(tcell_to_tpoints)
+  for tcell in 1:n_tcells
+    tjac = getindex!(c1,tjac_q,tcell)
+    jac = getindex!(c2,jac_q,tcell)
+    n1 = VectorValue(first(tjac)...)
+    n2 = VectorValue(first(jac)...)
+    if n1*n2 < 0
+      p = tcell_to_tpoints.ptrs[tcell]-1
+      p1 = tcell_to_tpoints.data[p+1]
+      p2 = tcell_to_tpoints.data[p+2]
+      tcell_to_tpoints.data[p+1] = p2
+      tcell_to_tpoints.data[p+2] = p1
+    end
+  end
+end
