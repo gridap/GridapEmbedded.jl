@@ -73,10 +73,7 @@ function allocate_sub_triangulation_with_boundary(
   s, scell_to_inoutcut = allocate_sub_triangulation(m,n_cells,n_points)
   sub_trian_boundary = allocate_boundary_triangulation(s.sub_trian,n_facets)
 
-  s_boundary = CutTriangulation(
-    sub_trian_boundary,s.done_ls_to_cell_to_inoutcut,s.pending_ls_to_point_to_value)
-
-  s, scell_to_inoutcut, s_boundary
+  s, scell_to_inoutcut, sub_trian_boundary
 end
 
 function set_cell_data!(s::CutTriangulation, m::CutTriangulation, d...)
@@ -89,8 +86,8 @@ function set_cell_data!(s::CutTriangulation, m::CutTriangulation, d...)
   set_cell_data!(s.sub_trian, m.sub_trian, d...)
 end
 
-function set_cell_data_boundary!( s::CutTriangulation, m::CutTriangulation, d...)
-  set_cell_data_boundary!(s.sub_trian, m.sub_trian, d...)
+function set_cell_data_boundary!( s, m::CutTriangulation, d...)
+  set_cell_data_boundary!(s, m.sub_trian, d...)
 end
 
 function set_point_data!(s::CutTriangulation, m::CutTriangulation, d...)
@@ -222,9 +219,8 @@ end
 
 function cut_sub_triangulation_with_boundary(m, mpoint_to_value)
   _m = CutTriangulation(m,Vector{Int8}[],Vector{Float64}[])
-  _s, cell_to_inoutcut, _s_boundary = cut_sub_triangulation_with_boundary(_m,mpoint_to_value)
+  _s, cell_to_inoutcut, s_boundary = cut_sub_triangulation_with_boundary(_m,mpoint_to_value)
   s = _s.sub_trian
-  s_boundary = _s_boundary.sub_trian
   s, cell_to_inoutcut, s_boundary
 end
 
@@ -306,28 +302,46 @@ function cut_sub_triangulation_several_levelsets(sub_trian,pending_ls_to_point_t
   m.sub_trian, m.done_ls_to_cell_to_inoutcut
 end
 
-#function cut_sub_triangulation_with_boundary_several_levelsets(sub_trian,pending_ls_to_point_to_value)
-#
-#  pending_ls_to_point_to_value = copy(pending_ls_to_point_to_value)
-#  done_ls_to_cell_to_inoutcut = Vector{Int8}[]
-#
-#  m = CutTriangulation(sub_trian,done_ls_to_cell_to_inoutcut,pending_ls_to_point_to_value)
-#  while length(m.pending_ls_to_point_to_value) > 0
-#
-#
-#    point_to_value = pop!(m.pending_ls_to_point_to_value)
-#    m, cell_to_inoutcut, m_boundary = cut_sub_triangulation_with_boundary(m, point_to_value)
-#
-#    m_boundary, done_ls_to_facet_to_inoutcut = cut_sub_triangulation_several_levelsets(
-#      m_boundary,m.pending_ls_to_point_to_value)
-#
-#
-#    pushfirst!(m.done_ls_to_cell_to_inoutcut,cell_to_inoutcut)
-#  end
-#
-#  m.sub_trian, m.done_ls_to_cell_to_inoutcut
-#
-#end
+function cut_sub_triangulation_with_boundary_several_levelsets(sub_trian,pending_ls_to_point_to_value)
+
+  pending_ls_to_point_to_value = copy(pending_ls_to_point_to_value)
+  done_ls_to_cell_to_inoutcut = Vector{Int8}[]
+  done_ls_to_boundary = []
+  done_ls_to_ls_to_facet_inoutcut = Vector{Vector{Int8}}[]
+
+  m = CutTriangulation(sub_trian,done_ls_to_cell_to_inoutcut,pending_ls_to_point_to_value)
+
+  n_ls = length(pending_ls_to_point_to_value)
+  for ls in n_ls:-1:1
+
+    point_to_value = m.pending_ls_to_point_to_value[ls]
+    m, cell_to_inoutcut, m_boundary = cut_sub_triangulation_with_boundary(m, point_to_value)
+
+    ls_to_point_to_value = _remove_index(m.pending_ls_to_point_to_value,ls)
+
+    m_boundary, ls_to_facet_to_inoutcut =
+      cut_sub_triangulation_several_levelsets(m_boundary,ls_to_point_to_value)
+
+    n_facets = length(get_cell_to_points(m_boundary))
+    facet_to_inoutcut = fill(Int8(INTERFACE),n_facets)
+    insert!(ls_to_facet_to_inoutcut,ls,facet_to_inoutcut)
+
+    pushfirst!(m.done_ls_to_cell_to_inoutcut,cell_to_inoutcut)
+    pushfirst!(done_ls_to_boundary,m_boundary)
+    pushfirst!(done_ls_to_ls_to_facet_inoutcut,ls_to_facet_to_inoutcut)
+  end
+
+  m_boundary, done_ls_to_facet_to_inoutcut =
+    merge_facet_sub_triangulations(done_ls_to_boundary,done_ls_to_ls_to_facet_inoutcut)
+
+  m.sub_trian, m.done_ls_to_cell_to_inoutcut, m_boundary, done_ls_to_facet_to_inoutcut
+
+end
+
+function _remove_index(a,i)
+  n = length(a)
+  a[union(1:(i-1),(i+1):n)]
+end
 
 function allocate_sub_triangulation(
   m::SubTriangulation{Dc,Dp,T}, n_cells::Integer, n_points::Integer) where {Dc,Dp,T} 
@@ -384,21 +398,24 @@ function set_cell_data_boundary!( s::FacetSubTriangulation, m::SubTriangulation,
   set_cell_data!(s.facet_to_bgcell, m.cell_to_bgcell, d...)
 end
 
-function allocate_triangulation(
-  s::FacetSubTriangulation{Dp,T}, n_facets::Integer, n_points::Integer) where {Dp,T} 
+function allocate_sub_triangulation(
+  m::FacetSubTriangulation{Dp,T}, n_facets::Integer, n_points::Integer) where {Dp,T} 
 
   point_to_coords = zeros(Point{Dp,T},n_points)
   point_to_rcoords = zeros(Point{Dp,T},n_points)
-  facet_to_points = _allocate_table(s.facet_to_points,n_facets,Dc)
-  facet_to_bgcell = zeros(eltype(s.facet_to_bgcell),n_facets)
+  facet_to_points = _allocate_table(m.facet_to_points,n_facets,Dp)
+  facet_to_bgcell = zeros(eltype(m.facet_to_bgcell),n_facets)
   facet_to_normal = zeros(VectorValue{Dp,T},n_facets)
+  facet_to_inoutcut = zeros(Int8,n_facets)
 
-  FacetSubTriangulation(
+  s = FacetSubTriangulation(
     facet_to_points,
     facet_to_normal,
     facet_to_bgcell,
     point_to_coords,
     point_to_rcoords)
+
+  s, facet_to_inoutcut
 end
 
 get_cell_to_points(m::FacetSubTriangulation) = m.facet_to_points

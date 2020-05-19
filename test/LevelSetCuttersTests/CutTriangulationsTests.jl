@@ -9,6 +9,7 @@ using GridapEmbedded.LevelSetCutters: initial_sub_triangulation
 using GridapEmbedded.LevelSetCutters: cut_sub_triangulation_several_levelsets
 using GridapEmbedded.LevelSetCutters: cut_sub_triangulation
 using GridapEmbedded.LevelSetCutters: cut_sub_triangulation_with_boundary
+using GridapEmbedded.LevelSetCutters: cut_sub_triangulation_with_boundary_several_levelsets
 
 R = 0.85
 
@@ -31,27 +32,42 @@ subtrian0, ls_to_point_to_value, ls_to_bgcell_to_inoutcut, oid_to_ls = out
 point_to_value = first(ls_to_point_to_value)
 subtrian, cell_to_inout = cut_sub_triangulation(subtrian0,point_to_value)
 
-celldata1 = ["inout"=>cell_to_inout]
-celldata2 = ["bgcell"=>subtrian.cell_to_bgcell]
-celldata = vcat(celldata1,celldata2)
-
-writevtk(UnstructuredGrid(subtrian),"subtrian",celldata=celldata)
+#celldata1 = ["inout"=>cell_to_inout]
+#celldata2 = ["bgcell"=>subtrian.cell_to_bgcell]
+#celldata = vcat(celldata1,celldata2)
+#
+#writevtk(UnstructuredGrid(subtrian),"subtrian",celldata=celldata)
 
 subtrian, cell_to_inout, subtrian_b = cut_sub_triangulation_with_boundary(subtrian0,point_to_value)
 
-celldata1 = ["inout"=>cell_to_inout]
-celldata2 = ["bgcell"=>subtrian.cell_to_bgcell]
-celldata = vcat(celldata1,celldata2)
-
-writevtk(UnstructuredGrid(subtrian),"subtrian1",celldata=celldata)
-writevtk(subtrian_b,"subtrian1_b")
+#celldata1 = ["inout"=>cell_to_inout]
+#celldata2 = ["bgcell"=>subtrian.cell_to_bgcell]
+#celldata = vcat(celldata1,celldata2)
+#
+#writevtk(UnstructuredGrid(subtrian),"subtrian1",celldata=celldata)
+#writevtk(subtrian_b,"subtrian1_b")
 
 subtrian, ls_to_cell_to_inoutcut = cut_sub_triangulation_several_levelsets(subtrian0,ls_to_point_to_value)
 
-celldata1 = ["inout_$i"=>cell_to_inout for (i,cell_to_inout) in enumerate(ls_to_cell_to_inoutcut)]
-celldata2 = ["bgcell"=>subtrian.cell_to_bgcell]
-celldata = vcat(celldata1,celldata2)
+#celldata1 = ["inout_$i"=>cell_to_inout for (i,cell_to_inout) in enumerate(ls_to_cell_to_inoutcut)]
+#celldata2 = ["bgcell"=>subtrian.cell_to_bgcell]
+#celldata = vcat(celldata1,celldata2)
+#
+#writevtk(UnstructuredGrid(subtrian),"subtrian2",celldata=celldata)
 
-writevtk(UnstructuredGrid(subtrian),"subtrian2",celldata=celldata)
+subtrian, ls_to_cell_to_inoutcut, subtrian_b, ls_to_facet_to_inoutcut =
+  cut_sub_triangulation_with_boundary_several_levelsets(subtrian0,ls_to_point_to_value)
+
+#celldata1 = ["inout_$i"=>cell_to_inout for (i,cell_to_inout) in enumerate(ls_to_cell_to_inoutcut)]
+#celldata2 = ["bgcell"=>subtrian.cell_to_bgcell]
+#celldata = vcat(celldata1,celldata2)
+#
+#writevtk(UnstructuredGrid(subtrian),"subtrian2",celldata=celldata)
+#
+#celldata1 = ["inout_$i"=>cell_to_inout for (i,cell_to_inout) in enumerate(ls_to_facet_to_inoutcut)]
+#celldata2 = ["bgcell"=>subtrian_b.facet_to_bgcell,"normal"=>subtrian_b.facet_to_normal]
+#celldata = vcat(celldata1,celldata2)
+#
+#writevtk(UnstructuredGrid(subtrian_b),"subtrian2_b",celldata=celldata)
 
 end # module
