@@ -17,9 +17,19 @@ function SkeletonTriangulation(cut::EmbeddedFacetDiscretization,tags)
   SkeletonTriangulation(cut,tags,cut.geo,(CUTIN,IN))
 end
 
+function SkeletonTriangulation(cut::EmbeddedFacetDiscretization,tags,name::String)
+  geo = get_geometry(cut.geo,name)
+  SkeletonTriangulation(cut,tags,geo)
+end
+
 function SkeletonTriangulation(
   cut::EmbeddedFacetDiscretization,tags,geo::CSG.Geometry)
   SkeletonTriangulation(cut,tags,geo,(CUTIN,IN))
+end
+
+function SkeletonTriangulation(cut::EmbeddedFacetDiscretization,tags,name::String,in_or_out)
+  geo = get_geometry(cut.geo,name)
+  SkeletonTriangulation(cut,tags,geo,in_or_out)
 end
 
 function SkeletonTriangulation(
@@ -46,8 +56,18 @@ function BoundaryTriangulation(cut::EmbeddedFacetDiscretization,tags)
   BoundaryTriangulation(cut,tags,cut.geo,(CUTIN,IN))
 end
 
+function BoundaryTriangulation(cut::EmbeddedFacetDiscretization,tags,name::String)
+  geo = get_geometry(cut.geo,name)
+  BoundaryTriangulation(cut,tags,geo)
+end
+
 function BoundaryTriangulation(cut::EmbeddedFacetDiscretization,tags,geo::CSG.Geometry)
   BoundaryTriangulation(cut,tags,geo,(CUTIN,IN))
+end
+
+function BoundaryTriangulation(cut::EmbeddedFacetDiscretization,tags,name::String,in_or_out)
+  geo = get_geometry(cut.geo,name)
+  BoundaryTriangulation(cut,tags,geo,in_or_out)
 end
 
 function BoundaryTriangulation(cut::EmbeddedFacetDiscretization,tags,geo::CSG.Geometry,in_or_out)
