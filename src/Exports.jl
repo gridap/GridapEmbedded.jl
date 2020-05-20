@@ -10,6 +10,7 @@ end
 @publish CSG get_geometry_names
 
 @publish Interfaces cut
+@publish Interfaces cut_facets
 @publish Interfaces EmbeddedDiscretization
 @publish Interfaces EmbeddedBoundary
 @publish Interfaces GhostSkeleton
