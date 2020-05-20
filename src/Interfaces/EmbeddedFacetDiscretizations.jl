@@ -18,20 +18,23 @@ struct EmbeddedFacetDiscretization{Dc,Dp,T} <: GridapType
   geo::CSG.Geometry
 end
 
-function BoundaryTriangulation(
-  cut::EmbeddedFacetDiscretization,tags,geo::CSG.Geometry,in_or_out::Tuple)
+function BoundaryTriangulation(cut::EmbeddedFacetDiscretization,tags,geo::CSG.Geometry,in_or_out)
+  facets = BoundaryTriangulation(cut.bgmodel,tags)
+  BoundaryTriangulation(cut,facets,geo,in_or_out)
+end
 
-  trian1 = BoundaryTriangulation(cut,tags,geo,in_or_out[1])
-  trian2 = BoundaryTriangulation(cut,tags,geo,in_or_out[2])
+function BoundaryTriangulation(
+  cut::EmbeddedFacetDiscretization,facets::BoundaryTriangulation,geo::CSG.Geometry,in_or_out::Tuple)
+
+  trian1 = BoundaryTriangulation(cut,facets,geo,in_or_out[1])
+  trian2 = BoundaryTriangulation(cut,facets,geo,in_or_out[2])
   lazy_append(trian1,trian2)
 end
 
 function BoundaryTriangulation(
-  cut::EmbeddedFacetDiscretization,tags,geo::CSG.Geometry,in_or_out::Integer)
+  cut::EmbeddedFacetDiscretization,facets::BoundaryTriangulation,geo::CSG.Geometry,in_or_out::Integer)
 
-  facets = BoundaryTriangulation(cut.bgmodel,tags)
   facet_to_bgfacet = get_face_to_face(facets)
-
   bgfacet_to_inoutcut = compute_bgfacet_to_inoutcut(cut,geo)
   bgfacet_to_mask = collect(Bool,bgfacet_to_inoutcut .== in_or_out)
   facet_to_mask = reindex(bgfacet_to_mask,facet_to_bgfacet)
@@ -40,9 +43,8 @@ function BoundaryTriangulation(
 end
 
 function BoundaryTriangulation(
-  cut::EmbeddedFacetDiscretization,tags,geo::CSG.Geometry,in_or_out::CutInOrOut)
+  cut::EmbeddedFacetDiscretization,facets::BoundaryTriangulation,geo::CSG.Geometry,in_or_out::CutInOrOut)
 
-  facets = BoundaryTriangulation(cut.bgmodel,tags)
   facet_to_bgfacet = get_face_to_face(facets)
   n_bgfacets = num_facets(cut.bgmodel)
   bgfacet_to_facet = zeros(Int,n_bgfacets)
