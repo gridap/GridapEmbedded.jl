@@ -1,6 +1,7 @@
 module LevelSetCuttersTests
 
 using Gridap
+using Gridap.Geometry
 using GridapEmbedded.Interfaces
 using GridapEmbedded.Interfaces: compute_bgcell_to_inoutcut
 using GridapEmbedded.LevelSetCutters
@@ -67,5 +68,39 @@ trian82_Γ = EmbeddedBoundary(cutgeo,geo8,geo2)
 
 
 #writevtk(cutdisc,"cutdisc")
+
+
+n = 20
+partition = (n,n)
+pmin = Point(0,0)
+pmax = Point(1,1)
+model = CartesianDiscreteModel(pmin,pmax,partition)
+
+R = 0.44
+geo1 = disk(R,x0=Point(0.0,0.5),name="disk1")
+geo2 = disk(R,x0=Point(0.5,1.0),name="disk2")
+geo3 = union(geo1,geo2,name="domain")
+
+cutgeo = cut(cutter,model,geo3)
+cutgeo_facets = cut_facets(cutter,model,geo3)
+
+writevtk(cutgeo_facets.subfacets,"subfacets")
+
+trian = Triangulation(model)
+trian3 = Triangulation(cutgeo,geo3)
+btrian3in = BoundaryTriangulation(cutgeo_facets,"boundary",geo3,IN)
+btrian3 = BoundaryTriangulation(cutgeo_facets,"boundary",geo3,(CUTIN,IN))
+
+writevtk(trian,"trian")
+writevtk(trian3,"trian3")
+writevtk(btrian3in,"btrian3in",
+  celldata=["bgcell"=>get_cell_id(btrian3in)],
+  cellfields=["normal"=>get_normal_vector(btrian3in)])
+writevtk(btrian3,"btrian3",
+  celldata=["bgcell"=>get_cell_id(btrian3)],
+  cellfields=["normal"=>get_normal_vector(btrian3)])
+
+#
+#btrian
 
 end # module

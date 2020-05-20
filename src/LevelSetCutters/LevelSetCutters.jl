@@ -9,6 +9,7 @@ import GridapEmbedded.CSG: compatible_geometries
 
 using GridapEmbedded.Interfaces
 import GridapEmbedded.Interfaces: cut
+import GridapEmbedded.Interfaces: cut_facets
 using GridapEmbedded.Interfaces: Simplex
 using GridapEmbedded.Interfaces: merge_facet_sub_triangulations
 
@@ -56,6 +57,11 @@ function cut(background::DiscreteModel,geom::AnalyticalGeometry)
   cut(cutter,background,geom)
 end
 
+function cut(background::DiscreteModel,geom::DiscreteGeometry)
+  cutter = LevelSetCutter()
+  cut(cutter,background,geom)
+end
+
 function _cut_ls(model::DiscreteModel,geom)
   grid = get_grid(model)
   _cut_ls(grid,geom)
@@ -67,6 +73,35 @@ function _cut_ls(grid::Grid,geom)
   out2 = cut_sub_triangulation_with_boundary_several_levelsets(subcells0,ls_to_point_to_value)
   subcells, ls_to_cell_to_inout, subfacets, ls_to_facet_to_inout  = out2
   ls_to_bgcell_to_inoutcut, subcells, ls_to_cell_to_inout, subfacets, ls_to_facet_to_inout, oid_to_ls
+end
+
+function cut_facets(cutter::LevelSetCutter,background::DiscreteModel,geom)
+  data = _cut_ls_facets(background,geom)
+  EmbeddedFacetDiscretization(background, data..., geom)
+end
+
+function cut_facets(background::DiscreteModel,geom::AnalyticalGeometry)
+  cutter = LevelSetCutter()
+  cut_facets(cutter,background,geom)
+end
+
+function cut_facets(background::DiscreteModel,geom::DiscreteGeometry)
+  cutter = LevelSetCutter()
+  cut_facets(cutter,background,geom)
+end
+
+function _cut_ls_facets(model::DiscreteModel,geom)
+  D = num_cell_dims(model)
+  grid = Grid(ReferenceFE{D-1},model)
+  _cut_ls_facets(grid,geom)
+end
+
+function _cut_ls_facets(grid::Grid,geom)
+  out = initial_sub_triangulation(grid,geom)
+  subcells0, ls_to_point_to_value, ls_to_bgcell_to_inoutcut, oid_to_ls = out
+  out2 = cut_sub_triangulation_several_levelsets(subcells0,ls_to_point_to_value)
+  subcells, ls_to_cell_to_inout  = out2
+  ls_to_bgcell_to_inoutcut, subcells, ls_to_cell_to_inout, oid_to_ls
 end
 
 end #module
