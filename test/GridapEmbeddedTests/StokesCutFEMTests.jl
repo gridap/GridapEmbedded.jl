@@ -76,7 +76,7 @@ V = TestFESpace(
 
 Q = TestFESpace(
   model=model,valuetype=Float64,reffe=:PLagrangian,
-  order=order,conformity=:H1,constraint=:zeromean)
+  order=order,conformity=:H1,constraint=:zeromean,zeromean_trian=trian_Ω)
 
 U = TrialFESpace(V)
 P = TrialFESpace(Q)
