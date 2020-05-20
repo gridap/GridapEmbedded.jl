@@ -81,4 +81,24 @@ a = sum(integrate(jump(v_sΩ),trian_sΩ,quad_sΩ))
 #writevtk(trian_Γ,"trian_G",celldata=celldata_Γ,cellfields=cellfields_Γ)
 #writevtk(trian_sΩ,"trian_sO",celldata=celldata_sΩ,cellfields=cellfields_sΩ)
 
+n = 10
+partition = (n,n,n)
+domain = (0,1,0,1,0,1)
+
+R = 0.49
+geo = disk(R,x0=Point(.5,.5,.5))
+
+bgmodel = CartesianDiscreteModel(domain,partition)
+
+cutgeo = cut(bgmodel,geo)
+cutgeo_facets = cut_facets(bgmodel,geo)
+
+trian_s = SkeletonTriangulation(bgmodel)
+trian_sΩ = SkeletonTriangulation(cutgeo_facets,trian_s,geo,(CUTIN,IN))
+trian_sΩo = SkeletonTriangulation(cutgeo_facets,trian_s,geo,(CUTOUT,OUT))
+
+#writevtk(trian_s,"trian_s")
+#writevtk(trian_sΩ,"trian_sO")
+#writevtk(trian_sΩo,"trian_sOo")
+
 end # module
