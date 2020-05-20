@@ -18,6 +18,19 @@ struct EmbeddedFacetDiscretization{Dc,Dp,T} <: GridapType
   geo::CSG.Geometry
 end
 
+function BoundaryTriangulation(cut::EmbeddedFacetDiscretization)
+  facets = BoundaryTriangulation(cut.bgmodel)
+  BoundaryTriangulation(cut,facets,cut.geo,(CUTIN,IN))
+end
+
+function BoundaryTriangulation(cut::EmbeddedFacetDiscretization,tags)
+  BoundaryTriangulation(cut,tags,cut.geo,(CUTIN,IN))
+end
+
+function BoundaryTriangulation(cut::EmbeddedFacetDiscretization,tags,geo::CSG.Geometry)
+  BoundaryTriangulation(cut,tags,geo,(CUTIN,IN))
+end
+
 function BoundaryTriangulation(cut::EmbeddedFacetDiscretization,tags,geo::CSG.Geometry,in_or_out)
   facets = BoundaryTriangulation(cut.bgmodel,tags)
   BoundaryTriangulation(cut,facets,geo,in_or_out)
@@ -34,23 +47,34 @@ end
 function BoundaryTriangulation(
   cut::EmbeddedFacetDiscretization,facets::BoundaryTriangulation,geo::CSG.Geometry,in_or_out::Integer)
 
-  facet_to_bgfacet = get_face_to_face(facets)
   bgfacet_to_inoutcut = compute_bgfacet_to_inoutcut(cut,geo)
-  bgfacet_to_mask = collect(Bool,bgfacet_to_inoutcut .== in_or_out)
-  facet_to_mask = reindex(bgfacet_to_mask,facet_to_bgfacet)
+  bgfacet_to_mask = apply( a->a==in_or_out, bgfacet_to_inoutcut)
+  _restrict_boundary_triangulation(cut.bgmodel,facets,bgfacet_to_mask)
+end
 
-  TriangulationPortion(facets,findall(facet_to_mask))
+function _restrict_boundary_triangulation(model,facets,bgfacet_to_mask)
+
+  facet_to_bgfacet = get_face_to_face(facets)
+  facet_to_mask = reindex(bgfacet_to_mask,facet_to_bgfacet)
+  n_bgfacets = length(bgfacet_to_mask)
+  bgfacet_to_mask2 = fill(false,n_bgfacets)
+  bgfacet_to_mask2[facet_to_bgfacet] .= facet_to_mask
+
+  BoundaryTriangulation(model,bgfacet_to_mask2)
 end
 
 function BoundaryTriangulation(
-  cut::EmbeddedFacetDiscretization,facets::BoundaryTriangulation,geo::CSG.Geometry,in_or_out::CutInOrOut)
+  cut::EmbeddedFacetDiscretization,_facets::BoundaryTriangulation,geo::CSG.Geometry,in_or_out::CutInOrOut)
+
+  bgfacet_to_inoutcut = compute_bgfacet_to_inoutcut(cut,geo)
+  bgfacet_to_mask = apply( a->a==CUT, bgfacet_to_inoutcut)
+  facets = _restrict_boundary_triangulation(cut.bgmodel,_facets,bgfacet_to_mask)
 
   facet_to_bgfacet = get_face_to_face(facets)
   n_bgfacets = num_facets(cut.bgmodel)
   bgfacet_to_facet = zeros(Int,n_bgfacets)
   bgfacet_to_facet[facet_to_bgfacet] .= 1:length(facet_to_bgfacet)
 
-  bgfacet_to_inoutcut = compute_bgfacet_to_inoutcut(cut,geo)
   subfacet_to_inoutcut = reindex(bgfacet_to_inoutcut,cut.subfacets.cell_to_bgcell)
   _subfacet_to_facet = reindex(bgfacet_to_facet,cut.subfacets.cell_to_bgcell)
 
@@ -117,7 +141,7 @@ struct BoundarySubTriangulationWrapper{Dc,Dp,T} <: Triangulation{Dc,Dp}
     cell_ids = reindex(get_cell_id(facets),subfacet_to_facet)
     cell_normals = reindex(get_normal_vector(facets),subfacet_to_facet)
     subfacet_to_facet_map = _setup_subcell_to_cell_map(subfacets,reffe,cell_types)
-    new{Dc,Dp,T}(facets,subfacets,subfacet_to_facet,reffes,cell_types,cell_ids,cell_normals)
+    new{Dc,Dp,T}(facets,subfacets,subfacet_to_facet,reffes,cell_types,cell_ids,cell_normals,subfacet_to_facet_map)
   end
 end
 
@@ -153,6 +177,7 @@ end
 
 function restrict(f::AbstractArray,trian::BoundarySubTriangulationWrapper)
   g = restrict(f,trian.facets)
-  compose_field_arrays(reindex(g,trian.subfacet_to_facet),trian.subfacet_to_facet_map)
+  h = reindex(g,trian.subfacet_to_facet)
+  compose_field_arrays(h,trian.subfacet_to_facet_map)
 end
 

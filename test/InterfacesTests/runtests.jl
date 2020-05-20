@@ -8,6 +8,8 @@ using Test
 
 @testset "EmbeddedDiscretizations" begin include("EmbeddedDiscretizationsTests.jl") end
 
+@testset "EmbeddedFacetDiscretizations" begin include("EmbeddedFacetDiscretizationsTests.jl") end
+
 @testset "Cutters" begin include("CuttersTests.jl") end
 
 end # module
