@@ -38,29 +38,47 @@ trian_Ω = Triangulation(cutgeo)
 trian_Γu = EmbeddedBoundary(cutgeo)
 trian_Γf = BoundaryTriangulation(cutgeo_facets)
 trian_Γ = lazy_append(trian_Γu,trian_Γf)
+trian_sΩ = SkeletonTriangulation(cutgeo_facets)
 
 quad_Ω = CellQuadrature(trian_Ω,2*order)
 quad_Γ = CellQuadrature(trian_Γ,2*order)
+quad_sΩ = CellQuadrature(trian_sΩ,2*order)
 
 n_Γ = get_normal_vector(trian_Γ)
+n_sΩ = get_normal_vector(trian_sΩ)
 
 v_Ω = restrict(v,trian_Ω)
 v_Γ = restrict(v,trian_Γ)
 u_Ω = restrict(u,trian_Ω)
 u_Γ = restrict(u,trian_Γ)
 
+v_sΩ = restrict(v,trian_sΩ)
+u_sΩ = restrict(u,trian_sΩ)
+
 # Check divergence theorem
 a = sum( integrate(∇(v_Ω)*∇(u_Ω),trian_Ω,quad_Ω) )
 b = sum( integrate(v_Γ*n_Γ*∇(u_Γ),trian_Γ,quad_Γ) )
 @test abs(a-b) < 1.0e-9
+
+a = sum(integrate(jump(u_sΩ),trian_sΩ,quad_sΩ))
+@test abs(a) < 1.0e-9
+
+a = sum(integrate(jump(v_sΩ),trian_sΩ,quad_sΩ))
+@test abs(a) < 1.0e-9
 
 #celldata_Ω = ["bgcell"=>collect(Int,get_cell_id(trian_Ω))]
 #celldata_Γ = ["bgcell"=>collect(Int,get_cell_id(trian_Γ))]
 #cellfields_Ω = ["v"=>v_Ω,"u"=>u_Ω]
 #cellfields_Γ = ["normal"=>n_Γ,"v"=>v_Γ,"u"=>u_Γ]
 #
+#celldata_sΩ = [
+#  "bgcell_left"=>collect(Int,get_cell_id(trian_sΩ).left),
+#  "bgcell_right"=>collect(Int,get_cell_id(trian_sΩ).right)]
+#cellfields_sΩ = ["normal"=> n_sΩ,"jump_v"=>jump(v_sΩ),"jump_u"=>jump(u_sΩ)]
+#
 #writevtk(trian,"trian")
 #writevtk(trian_Ω,"trian_O",celldata=celldata_Ω,cellfields=cellfields_Ω)
 #writevtk(trian_Γ,"trian_G",celldata=celldata_Γ,cellfields=cellfields_Γ)
+#writevtk(trian_sΩ,"trian_sO",celldata=celldata_sΩ,cellfields=cellfields_sΩ)
 
 end # module

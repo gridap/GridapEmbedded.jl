@@ -1,14 +1,4 @@
 
-# TODO move to Gridap
-function get_face_to_face(trian::BoundaryTriangulation)
-  @abstractmethod
-end
-
-# TODO move to Gridap
-function get_face_to_face(trian::GenericBoundaryTriangulation)
-  trian.face_trian.cell_to_oldcell
-end
-
 struct EmbeddedFacetDiscretization{Dc,Dp,T} <: GridapType
   bgmodel::DiscreteModel{Dp,Dp}
   ls_to_facet_to_inoutcut::Vector{Vector{Int8}}
@@ -16,6 +6,35 @@ struct EmbeddedFacetDiscretization{Dc,Dp,T} <: GridapType
   ls_to_subfacet_to_inout::Vector{Vector{Int8}}
   oid_to_ls::Dict{UInt,Int}
   geo::CSG.Geometry
+end
+
+function SkeletonTriangulation(cut::EmbeddedFacetDiscretization)
+  facets = SkeletonTriangulation(cut.bgmodel)
+  SkeletonTriangulation(cut,facets,cut.geo,(CUTIN,IN))
+end
+
+function SkeletonTriangulation(cut::EmbeddedFacetDiscretization,tags)
+  SkeletonTriangulation(cut,tags,cut.geo,(CUTIN,IN))
+end
+
+function SkeletonTriangulation(
+  cut::EmbeddedFacetDiscretization,tags,geo::CSG.Geometry)
+  SkeletonTriangulation(cut,tags,geo,(CUTIN,IN))
+end
+
+function SkeletonTriangulation(
+  cut::EmbeddedFacetDiscretization,tags,geo::CSG.Geometry,in_or_out)
+  facets = SkeletonTriangulation(cut.bgmodel,tags)
+  SkeletonTriangulation(cut,facets,geo,in_or_out)
+end
+
+function SkeletonTriangulation(
+  cut::EmbeddedFacetDiscretization,facets::SkeletonTriangulation,geo::CSG.Geometry,in_or_out)
+  facets1 = get_left_boundary(facets)
+  facets2 = get_right_boundary(facets)
+  trian1 = BoundaryTriangulation(cut,facets1,geo,in_or_out)
+  trian2 = BoundaryTriangulation(cut,facets2,geo,in_or_out)
+  SkeletonTriangulation(trian1,trian2)
 end
 
 function BoundaryTriangulation(cut::EmbeddedFacetDiscretization)
@@ -37,7 +56,10 @@ function BoundaryTriangulation(cut::EmbeddedFacetDiscretization,tags,geo::CSG.Ge
 end
 
 function BoundaryTriangulation(
-  cut::EmbeddedFacetDiscretization,facets::BoundaryTriangulation,geo::CSG.Geometry,in_or_out::Tuple)
+  cut::EmbeddedFacetDiscretization,
+  facets::BoundaryTriangulation,
+  geo::CSG.Geometry,
+  in_or_out::Tuple)
 
   trian1 = BoundaryTriangulation(cut,facets,geo,in_or_out[1])
   trian2 = BoundaryTriangulation(cut,facets,geo,in_or_out[2])
@@ -45,26 +67,21 @@ function BoundaryTriangulation(
 end
 
 function BoundaryTriangulation(
-  cut::EmbeddedFacetDiscretization,facets::BoundaryTriangulation,geo::CSG.Geometry,in_or_out::Integer)
+  cut::EmbeddedFacetDiscretization,
+  facets::BoundaryTriangulation,
+  geo::CSG.Geometry,
+  in_or_out::Integer)
 
   bgfacet_to_inoutcut = compute_bgfacet_to_inoutcut(cut,geo)
   bgfacet_to_mask = apply( a->a==in_or_out, bgfacet_to_inoutcut)
   _restrict_boundary_triangulation(cut.bgmodel,facets,bgfacet_to_mask)
 end
 
-function _restrict_boundary_triangulation(model,facets,bgfacet_to_mask)
-
-  facet_to_bgfacet = get_face_to_face(facets)
-  facet_to_mask = reindex(bgfacet_to_mask,facet_to_bgfacet)
-  n_bgfacets = length(bgfacet_to_mask)
-  bgfacet_to_mask2 = fill(false,n_bgfacets)
-  bgfacet_to_mask2[facet_to_bgfacet] .= facet_to_mask
-
-  BoundaryTriangulation(model,bgfacet_to_mask2)
-end
-
 function BoundaryTriangulation(
-  cut::EmbeddedFacetDiscretization,_facets::BoundaryTriangulation,geo::CSG.Geometry,in_or_out::CutInOrOut)
+  cut::EmbeddedFacetDiscretization,
+  _facets::BoundaryTriangulation,
+  geo::CSG.Geometry,
+  in_or_out::CutInOrOut)
 
   bgfacet_to_inoutcut = compute_bgfacet_to_inoutcut(cut,geo)
   bgfacet_to_mask = apply( a->a==CUT, bgfacet_to_inoutcut)
@@ -86,6 +103,17 @@ function BoundaryTriangulation(
   subfacet_to_facet = bgfacet_to_facet[subfacets.cell_to_bgcell]
 
   BoundarySubTriangulationWrapper(facets,subfacets,subfacet_to_facet)
+end
+
+function _restrict_boundary_triangulation(model,facets,bgfacet_to_mask)
+
+  facet_to_bgfacet = get_face_to_face(facets)
+  facet_to_mask = reindex(bgfacet_to_mask,facet_to_bgfacet)
+  n_bgfacets = length(bgfacet_to_mask)
+  bgfacet_to_mask2 = fill(false,n_bgfacets)
+  bgfacet_to_mask2[facet_to_bgfacet] .= facet_to_mask
+
+  BoundaryTriangulation(model,bgfacet_to_mask2,get_cell_around(facets))
 end
 
 function compute_bgfacet_to_inoutcut(cut::EmbeddedFacetDiscretization,geo::CSG.Geometry)

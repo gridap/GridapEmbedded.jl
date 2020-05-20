@@ -9,6 +9,7 @@ using Gridap.Visualization
 
 import Gridap.Geometry: UnstructuredGrid
 import Gridap.Geometry: BoundaryTriangulation
+import Gridap.Geometry: SkeletonTriangulation
 import Gridap.Geometry: Triangulation
 import Gridap.Visualization: writevtk
 import Gridap.Visualization: DiscreteModel
