@@ -39,6 +39,8 @@ export FacetSubTriangulation
 export Cutter
 export cut
 export cut_facets
+export compute_bgcell_to_inoutcut
+export compute_bgfacet_to_inoutcut
 export split_in_out
 export EmbeddedBoundary
 export GhostSkeleton

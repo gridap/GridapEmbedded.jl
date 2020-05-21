@@ -2,6 +2,7 @@ module LevelSetCuttersTests
 
 using Gridap
 using Gridap.Geometry
+using Gridap.ReferenceFEs
 using GridapEmbedded.Interfaces
 using GridapEmbedded.Interfaces: compute_bgcell_to_inoutcut
 using GridapEmbedded.LevelSetCutters
@@ -21,6 +22,14 @@ partition = (n,n)
 pmin = Point(-1,-1)
 pmax = Point(2,2)
 model = CartesianDiscreteModel(pmin,pmax,partition)
+trian = Triangulation(model)
+trian_facets = Triangulation(ReferenceFE{1},model)
+
+bgcell_to_inoutcut = compute_bgcell_to_inoutcut(model,geo4)
+#writevtk(trian,"trian",celldata=["inoutcut"=>bgcell_to_inoutcut])
+
+bgfacet_to_inoutcut = compute_bgfacet_to_inoutcut(model,geo4)
+#writevtk(trian_facets,"trian_facets",celldata=["inoutcut"=>bgfacet_to_inoutcut])
 
 cutter = LevelSetCutter()
 
@@ -32,7 +41,6 @@ model6 = DiscreteModel(cutgeo,geo6)
 
 bgcell_to_inoutcut = compute_bgcell_to_inoutcut(cutgeo,geo4)
 
-trian = Triangulation(model)
 trian5 = Triangulation(model5)
 trian4 = Triangulation(model4)
 trian6 = Triangulation(model6)

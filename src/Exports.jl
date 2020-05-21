@@ -11,6 +11,8 @@ end
 
 @publish Interfaces cut
 @publish Interfaces cut_facets
+@publish Interfaces compute_bgcell_to_inoutcut
+@publish Interfaces compute_bgfacet_to_inoutcut
 @publish Interfaces EmbeddedDiscretization
 @publish Interfaces EmbeddedBoundary
 @publish Interfaces GhostSkeleton

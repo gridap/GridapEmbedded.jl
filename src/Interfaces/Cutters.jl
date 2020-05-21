@@ -7,10 +7,18 @@ function cut(cutter::Cutter,background,geom)
   @abstractmethod
 end
 
+function compute_bgcell_to_inoutcut(cutter::Cutter,background,geom)
+  @abstractmethod
+end
+
 """
     cut_facets(cutter::Cutter,background,geom) -> EmbeddedDiscretization
 """
 function cut_facets(cutter::Cutter,background,geom)
+  @abstractmethod
+end
+
+function compute_bgfacet_to_inoutcut(cutter::Cutter,background,geom)
   @abstractmethod
 end
 
