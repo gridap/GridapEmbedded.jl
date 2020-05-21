@@ -13,17 +13,63 @@ function aggregate(strategy,cut::EmbeddedDiscretization,name::String,in_or_out)
 end
 
 function aggregate(strategy,cut::EmbeddedDiscretization,geo::CSG.Geometry,in_or_out)
+  cell_to_inoutcut = compute_bgcell_to_inoutcut(cut,geo)
+  facet_to_inoutcut = compute_bgfacet_to_inoutcut(cut.bgmodel,geo)
+  aggregate(strategy,cut.bgmodel,in_or_out,cell_to_inoutcut,facet_to_inoutcut)
+end
+
+function aggregate(
+  strategy,
+  cut::EmbeddedDiscretization,
+  cut_facets::EmbeddedFacetDiscretization,
+  name::String,
+  in_or_out)
+
+  geo = get_geometry(cut.geo,name)
+  aggregate(strategy,cut,cut_facets,geo,in_or_out)
+end
+
+function aggregate(
+  strategy,
+  cut::EmbeddedDiscretization,
+  cut_facets::EmbeddedFacetDiscretization)
+
+  aggregate(strategy,cut,cut_facets,cut.geo,IN)
+end
+
+function aggregate(
+  strategy,
+  cut::EmbeddedDiscretization,
+  cut_facets::EmbeddedFacetDiscretization,
+  geo::CSG.Geometry)
+
+  aggregate(strategy,cut,cut_facets,geo,IN)
+end
+
+function aggregate(
+  strategy,
+  cut::EmbeddedDiscretization,
+  cut_facets::EmbeddedFacetDiscretization,
+  geo::CSG.Geometry,
+  in_or_out)
+
+  cell_to_inoutcut = compute_bgcell_to_inoutcut(cut,geo)
+  facet_to_inoutcut = compute_bgfacet_to_inoutcut(cut_facets,geo)
+  aggregate(strategy,cut.bgmodel,in_or_out,cell_to_inoutcut,facet_to_inoutcut)
+end
+
+function aggregate(strategy,model::DiscreteModel,in_or_out,cell_to_inoutcut,facet_to_inoutcut)
   @abstractmethod
 end
 
 struct AggregateAllCutCells end
 
-function aggregate(strategy::AggregateAllCutCells,cut::EmbeddedDiscretization,geo::CSG.Geometry,in_or_out)
-  cell_to_inoutcut = compute_bgcell_to_inoutcut(cut,geo)
-  _compute_aggregates(cell_to_inoutcut,cut.bgmodel,in_or_out)
+function aggregate(
+  strategy::AggregateAllCutCells,model::DiscreteModel,in_or_out,cell_to_inoutcut,facet_to_inoutcut)
+  _compute_aggregates(cell_to_inoutcut,facet_to_inoutcut,model,in_or_out)
 end
 
-function _compute_aggregates(cell_to_inoutcut,model,loc)
+function _compute_aggregates(cell_to_inoutcut,facet_to_inoutcut,model,loc)
   @assert loc in (IN,OUT)
   trian = get_triangulation(model)
   cell_to_coords = get_cell_coordinates(trian)
@@ -32,11 +78,11 @@ function _compute_aggregates(cell_to_inoutcut,model,loc)
   cell_to_faces = get_faces(topo,D,D-1)
   face_to_cells = get_faces(topo,D-1,D)
   _compute_aggregates_barrier(
-    cell_to_inoutcut,loc,cell_to_coords,cell_to_faces,face_to_cells)
+    cell_to_inoutcut,facet_to_inoutcut,loc,cell_to_coords,cell_to_faces,face_to_cells)
 end
 
 function _compute_aggregates_barrier(
-  cell_to_inoutcut,loc,cell_to_coords,cell_to_faces,face_to_cells)
+  cell_to_inoutcut,facet_to_inoutcut,loc,cell_to_coords,cell_to_faces,face_to_cells)
 
   n_cells = length(cell_to_inoutcut)
   cell_to_cellin = zeros(Int32,n_cells)
@@ -62,7 +108,14 @@ function _compute_aggregates_barrier(
     for (cell, inoutcut) in enumerate(cell_to_inoutcut)
       if inoutcut == CUT && ! cell_to_touched[cell]
         neigh_cell = _find_best_neighbor(
-          c1,c2,c3,c4,cell,cell_to_faces,face_to_cells,cell_to_coords,cell_to_touched,cell_to_cellin)
+          c1,c2,c3,c4,cell,
+          cell_to_faces,
+          face_to_cells,
+          cell_to_coords,
+          cell_to_touched,
+          cell_to_cellin,
+          facet_to_inoutcut,
+          loc)
         if neigh_cell > 0
           cellin = cell_to_cellin[neigh_cell]
           cell_to_cellin[cell] = cellin
@@ -83,14 +136,25 @@ function _compute_aggregates_barrier(
 end
 
 function _find_best_neighbor(
-  c1,c2,c3,c4,cell,cell_to_faces,face_to_cells,cell_to_coords,cell_to_touched,cell_to_cellin)
-  #TODO skip faces that are out
+  c1,c2,c3,c4,cell,
+  cell_to_faces,
+  face_to_cells,
+  cell_to_coords,
+  cell_to_touched,
+  cell_to_cellin,
+  facet_to_inoutcut,
+  loc)
+
   faces = getindex!(c1,cell_to_faces,cell)
   dmin = Inf
   T = eltype(eltype(face_to_cells))
   best_neigh_cell = zero(T)
   i_to_coords = getindex!(c3,cell_to_coords,cell)
   for face in faces
+    inoutcut = facet_to_inoutcut[face]
+    if  inoutcut != CUT && inoutcut != loc
+      continue
+    end
     neigh_cells = getindex!(c2,face_to_cells,face)
     for neigh_cell in neigh_cells
       if neigh_cell != cell && cell_to_touched[neigh_cell]

@@ -29,4 +29,7 @@ colors_out = color_aggregates(aggregates_out,bgmodel)
 #writevtk(trian,"trian",
 #  celldata=["cellin"=>aggregates,"color"=>colors,"cellin_out"=>aggregates_out,"color_out"=>colors_out])
 
+cutdisc_facets = cut_facets(bgmodel,geom)
+aggregates = aggregate(strategy,cutdisc,cutdisc_facets)
+
 end # module
