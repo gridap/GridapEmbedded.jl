@@ -8,7 +8,7 @@ using Test
 
 @testset "LookupTables" begin include("LookupTablesTests.jl") end
 
-@testset "SubTriangulations" begin include("SubTriangulationsTests.jl") end
+@testset "CutTriangulations" begin include("CutTriangulationsTests.jl") end
 
 @testset "LevelSetCutters" begin include("LevelSetCuttersTests.jl") end
 

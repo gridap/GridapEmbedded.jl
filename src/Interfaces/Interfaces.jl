@@ -8,6 +8,8 @@ using Gridap.Geometry
 using Gridap.Visualization
 
 import Gridap.Geometry: UnstructuredGrid
+import Gridap.Geometry: BoundaryTriangulation
+import Gridap.Geometry: SkeletonTriangulation
 import Gridap.Geometry: Triangulation
 import Gridap.Visualization: writevtk
 import Gridap.Visualization: DiscreteModel
@@ -31,10 +33,14 @@ export CUT
 export CUTIN
 export CUTOUT
 export EmbeddedDiscretization
+export EmbeddedFacetDiscretization
 export SubTriangulation
 export FacetSubTriangulation
 export Cutter
 export cut
+export cut_facets
+export compute_bgcell_to_inoutcut
+export compute_bgfacet_to_inoutcut
 export split_in_out
 export EmbeddedBoundary
 export GhostSkeleton
@@ -55,6 +61,8 @@ include("SubTriangulations.jl")
 include("FacetSubTriangulations.jl")
 
 include("EmbeddedDiscretizations.jl")
+
+include("EmbeddedFacetDiscretizations.jl")
 
 include("Cutters.jl")
 

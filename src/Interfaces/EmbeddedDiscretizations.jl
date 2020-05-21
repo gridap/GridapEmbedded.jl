@@ -2,7 +2,7 @@
 struct EmbeddedDiscretization{Dp,T} <: GridapType
   bgmodel::DiscreteModel
   ls_to_bgcell_to_inoutcut::Vector{Vector{Int8}}
-  subcells::SubTriangulation{Dp,T}
+  subcells::SubTriangulation{Dp,Dp,T}
   ls_to_subcell_to_inout::Vector{Vector{Int8}}
   subfacets::FacetSubTriangulation{Dp,T}
   ls_to_subfacet_to_inout::Vector{Vector{Int8}}
