@@ -2,6 +2,8 @@ module DiscreteGeometriesTests
 
 using AbstractTrees
 using Gridap
+using Gridap.ReferenceFEs
+using Gridap.Arrays
 using GridapEmbedded.CSG
 using GridapEmbedded.LevelSetCutters
 
@@ -23,8 +25,17 @@ grid = CartesianGrid(box1.pmin,box2.pmax,partition)
 
 geo4_x = discretize(geo4,grid)
 test_geometry(geo4_x)
+
+#function DiscreteGeometry test
+tree1=geo4_x.tree
+tree2=tree1.leftchild
+level_set=tree2.data[1] #vector level set
+point_to_coords=collect1d(get_node_coordinates(grid)) #model coordinates
+
+#using new function
+geo4_y=DiscreteGeometry(level_set,point_to_coords,name="")
+test_geometry(geo4_y)
 #print_tree(stdout,get_tree(geo4_x))
 #print_tree(stdout,replace_data(d->objectid(first(d)),get_tree(geo4_x)))
-
 
 end # module
