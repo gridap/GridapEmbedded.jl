@@ -39,6 +39,7 @@ export cylinder
 export plane
 export cube
 export discretize
+export DiscreteGeometry
 
 include("AnalyticalGeometries.jl")
 
@@ -171,6 +172,3 @@ function _compute_ls_to_bgcell_to_inoutcut(grid,geom::DiscreteGeometry)
 end
 
 end #module
-
-
-
