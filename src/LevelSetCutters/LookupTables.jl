@@ -280,7 +280,7 @@ function _setup_subfacet_to_orientation(point_to_coords,subfacet_to_points,subfa
   for (subfacet, points) in enumerate(subfacet_to_points)
     v = _setup_normal(subfacet_to_points,point_to_coords,subfacet,0)
     n = subfacet_to_normal[subfacet]
-    a = v*n
+    a = v⋅n
     orientation = sign(a)
     subfacet_to_orientation[subfacet] = orientation
   end

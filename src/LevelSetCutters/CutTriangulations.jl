@@ -674,7 +674,7 @@ function  _ensure_positive_jacobians_facets_work!(tcell_to_tpoints,c1,c2,tjac_q,
     jac = getindex!(c2,jac_q,tcell)
     n1 = VectorValue(first(tjac)...)
     n2 = VectorValue(first(jac)...)
-    if n1*n2 < 0
+    if n1⋅n2 < 0
       p = tcell_to_tpoints.ptrs[tcell]-1
       p1 = tcell_to_tpoints.data[p+1]
       p2 = tcell_to_tpoints.data[p+2]

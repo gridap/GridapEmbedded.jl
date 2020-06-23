@@ -52,10 +52,10 @@ V = AgFEMSpace(Vstd,aggregates)
 U = TrialFESpace(V)
 
 const γd = 10.0
-a_Ω(u,v) = ∇(v)*∇(u)
+a_Ω(u,v) = ∇(v)⋅∇(u)
 l_Ω(v) = v*f
-a_Γ(u,v) = (γd/h)*v*u  - v*(n_Γ*∇(u)) - (n_Γ*∇(v))*u
-l_Γ(v) = (γd/h)*v*ud - (n_Γ*∇(v))*ud
+a_Γ(u,v) = (γd/h)*v*u  - v*(n_Γ⋅∇(u)) - (n_Γ⋅∇(v))*u
+l_Γ(v) = (γd/h)*v*ud - (n_Γ⋅∇(v))*ud
 
 t_Ω = AffineFETerm(a_Ω,l_Ω,trian_Ω,quad_Ω)
 t_Γ = AffineFETerm(a_Γ,l_Γ,trian_Γ,quad_Γ)

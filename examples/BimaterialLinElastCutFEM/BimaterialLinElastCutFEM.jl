@@ -96,7 +96,7 @@ function main(;n,outputfile=nothing)
   
   function mean_t(u)
     u1,u2 = u
-    κ1*σ1(ε(u1))*n_Γ + κ2*σ2(ε(u2))*n_Γ
+    κ1*σ1(ε(u1))⋅n_Γ + κ2*σ2(ε(u2))⋅n_Γ
   end
   
   # Setup FESpace
@@ -120,17 +120,17 @@ function main(;n,outputfile=nothing)
   function a_Ω1(u,v)
     u1,u2 = u
     v1,v2 = v
-    inner(ε(v1), σ1(ε(u1)))
+    ε(v1) ⊙ σ1(ε(u1))
   end
   
   function a_Ω2(u,v)
     u1,u2 = u
     v1,v2 = v
-    inner(ε(v2), σ2(ε(u2)))
+    ε(v2) ⊙ σ2(ε(u2))
   end
 
   function a_Γ(u,v)
-    β*jump_u(v)*jump_u(u) - jump_u(v)*mean_t(u) - mean_t(v)*jump_u(u)
+    β*jump_u(v)⋅jump_u(u) - jump_u(v)⋅mean_t(u) - mean_t(v)⋅jump_u(u)
   end
 
   # FE problem
