@@ -8,7 +8,7 @@ u(x) = VectorValue(x[1]*x[1], x[2])
 p(x) = x[1] - x[2]
 
 f(x) = - Δ(u)(x) + ∇(p)(x)
-g(x) = (∇*u)(x)
+g(x) = (∇⋅u)(x)
 
 R = 0.3
 pmin = Point(0,0)
@@ -78,12 +78,12 @@ X = MultiFieldFESpace([U,P])
 function A_Ω(x,y)
   u, p = x
   v, q = y
-  inner(∇(v), ∇(u)) - q*(∇*u) - (∇*v)*p
+  ∇(v)⊙∇(u) - q*(∇⋅u) - (∇⋅v)*p
 end
 
 function B_Ω(y)
   v, q = y
-  v*f - q*g
+  v⋅f - q*g
 end
 
 const γ = order*(order+1)
@@ -91,17 +91,17 @@ const γ = order*(order+1)
 function A_Γd(x,y)
   u, p = x
   v, q = y
-  (γ/h)*v*u - v*(n_Γd*∇(u)) - (n_Γd*∇(v))*u + (p*n_Γd)*v + (q*n_Γd)*u
+  (γ/h)*v⋅u - v⋅(n_Γd⋅∇(u)) - (n_Γd⋅∇(v))⋅u + (p*n_Γd)⋅v + (q*n_Γd)⋅u
 end
 
 function B_Γd(y)
   v, q = y
-  (γ/h)*v*u - (n_Γd*∇(v))*u + (q*n_Γd)*u
+  (γ/h)*v⋅u - (n_Γd⋅∇(v))⋅u + (q*n_Γd)⋅u
 end
 
 function B_Γn(y)
   v, q = y
-  v*(n_Γn*∇(u)) - (n_Γn*v)*p
+  v⋅(n_Γn⋅∇(u)) - (n_Γn⋅v)*p
 end
 
 t_Ω = AffineFETerm(A_Ω,B_Ω,trian_Ω,quad_Ω)
@@ -123,8 +123,8 @@ ph_Ω = restrict(ph,trian_Ω)
 eu = u - uh_Ω
 ep = p - ph_Ω
 
-l2(u) = u*u
-h1(u) = inner(∇(u),∇(u)) + l2(u)
+l2(u) = u⊙u
+h1(u) = ∇(u)⊙∇(u) + l2(u)
 
 eul2 = sqrt(sum( integrate(l2(eu),trian_Ω,quad_Ω) ))
 euh1 = sqrt(sum( integrate(h1(eu),trian_Ω,quad_Ω) ))

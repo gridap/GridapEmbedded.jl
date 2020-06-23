@@ -30,7 +30,7 @@ function main(;n,outputfile=nothing)
   # Forcing data
   function uin(x,x0,R,vmax)
     dx = x-x0
-    r2 = dx*dx
+    r2 = dx⋅dx
     if r2 < R^2
       v =  (1-r2/R^2)*vmax
     else
@@ -101,13 +101,13 @@ function main(;n,outputfile=nothing)
   h = (pmax-pmin)[1]/partition[1]
   
   # Weak form
-  a_Ω(u,v) = inner(∇(u),∇(v))
-  b_Ω(v,p) = - (∇*v)*p
-  c_Ω(p,q) = (β1*h^2)*∇(p)*∇(q)
-  a_Γ(u,v,n_Γ) = - (n_Γ*∇(u))*v - u*(n_Γ*∇(v)) + (γ/h)*u*v
-  b_Γ(v,p,n_Γ) = (n_Γ*v)*p
-  i_Γg(u,v) = (β2*h)*jump(n_Γg*∇(u))*jump(n_Γg*∇(v))
-  j_Γg(p,q) = (β3*h^3)*jump(n_Γg*∇(p))*jump(n_Γg*∇(q))
+  a_Ω(u,v) = ∇(u)⊙∇(v)
+  b_Ω(v,p) = - (∇⋅v)*p
+  c_Ω(p,q) = (β1*h^2)*∇(p)⋅∇(q)
+  a_Γ(u,v,n_Γ) = - (n_Γ⋅∇(u))⋅v - u⋅(n_Γ⋅∇(v)) + (γ/h)*u⋅v
+  b_Γ(v,p,n_Γ) = (n_Γ⋅v)*p
+  i_Γg(u,v) = (β2*h)*jump(n_Γg⋅∇(u))⋅jump(n_Γg⋅∇(v))
+  j_Γg(p,q) = (β3*h^3)*jump(n_Γg⋅∇(p))*jump(n_Γg⋅∇(q))
   
   function A_Ω(X,Y)
     u,p = X
@@ -129,7 +129,7 @@ function main(;n,outputfile=nothing)
   
   function L_Γi(Y)
     v,q = Y
-    uin*( (γ/h)*v - n_Γi*∇(v) + q*n_Γi )
+    uin⊙( (γ/h)*v - n_Γi⋅∇(v) + q*n_Γi )
   end
   
   # FE problem

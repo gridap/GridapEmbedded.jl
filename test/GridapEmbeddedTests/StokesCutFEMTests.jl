@@ -93,15 +93,15 @@ Y = MultiFieldFESpace([V,Q])
 h = (box.pmax-box.pmin)[1]/partition[1]
 
 # Weak form
-a_Ω(u,v) = inner(∇(u),∇(v))
-b_Ω(v,p) = - (∇*v)*p
+a_Ω(u,v) = ∇(u)⊙∇(v)
+b_Ω(v,p) = - (∇⋅v)*p
 c_Γi(p,q) = (β0*h)*jump(p)*jump(q)
-c_Ω(p,q) = (β1*h^2)*∇(p)*∇(q)
-a_Γ(u,v) = - (n_Γ*∇(u))*v - u*(n_Γ*∇(v)) + (γ/h)*u*v
-b_Γ(v,p) = (n_Γ*v)*p
-i_Γg(u,v) = (β2*h)*jump(n_Γg*∇(u))*jump(n_Γg*∇(v))
-j_Γg(p,q) = (β3*h^3)*jump(n_Γg*∇(p))*jump(n_Γg*∇(q)) + c_Γi(p,q)
-ϕ_Ω(q) = (β1*h^2)*∇(q)*f
+c_Ω(p,q) = (β1*h^2)*∇(p)⋅∇(q)
+a_Γ(u,v) = - (n_Γ⋅∇(u))⋅v - u⋅(n_Γ⋅∇(v)) + (γ/h)*u⋅v
+b_Γ(v,p) = (n_Γ⋅v)*p
+i_Γg(u,v) = (β2*h)*jump(n_Γg⋅∇(u))⋅jump(n_Γg⋅∇(v))
+j_Γg(p,q) = (β3*h^3)*jump(n_Γg⋅∇(p))*jump(n_Γg⋅∇(q)) + c_Γi(p,q)
+ϕ_Ω(q) = (β1*h^2)*∇(q)⋅f
 
 function A_Ω(X,Y)
   u,p = X
@@ -129,12 +129,12 @@ end
 
 function L_Ω(Y)
   v,q = Y
-  v*f - ϕ_Ω(q) - q*g
+  v⋅f - ϕ_Ω(q) - q*g
 end
 
 function L_Γ(Y)
   v,q = Y
-  ud*( (γ/h)*v - n_Γ*∇(v) + q*n_Γ )
+  ud⊙( (γ/h)*v - n_Γ⋅∇(v) + q*n_Γ )
 end
 
 # FE problem
@@ -155,8 +155,8 @@ writevtk(trian_Ω,"results",
 
 # Checks
 tol = 1.0e-9
-l2(v) = v*v
-h1(v) = inner(∇(v),∇(v))
+l2(v) = v⊙v
+h1(v) = ∇(v)⊙∇(v)
 eu_l2 = sqrt(sum(integrate(l2(eu_Ω),trian_Ω,quad_Ω)))
 eu_h1 = sqrt(sum(integrate(h1(eu_Ω),trian_Ω,quad_Ω)))
 ep_l2 = sqrt(sum(integrate(l2(ep_Ω),trian_Ω,quad_Ω)))

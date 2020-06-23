@@ -81,7 +81,7 @@ end
 
 function mean_q(u)
   u1,u2 = u
-  κ1*α1*n_Γ*∇(u1) + κ2*α2*n_Γ*∇(u2)
+  κ1*α1*n_Γ⋅∇(u1) + κ2*α2*n_Γ⋅∇(u2)
 end
 
 function mean_u(u)
@@ -109,13 +109,13 @@ U = MultiFieldFESpace([U1,U2])
 function a_Ω1(u,v)
   u1,u2 = u
   v1,v2 = v
-  α1*∇(v1)*∇(u1)
+  α1*∇(v1)⋅∇(u1)
 end
 
 function a_Ω2(u,v)
   u1,u2 = u
   v1,v2 = v
-  α2*∇(v2)*∇(u2)
+  α2*∇(v2)⋅∇(u2)
 end
 
 function l_Ω1(v)
@@ -135,13 +135,13 @@ end
 function a_Γd(u,v)
   u1,u2 = u
   v1,v2 = v
-  (γd/h)*v2*u2 - v2*(n_Γd*∇(u2)) - (n_Γd*∇(v2))*u2
+  (γd/h)*v2*u2 - v2*(n_Γd⋅∇(u2)) - (n_Γd⋅∇(v2))*u2
 end
 
 function a_Γg(v,u)
   u1,u2 = u
   v1,v2 = v
-  (γg*h)*jump(n_Γg*∇(v2))*jump(n_Γg*∇(u2))
+  (γg*h)*jump(n_Γg⋅∇(v2))*jump(n_Γg⋅∇(u2))
 end
 
 # FE problem

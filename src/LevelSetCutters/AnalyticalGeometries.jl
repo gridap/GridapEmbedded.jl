@@ -63,7 +63,7 @@ end
 
 @inline function _sphere(x::Point,R,x0)
   w = x-x0
-  A = w*w - R^2
+  A = w⋅w - R^2
   A
 end
 
@@ -93,8 +93,8 @@ end
 
 @inline function _cylinder(x::Point,R,x0,v)
   w = x-x0
-  A = w*v
-  H2 = w*w
+  A = w⋅v
+  H2 = w⋅w
   B = H2-A*A
   B - R^2
 end
@@ -111,7 +111,7 @@ end
 
 @inline function _plane(x::Point,x0,v)
   w = x-x0
-  A = w*v
+  A = w⋅v
   A
 end
 

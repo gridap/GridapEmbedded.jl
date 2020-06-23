@@ -70,11 +70,11 @@ U = TrialFESpace(V)
 # Weak form Nitsche + ghost penalty (CutFEM paper Sect. 6.1)
 const γd = 10.0
 const γg = 0.1
-a_Ω(u,v) = ∇(v)*∇(u)
+a_Ω(u,v) = ∇(v)⋅∇(u)
 l_Ω(v) = v*f
-a_Γ(u,v) = (γd/h)*v*u  - v*(n_Γ*∇(u)) - (n_Γ*∇(v))*u
-l_Γ(v) = (γd/h)*v*ud - (n_Γ*∇(v))*ud
-a_Γg(v,u) = (γg*h)*jump(n_Γg*∇(v))*jump(n_Γg*∇(u))
+a_Γ(u,v) = (γd/h)*v*u  - v*(n_Γ⋅∇(u)) - (n_Γ⋅∇(v))*u
+l_Γ(v) = (γd/h)*v*ud - (n_Γ⋅∇(v))*ud
+a_Γg(v,u) = (γg*h)*jump(n_Γg⋅∇(v))*jump(n_Γg⋅∇(u))
 
 # FE problem
 t_Ω = AffineFETerm(a_Ω,l_Ω,trian_Ω,quad_Ω)

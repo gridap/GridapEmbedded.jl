@@ -56,8 +56,8 @@ v_sΩ = restrict(v,trian_sΩ)
 u_sΩ = restrict(u,trian_sΩ)
 
 # Check divergence theorem
-a = sum( integrate(∇(v_Ω)*∇(u_Ω),trian_Ω,quad_Ω) )
-b = sum( integrate(v_Γ*n_Γ*∇(u_Γ),trian_Γ,quad_Γ) )
+a = sum( integrate(∇(v_Ω)⋅∇(u_Ω),trian_Ω,quad_Ω) )
+b = sum( integrate(v_Γ*n_Γ⋅∇(u_Γ),trian_Γ,quad_Γ) )
 @test abs(a-b) < 1.0e-9
 
 a = sum(integrate(jump(u_sΩ),trian_sΩ,quad_sΩ))

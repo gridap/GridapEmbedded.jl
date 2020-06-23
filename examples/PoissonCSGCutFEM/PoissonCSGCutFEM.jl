@@ -58,11 +58,11 @@ function main(;n,outputfile=nothing)
   γd = 10.0
   γg = 0.1
   h = (pmax - pmin)[1] / partition[1]
-  a_Ω(u,v) = ∇(v)*∇(u)
+  a_Ω(u,v) = ∇(v)⋅∇(u)
   l_Ω(v) = v*f
-  a_Γd(u,v) = (γd/h)*v*u  - v*(n_Γd*∇(u)) - (n_Γd*∇(v))*u
-  l_Γd(v) = (γd/h)*v*ud - (n_Γd*∇(v))*ud
-  a_Γg(v,u) = (γg*h)*jump(n_Γg*∇(v))*jump(n_Γg*∇(u))
+  a_Γd(u,v) = (γd/h)*v*u  - v*(n_Γd⋅∇(u)) - (n_Γd⋅∇(v))*u
+  l_Γd(v) = (γd/h)*v*ud - (n_Γd⋅∇(v))*ud
+  a_Γg(v,u) = (γg*h)*jump(n_Γg⋅∇(v))*jump(n_Γg⋅∇(u))
 
   # FE problem
   t_Ω = AffineFETerm(a_Ω,l_Ω,trian_Ω,quad_Ω)
