@@ -12,7 +12,7 @@ u(x) = x[1]+x[2]
 const k1 = TensorValue(1.0,0.0,0.0,0.0)
 const k2 = VectorValue(0.0,1.0)
 f(x) = 1.0
-ud(x) = u(x)
+
 # Background Cartesian mesh
 domain = (0,1,0,1)
 n = 5
