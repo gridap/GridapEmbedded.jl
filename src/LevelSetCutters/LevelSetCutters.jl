@@ -37,6 +37,7 @@ export sphere
 export disk
 export cylinder
 export plane
+export square
 export cube
 export discretize
 export DiscreteGeometry

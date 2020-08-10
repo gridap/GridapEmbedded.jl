@@ -28,9 +28,9 @@ end
 @publish LevelSetCutters cylinder
 @publish LevelSetCutters plane
 @publish LevelSetCutters cube
+@publish LevelSetCutters square
 
 @publish AgFEM AgFEMSpace
 @publish AgFEM aggregate
 @publish AgFEM color_aggregates
 @publish AgFEM AggregateAllCutCells
-
