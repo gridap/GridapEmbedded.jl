@@ -64,8 +64,8 @@ t_s = LinearFETerm(a_s,strian,squad)
 
 const γd = 10.0
 h = 1/n
-a_Γ(u,v) = (γd/h)*v*u  - v*(n_Γ⋅∇(u)) - (n_Γ⋅∇(v))*u
-l_Γ(v) = (γd/h)*v*u - (n_Γ⋅∇(v))*u
+a_Γ(u,v) = (γd/h)*v*u  - v*(n_Γ⋅(k1⋅∇(u))) - (n_Γ⋅(k1⋅∇(v)))*u
+l_Γ(v) = (γd/h)*v*u - (n_Γ⋅(k1⋅∇(v)))*u
 t_Γ = AffineFETerm(a_Γ,l_Γ,trian_Γ,quad_Γ)
 
 # Solving
