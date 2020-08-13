@@ -29,6 +29,7 @@ end
 @publish LevelSetCutters plane
 @publish LevelSetCutters cube
 @publish LevelSetCutters square
+@publish LevelSetCutters par
 
 @publish AgFEM AgFEMSpace
 @publish AgFEM aggregate

@@ -38,6 +38,7 @@ export disk
 export cylinder
 export plane
 export square
+export par
 export cube
 export discretize
 export DiscreteGeometry

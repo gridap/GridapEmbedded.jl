@@ -132,6 +132,26 @@ function square(;L=1,x0=Point(0,0),name="square")
 
 end
 
+function par(;L=1,M=1,x0=Point(0,0),name="par")
+
+  e1 = VectorValue(1,0)
+  e2 = VectorValue(0,1)
+  r = sqrt(2)
+  e3 = VectorValue(1/r,1/r)
+
+
+  plane1=plane(x0=x0-M*e2,v=-e3,name="edge1")
+  plane2=plane(x0=x0+M*e2,v=+e3,name="edge2")
+  plane3=plane(x0=x0-0.5*L*e1,v=-e1,name="edge3")
+  plane4=plane(x0=x0+0.5*L*e1,v=+e1,name="edge4")
+
+  geo12 = intersect(plane1,plane2)
+  geo34 = intersect(plane3,plane4)
+
+  intersect(geo12,geo34)
+
+end
+
 function cube(;L=1,x0=Point(0,0,0),name="cube")
 
   e1 = VectorValue(1,0,0)
@@ -144,7 +164,7 @@ function cube(;L=1,x0=Point(0,0,0),name="cube")
   plane4 = plane(x0=x0+0.5*L*e2,v=+e2,name="face4")
   plane5 = plane(x0=x0-0.5*L*e1,v=-e1,name="face5")
   plane6 = plane(x0=x0+0.5*L*e1,v=+e1,name="face6")
-  
+
   geo12 = intersect(plane1,plane2)
   geo34 = intersect(plane3,plane4)
   geo56 = intersect(plane5,plane6)
@@ -181,7 +201,7 @@ function olympic_rings(R,r,name="olympic_rings")
   geo3 = doughnut(R,r,name="ring3",x0=Point(z,-R+r,z))
   geo4 = doughnut(R,r,name="ring4",x0=Point(2*(r+r+R),-R+r,z))
   geo5 = doughnut(R,r,name="ring5",x0=Point(3*(r+r+R),z,z))
-  
+
   geo12 = union(geo1,geo2)
   geo123 = union(geo12,geo3)
   geo1234 = union(geo123,geo4)
@@ -200,4 +220,3 @@ function _olympic_rings_box(R,r)
   pmax = Point(A+2*(r+r+R),B,C)
   BoundingBox(pmin, pmax)
 end
-
