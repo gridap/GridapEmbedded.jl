@@ -16,8 +16,9 @@ f(x) = 1.0
 
 # Background Cartesian mesh
 domain = (-1,1,-1,1)
-n = 5
-partition = (n,n)
+n_x = 5
+n_t = 5
+partition = (n_x,n_t)
 bgmodel = CartesianDiscreteModel(domain,partition)
 
 # Domain
@@ -63,7 +64,7 @@ a_s(u,v) = jump(u)*(v.outward)
 t_s = LinearFETerm(a_s,strian,squad)
 
 const γd = 10.0
-h = 1/n
+h = 1/n_x
 a_Γ(u,v) = (γd/h)*v*u  - v*(n_Γ⋅(k1⋅∇(u))) - (n_Γ⋅(k1⋅∇(v)))*u
 l_Γ(v) = (γd/h)*v*u - (n_Γ⋅(k1⋅∇(v)))*u
 t_Γ = AffineFETerm(a_Γ,l_Γ,trian_Γ,quad_Γ)
@@ -85,3 +86,7 @@ l2(u) = u*u
 el2 = sqrt(sum(integrate(l2(e),trian_Ω,quad_Ω)))
 tol = 1.0e-10
 @assert el2 < tol
+
+trian = Triangulation(bgmodel)
+colors = color_aggregates(aggregates,bgmodel)
+writevtk(trian,"trian",celldata=["aggregate"=>aggregates,"color"=>colors],cellfields=["uh"=>uh])
