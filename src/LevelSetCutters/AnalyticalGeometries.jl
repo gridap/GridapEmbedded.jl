@@ -132,23 +132,39 @@ function square(;L=1,x0=Point(0,0),name="square")
 
 end
 
-function par(;L=1,M=1,x0=Point(0,0),name="par")
+function quadrilateral(;x0=Point(0,0),d1=VectorValue(1,0),d2=VectorValue(0,1),name="quadrilateral")
 
-  e1 = VectorValue(1,0)
-  e2 = VectorValue(0,1)
-  r = sqrt(2)
-  e3 = VectorValue(1/r,1/r)
+    x1 = x0+d1
+    x2 = x0+d2
+    slope1 = (x1[2]-x0[2])/(x1[1]-x0[1])
+    slope2 = (x2[2]-x0[2])/(x2[1]-x0[1])
 
+    slope_n1 = -1/slope1
+    slope_n2 = -1/slope2
 
-  plane1=plane(x0=x0-M*e2,v=-e3,name="edge1")
-  plane2=plane(x0=x0+M*e2,v=+e3,name="edge2")
-  plane3=plane(x0=x0-0.5*L*e1,v=-e1,name="edge3")
-  plane4=plane(x0=x0+0.5*L*e1,v=+e1,name="edge4")
+    den1 = sqrt(1+slope_n1*slope_n1)
+    den2 = sqrt(1+slope_n2*slope_n2)
 
-  geo12 = intersect(plane1,plane2)
-  geo34 = intersect(plane3,plane4)
+    n1 = VectorValue(-1/den1,-slope_n1/den1)
+    n2 = VectorValue(1/den2,slope_n2/den2)
 
-  intersect(geo12,geo34)
+    if slope_n1 == Inf
+      n1 = VectorValue(0.0,1.0)
+    end
+
+    if slope_n2 == Inf
+      n2 = VectorValue(0.0,1.0)
+    end
+
+    plane1=plane(x0=x0,v=-n1,name="edge1")
+    plane2=plane(x0=x2,v=+n1,name="edge2")
+    plane3=plane(x0=x0,v=-n2,name="edge3")
+    plane4=plane(x0=x1,v=+n2,name="edge4")
+
+    geo12 = intersect(plane1,plane2)
+    geo34 = intersect(plane3,plane4)
+
+    intersect(geo12,geo34)
 
 end
 

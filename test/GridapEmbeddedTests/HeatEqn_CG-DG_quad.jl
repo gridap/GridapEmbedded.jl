@@ -15,14 +15,14 @@ const k2 = VectorValue(0.0,1.0)
 f(x) = 1.0
 
 # Background Cartesian mesh
-domain = (-1,1,-2,2)
-n_x = 5
-n_t = 5
+domain = (-0.01,1.01,-0.01,1.01)
+n_x = 10
+n_t = 10
 partition = (n_x,n_t)
 bgmodel = CartesianDiscreteModel(domain,partition)
 
 # Domain
-geo = par(L=1,M=1)
+geo = quadrilateral(x0=Point(0,0),d1=VectorValue(1,0),d2=VectorValue(0,1))
 cutgeo = cut(bgmodel,geo)
 model = DiscreteModel(cutgeo)
 
