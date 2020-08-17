@@ -15,14 +15,14 @@ const k2 = VectorValue(0.0,1.0)
 f(x) = 1.0
 
 # Background Cartesian mesh
-domain = (-0.01,1.01,-0.01,1.01)
+domain = (-0.01,2.01,-0.01,3.01)
 n_x = 10
 n_t = 10
 partition = (n_x,n_t)
 bgmodel = CartesianDiscreteModel(domain,partition)
 
 # Domain
-geo = quadrilateral(x0=Point(0,0),d1=VectorValue(1,0),d2=VectorValue(0,1))
+geo = quadrilateral(x0=Point(0,0),d1=VectorValue(1,1),d2=VectorValue(1,2))
 cutgeo = cut(bgmodel,geo)
 model = DiscreteModel(cutgeo)
 
@@ -84,7 +84,7 @@ writevtk(trian_Ω,fi,cellfields=["e" => e])
 # L2 Error
 l2(u) = u*u
 el2 = sqrt(sum(integrate(l2(e),trian_Ω,quad_Ω)))
-tol = 1.0e-10
+tol = 1.0e-09
 @assert el2 < tol
 
 trian = Triangulation(bgmodel)
