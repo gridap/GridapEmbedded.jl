@@ -149,5 +149,14 @@ trian5_Γ = EmbeddedBoundary(cutgeo,geo8,geo5)
 
 trian6_Γ = EmbeddedBoundary(cutgeo,geo8,geo6)
 #writevtk(trian6_Γ,"trian6_G")
-
+n = 5
+partition = (n,n)
+domain = (-0.01,1.01,-0.01,1.01)
+model = CartesianDiscreteModel(domain,partition)
+geo = quadrilateral(x0=Point(0,0),d1=VectorValue(1,0),d2=VectorValue(0,1))
+test_geometry(geo)
+cutgeo = cut(model,geo)
+trian_Ω = Triangulation(cutgeo)
+trian_Γ = EmbeddedBoundary(cutgeo)
+#writevtk(trian_Γ,"trian_G")
 end # module

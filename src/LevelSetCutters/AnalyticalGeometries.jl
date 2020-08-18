@@ -132,6 +132,42 @@ function square(;L=1,x0=Point(0,0),name="square")
 
 end
 
+function quadrilateral(;x0=Point(0,0),d1=VectorValue(1,0),d2=VectorValue(0,1),name="quadrilateral")
+
+    x1 = x0+d1
+    x2 = x0+d2
+    slope1 = d1[2]/d1[1]
+    slope2 = d2[2]/d2[1]
+
+    slope_n1 = -1/slope1
+    slope_n2 = -1/slope2
+
+    den1 = sqrt(1+slope_n1*slope_n1)
+    den2 = sqrt(1+slope_n2*slope_n2)
+
+    n1 = VectorValue(1/den1,slope_n1/den1)
+    n2 = VectorValue(1/den2,slope_n2/den2)
+
+    if slope_n1 == Inf
+      n1 = VectorValue(0.0,1.0)
+    end
+
+    if slope_n2 == Inf
+      n2 = VectorValue(0.0,1.0)
+    end
+
+    plane1=plane(x0=x0,v=+n1,name="edge1")
+    plane2=plane(x0=x2,v=-n1,name="edge2")
+    plane3=plane(x0=x0,v=-n2,name="edge3")
+    plane4=plane(x0=x1,v=+n2,name="edge4")
+
+    geo12 = intersect(plane1,plane2)
+    geo34 = intersect(plane3,plane4)
+
+    intersect(geo12,geo34)
+
+end
+
 function cube(;L=1,x0=Point(0,0,0),name="cube")
 
   e1 = VectorValue(1,0,0)
@@ -144,7 +180,7 @@ function cube(;L=1,x0=Point(0,0,0),name="cube")
   plane4 = plane(x0=x0+0.5*L*e2,v=+e2,name="face4")
   plane5 = plane(x0=x0-0.5*L*e1,v=-e1,name="face5")
   plane6 = plane(x0=x0+0.5*L*e1,v=+e1,name="face6")
-  
+
   geo12 = intersect(plane1,plane2)
   geo34 = intersect(plane3,plane4)
   geo56 = intersect(plane5,plane6)
@@ -181,7 +217,7 @@ function olympic_rings(R,r,name="olympic_rings")
   geo3 = doughnut(R,r,name="ring3",x0=Point(z,-R+r,z))
   geo4 = doughnut(R,r,name="ring4",x0=Point(2*(r+r+R),-R+r,z))
   geo5 = doughnut(R,r,name="ring5",x0=Point(3*(r+r+R),z,z))
-  
+
   geo12 = union(geo1,geo2)
   geo123 = union(geo12,geo3)
   geo1234 = union(geo123,geo4)
@@ -200,4 +236,3 @@ function _olympic_rings_box(R,r)
   pmax = Point(A+2*(r+r+R),B,C)
   BoundingBox(pmin, pmax)
 end
-
