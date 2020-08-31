@@ -33,5 +33,8 @@ end
 
 @publish AgFEM AgFEMSpace
 @publish AgFEM aggregate
+@publish AgFEM aggregatespace
 @publish AgFEM color_aggregates
+@publish AgFEM color_aggregates_space
 @publish AgFEM AggregateAllCutCells
+@publish AgFEM AggregateSpaceCutCells
