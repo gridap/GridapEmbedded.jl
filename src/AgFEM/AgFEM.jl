@@ -8,6 +8,7 @@ using Gridap.Helpers
 using Gridap.Arrays
 using Gridap.Geometry
 using Gridap.ReferenceFEs
+using Gridap.CellData
 using Gridap.FESpaces
 
 using GridapEmbedded.CSG

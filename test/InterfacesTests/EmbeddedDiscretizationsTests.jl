@@ -56,7 +56,7 @@ for model in (model_quad, model_tet)
   
   # Check divergence theorem
   u(x) = x[1] + x[2]
-  u_in = interpolate(V_in,u)
+  u_in = interpolate(u,V_in)
   u_in_Γ = restrict(u_in,trian_Γ)
   u_in_in = restrict(u_in,trian_in)
   a = sum( integrate(∇(v_in_in)⋅∇(u_in_in),trian_in,quad_in) )

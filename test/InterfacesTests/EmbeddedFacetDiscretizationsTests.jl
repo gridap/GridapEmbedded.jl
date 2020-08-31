@@ -31,7 +31,7 @@ U = TrialFESpace(V)
 Random.seed!(1234)
 v = FEFunction(V,rand(num_free_dofs(V)))
 
-u = interpolate(U,x->x[1]+x[2])
+u = interpolate(x->x[1]+x[2],U)
 
 trian = Triangulation(bgmodel)
 trian_Ω = Triangulation(cutgeo)
