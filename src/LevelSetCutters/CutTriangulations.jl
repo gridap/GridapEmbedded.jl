@@ -373,10 +373,10 @@ function allocate_boundary_triangulation(
     s.point_to_rcoords)
 end
 
-function _allocate_table(a::Table{Td,Tp},n_cells,n_lpoints) where {Td,Tp}
+function _allocate_table(a::Table{T,Vd,Vp},n_cells,n_lpoints) where {T,Vd,Vp}
   ndata = n_cells*n_lpoints
-  data = zeros(Td,ndata)
-  ptrs = fill(Tp(n_lpoints),n_cells+1)
+  data = zeros(T,ndata)
+  ptrs = fill(eltype(Vp)(n_lpoints),n_cells+1)
   length_to_ptrs!(ptrs)
   Table(data,ptrs)
 end

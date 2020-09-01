@@ -1,6 +1,6 @@
 
 struct SubTriangulation{Dr,Dp,T} <: GridapType
-  cell_to_points::Table{Int,Int32}
+  cell_to_points::Table{Int,Vector{Int},Vector{Int32}}
   cell_to_bgcell::Vector{Int32}
   point_to_coords::Vector{Point{Dp,T}}
   point_to_rcoords::Vector{Point{Dr,T}}

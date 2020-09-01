@@ -1,6 +1,6 @@
 
 struct FacetSubTriangulation{Dp,T} <: GridapType
-  facet_to_points::Table{Int,Int32}
+  facet_to_points::Table{Int,Vector{Int},Vector{Int32}}
   facet_to_normal::Vector{Point{Dp,T}}
   facet_to_bgcell::Vector{Int32}
   point_to_coords::Vector{Point{Dp,T}}
