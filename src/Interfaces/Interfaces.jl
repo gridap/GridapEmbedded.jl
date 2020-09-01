@@ -5,6 +5,7 @@ using Gridap.Arrays
 using Gridap.Fields
 using Gridap.ReferenceFEs
 using Gridap.Geometry
+using Gridap.CellData
 using Gridap.Visualization
 
 import Gridap.Geometry: UnstructuredGrid

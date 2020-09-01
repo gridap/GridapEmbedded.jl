@@ -145,7 +145,7 @@ function l_Ω2(v)
 end
 
 function a_Γ(u,v)
-  β*jump_u(v)*jump_u(u) - jump_u(v)*mean_q(u) - mean_q(v)*jump_u(u)
+  β*jump_u(v)*jump_u(u) - mean_q(u)*jump_u(v) - mean_q(v)*jump_u(u)
 end
 
 function l_Γ(v)

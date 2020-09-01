@@ -6,7 +6,7 @@ end
 function AgFEMSpace(
   f::SingleFieldFESpace,
   cell_to_cellin::AbstractVector,
-  cell_to_basis_ext::CellBasis,
+  cell_to_basis_ext::CellField,
   cell_to_dof_basis_ext::CellDofBasis)
 
   cell_to_isactive = apply(i->(i>0),cell_to_cellin)
@@ -16,7 +16,7 @@ function AgFEMSpace(
   cell_to_acell[cell_to_isactive] .= 1:length(acell_to_cell)
 
   acell_to_dofs = reindex(get_cell_dofs(f),acell_to_cell)
-  n_fdofs = num_free_dofs(f) 
+  n_fdofs = num_free_dofs(f)
   acell_to_fbasis = reindex(get_cell_basis(f),acell_to_cellin)
   acell_to_gbasis = reindex(cell_to_basis_ext,acell_to_cellin)
   acell_to_dof_fbasis = reindex(get_cell_dof_basis(f),acell_to_cell)
