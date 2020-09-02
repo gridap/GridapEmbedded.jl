@@ -200,8 +200,16 @@ end
 function color_aggregates_space(cell_to_cellin,model::DiscreteModel)
   topo = get_grid_topology(model)
   D = num_cell_dims(model)
+  n_cell = num_cells(topo)
+  filter = [false,false,true,true]
+  filters = fill(filter,n_cell)
+  ptrs = collect(1:n_cell)
   cell_to_faces = get_faces(topo,D,D-1)
   face_to_cells = get_faces(topo,D-1,D)
+  comp_array = CompressedArray(cell_to_faces,ptrs)
+  filt_array = FilteredCellArray(comp_array,filters)
+  cell_to_faces = filt_array
+
   _color_aggregates_barrier_space(cell_to_cellin,cell_to_faces,face_to_cells)
 end
 
