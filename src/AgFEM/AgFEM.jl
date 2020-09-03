@@ -26,5 +26,5 @@ include("CellAggregation.jl")
 
 include("AgFEMSpaces.jl")
 
-include("CellAggregation_space.jl")
+include("CellAggregationSpace.jl")
 end # module
