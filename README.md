@@ -1,4 +1,4 @@
-# GridapEmbedded
+# GridapEmbedded <img src="https://github.com/gridap/Gridap.jl/blob/master/images/color-logo-only.png" width="50" title="Gridap logo">
 
 Embedded finite element methods, level set surface descriptions and constructive solid geometry.
 
