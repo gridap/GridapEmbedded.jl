@@ -115,15 +115,15 @@ end
   A
 end
 
-function square(;L=1,x0=Point(0,0),name="square")
+function square(;L=1,x0=Point(0,0),name="square",edges=["edge$i" for i in 1:4])
 
   e1 = VectorValue(1,0)
   e2 = VectorValue(0,1)
 
-  plane1=plane(x0=x0-0.5*L*e2,v=-e2,name="edge1")
-  plane2=plane(x0=x0+0.5*L*e2,v=+e2,name="edge2")
-  plane3=plane(x0=x0-0.5*L*e1,v=-e1,name="edge3")
-  plane4=plane(x0=x0+0.5*L*e1,v=+e1,name="edge4")
+  plane1=plane(x0=x0-0.5*L*e2,v=-e2,name=edges[1])
+  plane2=plane(x0=x0+0.5*L*e2,v=+e2,name=edges[2])
+  plane3=plane(x0=x0-0.5*L*e1,v=-e1,name=edges[3])
+  plane4=plane(x0=x0+0.5*L*e1,v=+e1,name=edges[4])
 
   geo12 = intersect(plane1,plane2)
   geo34 = intersect(plane3,plane4)
