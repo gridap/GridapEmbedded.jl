@@ -15,7 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
      strategy = AggregateCutCellsByThreshold(0.5) # New
    ```
 
-## [0.4.0] - 2020-07-18
+## [0.4.0] - 2020-09-19
 
 ### Added
 
