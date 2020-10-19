@@ -13,7 +13,7 @@ function aggregate(strategy,cut::EmbeddedDiscretization,name::String,in_or_out)
 end
 
 function aggregate(strategy,cut::EmbeddedDiscretization,geo::CSG.Geometry,in_or_out)
-  trian = Triangulation(cut,geo)
+  trian = Triangulation(cut,geo,in_or_out)
   cell_to_cut_meas = cell_measure(trian,num_cells(cut.bgmodel))
   cell_to_inoutcut = compute_bgcell_to_inoutcut(cut,geo)
   facet_to_inoutcut = compute_bgfacet_to_inoutcut(cut.bgmodel,geo)
@@ -55,7 +55,7 @@ function aggregate(
   geo::CSG.Geometry,
   in_or_out)
 
-  trian = Triangulation(cut,geo)
+  trian = Triangulation(cut,geo,in_or_out)
   cell_to_cut_meas = cell_measure(trian,num_cells(cut.bgmodel))
   cell_to_inoutcut = compute_bgcell_to_inoutcut(cut,geo)
   facet_to_inoutcut = compute_bgfacet_to_inoutcut(cut_facets,geo)
