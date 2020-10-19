@@ -13,9 +13,11 @@ function aggregate(strategy,cut::EmbeddedDiscretization,name::String,in_or_out)
 end
 
 function aggregate(strategy,cut::EmbeddedDiscretization,geo::CSG.Geometry,in_or_out)
+  trian = Triangulation(cut,geo)
+  cell_to_cut_meas = cell_measure(trian,num_cells(cut.bgmodel))
   cell_to_inoutcut = compute_bgcell_to_inoutcut(cut,geo)
   facet_to_inoutcut = compute_bgfacet_to_inoutcut(cut.bgmodel,geo)
-  aggregate(strategy,cut.bgmodel,in_or_out,cell_to_inoutcut,facet_to_inoutcut)
+  aggregate(strategy,cut.bgmodel,in_or_out,cell_to_cut_meas,cell_to_inoutcut,facet_to_inoutcut)
 end
 
 function aggregate(
@@ -53,47 +55,61 @@ function aggregate(
   geo::CSG.Geometry,
   in_or_out)
 
+  trian = Triangulation(cut,geo)
+  cell_to_cut_meas = cell_measure(trian,num_cells(cut.bgmodel))
   cell_to_inoutcut = compute_bgcell_to_inoutcut(cut,geo)
   facet_to_inoutcut = compute_bgfacet_to_inoutcut(cut_facets,geo)
-  aggregate(strategy,cut.bgmodel,in_or_out,cell_to_inoutcut,facet_to_inoutcut)
+  aggregate(strategy,cut.bgmodel,in_or_out,cell_to_cut_meas,cell_to_inoutcut,facet_to_inoutcut)
 end
 
-function aggregate(strategy,model::DiscreteModel,in_or_out,cell_to_inoutcut,facet_to_inoutcut)
+function aggregate(
+  strategy,model::DiscreteModel,in_or_out,cell_to_cut_meas,cell_to_inoutcut,facet_to_inoutcut)
   @abstractmethod
 end
 
-struct AggregateAllCutCells end
-
-function aggregate(
-  strategy::AggregateAllCutCells,model::DiscreteModel,in_or_out,cell_to_inoutcut,facet_to_inoutcut)
-  _compute_aggregates(cell_to_inoutcut,facet_to_inoutcut,model,in_or_out)
+struct AggregateCutCellsByThreshold
+  threshold::Float64
+  AggregateCutCellsByThreshold(x) =
+    ( x < 0.0 ) || ( x > 1.0 ) ? error("Agg. threshold must be in [0,1]") : new(x)
 end
 
-function _compute_aggregates(cell_to_inoutcut,facet_to_inoutcut,model,loc)
+struct AggregateAllCutCells
+  AggregateAllCutCells() = AggregateCutCellsByThreshold(1.0)
+end
+
+function aggregate(
+  strategy::AggregateCutCellsByThreshold,model::DiscreteModel,
+  in_or_out,cell_to_cut_meas,cell_to_inoutcut,facet_to_inoutcut)
+  _compute_aggregates(
+    strategy.threshold,cell_to_cut_meas,cell_to_inoutcut,facet_to_inoutcut,model,in_or_out)
+end
+
+function _compute_aggregates(threshold,cell_to_cut_meas,cell_to_inoutcut,facet_to_inoutcut,model,loc)
   @assert loc in (IN,OUT)
   trian = get_triangulation(model)
+  cell_to_meas = cell_measure(trian,num_cells(model))
+  cell_to_unit_cut_meas = cell_to_cut_meas./cell_to_meas
   cell_to_coords = get_cell_coordinates(trian)
   topo = get_grid_topology(model)
   D = num_cell_dims(model)
   cell_to_faces = get_faces(topo,D,D-1)
   face_to_cells = get_faces(topo,D-1,D)
   _compute_aggregates_barrier(
-    cell_to_inoutcut,facet_to_inoutcut,loc,cell_to_coords,cell_to_faces,face_to_cells)
+    threshold,cell_to_unit_cut_meas,cell_to_inoutcut,facet_to_inoutcut,
+    loc,cell_to_coords,cell_to_faces,face_to_cells)
 end
 
 function _compute_aggregates_barrier(
-  cell_to_inoutcut,facet_to_inoutcut,loc,cell_to_coords,cell_to_faces,face_to_cells)
+  threshold,cell_to_unit_cut_meas,cell_to_inoutcut,facet_to_inoutcut,
+  loc,cell_to_coords,cell_to_faces,face_to_cells)
 
   n_cells = length(cell_to_inoutcut)
   cell_to_cellin = zeros(Int32,n_cells)
   cell_to_touched = fill(false,n_cells)
 
-  for (cell, inoutcut) in enumerate(cell_to_inoutcut)
-    if inoutcut == loc
-      cell_to_cellin[cell] = cell
-      cell_to_touched[cell] = true
-    end
-  end
+  indices = findall(x -> x ≥ threshold, cell_to_unit_cut_meas)
+  cell_to_cellin[indices] = indices
+  cell_to_touched[indices] .= true
 
   c1 = array_cache(cell_to_faces)
   c2 = array_cache(face_to_cells)
@@ -258,4 +274,3 @@ function _color_aggregates_barrier(cell_to_cellin,cell_to_faces,face_to_cells)
 
   cell_to_color
 end
-
