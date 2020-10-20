@@ -34,4 +34,5 @@ end
 @publish AgFEM AgFEMSpace
 @publish AgFEM aggregate
 @publish AgFEM color_aggregates
+@publish AgFEM AggregateCutCellsByThreshold
 @publish AgFEM AggregateAllCutCells

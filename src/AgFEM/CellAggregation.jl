@@ -13,9 +13,7 @@ function aggregate(strategy,cut::EmbeddedDiscretization,name::String,in_or_out)
 end
 
 function aggregate(strategy,cut::EmbeddedDiscretization,geo::CSG.Geometry,in_or_out)
-  cell_to_inoutcut = compute_bgcell_to_inoutcut(cut,geo)
-  facet_to_inoutcut = compute_bgfacet_to_inoutcut(cut.bgmodel,geo)
-  aggregate(strategy,cut.bgmodel,in_or_out,cell_to_inoutcut,facet_to_inoutcut)
+  @abstractmethod
 end
 
 function aggregate(
@@ -53,43 +51,70 @@ function aggregate(
   geo::CSG.Geometry,
   in_or_out)
 
-  cell_to_inoutcut = compute_bgcell_to_inoutcut(cut,geo)
-  facet_to_inoutcut = compute_bgfacet_to_inoutcut(cut_facets,geo)
-  aggregate(strategy,cut.bgmodel,in_or_out,cell_to_inoutcut,facet_to_inoutcut)
-end
-
-function aggregate(strategy,model::DiscreteModel,in_or_out,cell_to_inoutcut,facet_to_inoutcut)
   @abstractmethod
 end
 
-struct AggregateAllCutCells end
-
-function aggregate(
-  strategy::AggregateAllCutCells,model::DiscreteModel,in_or_out,cell_to_inoutcut,facet_to_inoutcut)
-  _compute_aggregates(cell_to_inoutcut,facet_to_inoutcut,model,in_or_out)
+struct AggregateCutCellsByThreshold
+  threshold::Float64
+  AggregateCutCellsByThreshold(x) =
+    ( x < 0.0 ) || ( x > 1.0 ) ? error("Agg. threshold must be in [0,1]") : new(x)
 end
 
-function _compute_aggregates(cell_to_inoutcut,facet_to_inoutcut,model,loc)
+AggregateAllCutCells() = AggregateCutCellsByThreshold(1.0)
+
+function aggregate(
+  strategy::AggregateCutCellsByThreshold,
+  cut::EmbeddedDiscretization,
+  geo::CSG.Geometry,
+  in_or_out)
+
+  facet_to_inoutcut = compute_bgfacet_to_inoutcut(cut.bgmodel,geo)
+  _aggregate_by_threshold(strategy.threshold,cut,geo,in_or_out,facet_to_inoutcut)
+end
+
+function aggregate(
+  strategy::AggregateCutCellsByThreshold,
+  cut::EmbeddedDiscretization,
+  cut_facets::EmbeddedFacetDiscretization,
+  geo::CSG.Geometry,
+  in_or_out)
+
+  facet_to_inoutcut = compute_bgfacet_to_inoutcut(cut_facets,geo)
+  _aggregate_by_threshold(strategy.threshold,cut,geo,in_or_out,facet_to_inoutcut)
+end
+
+function _aggregate_by_threshold(threshold,cut,geo,loc,facet_to_inoutcut)
   @assert loc in (IN,OUT)
-  trian = get_triangulation(model)
-  cell_to_coords = get_cell_coordinates(trian)
+
+  cutinorout = loc == IN ? (CUTIN,IN) : (CUTOUT,OUT)
+  trian = Triangulation(cut,geo,cutinorout)
+  model = cut.bgmodel
+  cell_to_cut_meas = cell_measure(trian,num_cells(model))
+  bgtrian = get_triangulation(model)
+  cell_to_meas = cell_measure(bgtrian,num_cells(model))
+  cell_to_unit_cut_meas = apply(/,cell_to_cut_meas,cell_to_meas)
+
+  cell_to_coords = get_cell_coordinates(bgtrian)
   topo = get_grid_topology(model)
   D = num_cell_dims(model)
   cell_to_faces = get_faces(topo,D,D-1)
   face_to_cells = get_faces(topo,D-1,D)
-  _compute_aggregates_barrier(
-    cell_to_inoutcut,facet_to_inoutcut,loc,cell_to_coords,cell_to_faces,face_to_cells)
+
+  _aggregate_by_threshold_barrier(
+    threshold,cell_to_unit_cut_meas,facet_to_inoutcut,
+    loc,cell_to_coords,cell_to_faces,face_to_cells)
 end
 
-function _compute_aggregates_barrier(
-  cell_to_inoutcut,facet_to_inoutcut,loc,cell_to_coords,cell_to_faces,face_to_cells)
+function _aggregate_by_threshold_barrier(
+  threshold,cell_to_unit_cut_meas,facet_to_inoutcut,
+  loc,cell_to_coords,cell_to_faces,face_to_cells)
 
-  n_cells = length(cell_to_inoutcut)
+  n_cells = length(cell_to_unit_cut_meas)
   cell_to_cellin = zeros(Int32,n_cells)
   cell_to_touched = fill(false,n_cells)
 
-  for (cell, inoutcut) in enumerate(cell_to_inoutcut)
-    if inoutcut == loc
+  for cell in 1:n_cells
+    if cell_to_unit_cut_meas[cell] ≥ threshold
       cell_to_cellin[cell] = cell
       cell_to_touched[cell] = true
     end
@@ -105,8 +130,8 @@ function _compute_aggregates_barrier(
   all_aggregated = false
   for iter in 1:max_iters
     all_aggregated = true
-    for (cell, inoutcut) in enumerate(cell_to_inoutcut)
-      if inoutcut == CUT && ! cell_to_touched[cell]
+    for cell in 1:n_cells
+      if 0 < cell_to_unit_cut_meas[cell] < threshold && ! cell_to_touched[cell]
         neigh_cell = _find_best_neighbor(
           c1,c2,c3,c4,cell,
           cell_to_faces,
@@ -258,4 +283,3 @@ function _color_aggregates_barrier(cell_to_cellin,cell_to_faces,face_to_cells)
 
   cell_to_color
 end
-
