@@ -88,7 +88,7 @@ function _compute_aggregates(threshold,cell_to_cut_meas,cell_to_inoutcut,facet_t
   @assert loc in (IN,OUT)
   trian = get_triangulation(model)
   cell_to_meas = cell_measure(trian,num_cells(model))
-  cell_to_unit_cut_meas = cell_to_cut_meas./cell_to_meas
+  cell_to_unit_cut_meas = apply(/,cell_to_cut_meas,cell_to_meas)
   cell_to_coords = get_cell_coordinates(trian)
   topo = get_grid_topology(model)
   D = num_cell_dims(model)
@@ -107,9 +107,12 @@ function _compute_aggregates_barrier(
   cell_to_cellin = zeros(Int32,n_cells)
   cell_to_touched = fill(false,n_cells)
 
-  indices = findall(x -> x ≥ threshold, cell_to_unit_cut_meas)
-  cell_to_cellin[indices] = indices
-  cell_to_touched[indices] .= true
+  for cell in 1:n_cells
+    if cell_to_unit_cut_meas[cell] ≥ threshold
+      cell_to_cellin[cell] = cell
+      cell_to_touched[cell] = true
+    end
+  end
 
   c1 = array_cache(cell_to_faces)
   c2 = array_cache(face_to_cells)
