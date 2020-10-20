@@ -103,7 +103,6 @@ function _aggregate_by_threshold(threshold,cut,geo,loc,facet_to_inoutcut)
   _aggregate_by_threshold_barrier(
     threshold,cell_to_unit_cut_meas,facet_to_inoutcut,
     loc,cell_to_coords,cell_to_faces,face_to_cells)
-
 end
 
 function _aggregate_by_threshold_barrier(
