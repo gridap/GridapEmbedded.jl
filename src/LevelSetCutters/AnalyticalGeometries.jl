@@ -139,6 +139,15 @@ function quadrilateral(;x0=Point(0,0),d1=VectorValue(1,0),d2=VectorValue(0,1),na
     slope1 = d1[2]/d1[1]
     slope2 = d2[2]/d2[1]
 
+    if slope1 > slope2
+      temp = slope1
+      slope1 = slope2
+      slope2 =temp
+      var = x1
+      x1 = x2
+      x2 = var
+    end
+
     slope_n1 = -1/slope1
     slope_n2 = -1/slope2
 
