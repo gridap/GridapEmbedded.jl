@@ -148,12 +148,12 @@ function quadrilateral(;x0=Point(0,0),d1=VectorValue(1,0),d2=VectorValue(0,1),na
     n1 = VectorValue(1/den1,slope_n1/den1)
     n2 = VectorValue(1/den2,slope_n2/den2)
 
-    if slope_n1 == Inf
-      n1 = VectorValue(0.0,1.0)
+    if slope_n1 == -Inf
+      n1 = VectorValue(0.0,-1.0)
     end
 
-    if slope_n2 == Inf
-      n2 = VectorValue(0.0,1.0)
+    if slope_n2 == -Inf
+      n2 = VectorValue(0.0,-1.0)
     end
 
     plane1=plane(x0=x0,v=+n1,name="edge1")
