@@ -2,7 +2,7 @@
 
 Embedded finite element methods, level set surface descriptions and constructive solid geometry.
 
-[![Build Status](https://travis-ci.com/gridap/GridapEmbedded.jl.svg?branch=master)](https://travis-ci.com/gridap/GridapEmbedded.jl)
+[![Build Status](https://github.com/gridap/GridapEmbedded.jl/workflows/CI/badge.svg?branch=master)](https://github.com/gridap/GridapEmbedded.jl/actions?query=workflow%3ACI)
 [![Codecov](https://codecov.io/gh/gridap/GridapEmbedded.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/gridap/GridapEmbedded.jl)
 
 ## Installation
