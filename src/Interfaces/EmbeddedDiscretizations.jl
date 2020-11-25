@@ -212,7 +212,7 @@ function Triangulation(cut::EmbeddedDiscretization,geo::CSG.Geometry,in_or_out::
   mask = apply( (a,b) -> a==CUT && b==in_or_out.in_or_out, subcell_to_inoutcut, subcell_to_inout   )
   newsubcells = findall(mask)
   st = SubCellData(cut.subcells,newsubcells)
-  SubTriangulationWrapper(st)
+  SubCellTriangulation(st)
 end
 
 function Triangulation(cut::EmbeddedDiscretization,geo::CSG.Geometry,in_or_out::Integer)
