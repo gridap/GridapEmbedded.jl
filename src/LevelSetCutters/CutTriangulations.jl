@@ -332,7 +332,7 @@ function cut_sub_triangulation_with_boundary_several_levelsets(sub_trian,pending
   end
 
   m_boundary, done_ls_to_facet_to_inoutcut =
-    merge_facet_sub_triangulations(done_ls_to_boundary,done_ls_to_ls_to_facet_inoutcut)
+    merge_sub_face_data(done_ls_to_boundary,done_ls_to_ls_to_facet_inoutcut)
 
   m.sub_trian, m.done_ls_to_cell_to_inoutcut, m_boundary, done_ls_to_facet_to_inoutcut
 

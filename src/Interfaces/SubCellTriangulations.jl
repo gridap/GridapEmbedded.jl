@@ -52,7 +52,7 @@ Geometry.get_cell_type(trian::SubCellTriangulation) = trian.cell_types
 Geometry.TriangulationStyle(::Type{<:SubCellTriangulation}) = SubTriangulation()
 Geometry.get_background_triangulation(trian::SubCellTriangulation) = trian.bgtrian
 Geometry.get_cell_id(trian::SubCellTriangulation) = trian.subcells.cell_to_bgcell
-Geometry.get_cell_ref_map(trian::BoundaryTriangulation) = trian.cell_ref_map
+Geometry.get_cell_ref_map(trian::SubCellTriangulation) = trian.cell_ref_map
 
 # API
 

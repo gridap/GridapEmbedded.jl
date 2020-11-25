@@ -13,7 +13,7 @@ import GridapEmbedded.Interfaces: cut_facets
 import GridapEmbedded.Interfaces: compute_bgcell_to_inoutcut
 import GridapEmbedded.Interfaces: compute_bgfacet_to_inoutcut
 using GridapEmbedded.Interfaces: Simplex
-using GridapEmbedded.Interfaces: merge_facet_sub_triangulations
+using GridapEmbedded.Interfaces: merge_sub_face_data
 using GridapEmbedded.Interfaces: compute_inoutcut
 
 using LinearAlgebra
