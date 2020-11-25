@@ -1,15 +1,15 @@
 
-struct SubTriangulation{Dr,Dp,T} <: GridapType
-  cell_to_points::Table{Int,Vector{Int},Vector{Int32}}
+struct SubCellData{Dr,Dp,T} <: GridapType
+  cell_to_points::Table{Int32,Vector{Int32},Vector{Int32}}
   cell_to_bgcell::Vector{Int32}
   point_to_coords::Vector{Point{Dp,T}}
   point_to_rcoords::Vector{Point{Dr,T}}
 end
 
-function SubTriangulation(st::SubTriangulation,newcells::AbstractVector{<:Integer})
+function SubCellData(st::SubCellData,newcells::AbstractVector{<:Integer})
   cell_to_points = Table(reindex(st.cell_to_points,newcells))
   cell_to_bgcell = st.cell_to_bgcell[newcells]
-  SubTriangulation(
+  SubCellData(
     cell_to_points,
     cell_to_bgcell,
     st.point_to_coords,
@@ -20,12 +20,12 @@ end
 # Implementation of Triangulation interface
 
 struct SubTriangulationWrapper{Dp,T} <: Triangulation{Dp,Dp}
-  subcells::SubTriangulation{Dp,Dp,T}
+  subcells::SubCellData{Dp,Dp,T}
   cell_types::Vector{Int8}
   reffes::Vector{LagrangianRefFE{Dp}}
-  subcell_to_cell_map
+  cell_to_cell_map
 
-  function SubTriangulationWrapper(st::SubTriangulation{Dp,Dp,T}) where {Dp,T}
+  function SubTriangulationWrapper(st::SubCellData{Dp,Dp,T}) where {Dp,T}
     reffe = LagrangianRefFE(Float64,Simplex(Val{Dp}()),1)
     cell_types = fill(Int8(1),length(st.cell_to_points))
     reffes = [reffe]
@@ -35,7 +35,10 @@ struct SubTriangulationWrapper{Dp,T} <: Triangulation{Dp,Dp}
 end
 
 function _setup_subcell_to_cell_map(st,reffe,cell_types)
-  subcell_to_rcoords = LocalToGlobalArray(st.cell_to_points,st.point_to_rcoords)
+  subcell_to_points = st.cell_to_points
+  subcell_to_rcoords =
+  
+  LocalToGlobalArray(st.cell_to_points,st.point_to_rcoords)
   subcell_to_shapefuns = CompressedArray([get_shapefuns(reffe)],cell_types)
   subcell_to_cell_map = lincomb(subcell_to_shapefuns,subcell_to_rcoords)
   subcell_to_cell_map
@@ -73,7 +76,7 @@ end
 
 # API
 
-function UnstructuredGrid(st::SubTriangulation{D}) where D
+function UnstructuredGrid(st::SubCellData{D}) where D
   reffe = LagrangianRefFE(Float64,Simplex(Val{D}()),1)
   cell_types = fill(Int8(1),length(st.cell_to_points))
   UnstructuredGrid(
@@ -83,7 +86,7 @@ function UnstructuredGrid(st::SubTriangulation{D}) where D
     cell_types)
 end
 
-function writevtk(st::SubTriangulation,filename::String)
+function writevtk(st::SubCellData,filename::String)
   ug = UnstructuredGrid(st)
   degree = 0
   quad = CellQuadrature(ug,degree)

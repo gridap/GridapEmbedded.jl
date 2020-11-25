@@ -2,7 +2,7 @@
 struct EmbeddedFacetDiscretization{Dc,Dp,T} <: GridapType
   bgmodel::DiscreteModel{Dp,Dp}
   ls_to_facet_to_inoutcut::Vector{Vector{Int8}}
-  subfacets::SubTriangulation{Dc,Dp,T}
+  subfacets::SubCellData{Dc,Dp,T}
   ls_to_subfacet_to_inout::Vector{Vector{Int8}}
   oid_to_ls::Dict{UInt,Int}
   geo::CSG.Geometry
@@ -119,7 +119,7 @@ function BoundaryTriangulation(
   pred(a,b,c) = c != 0 && a==CUT && b==in_or_out.in_or_out
   mask = apply( pred, subfacet_to_inoutcut, subfacet_to_inout, _subfacet_to_facet )
   newsubfacets = findall(mask)
-  subfacets = SubTriangulation(cut.subfacets,newsubfacets)
+  subfacets = SubCellData(cut.subfacets,newsubfacets)
   subfacet_to_facet = bgfacet_to_facet[subfacets.cell_to_bgcell]
 
   BoundarySubTriangulationWrapper(facets,subfacets,subfacet_to_facet)
@@ -170,7 +170,7 @@ end
 
 struct BoundarySubTriangulationWrapper{Dc,Dp,T} <: Triangulation{Dc,Dp}
   facets::BoundaryTriangulation{Dc,Dp}
-  subfacets::SubTriangulation{Dc,Dp,T}
+  subfacets::SubCellData{Dc,Dp,T}
   subfacet_to_facet::AbstractArray
   reffes::Vector{LagrangianRefFE{Dc}}
   cell_types::Vector{Int8}
@@ -180,7 +180,7 @@ struct BoundarySubTriangulationWrapper{Dc,Dp,T} <: Triangulation{Dc,Dp}
 
   function BoundarySubTriangulationWrapper(
     facets::BoundaryTriangulation{Dc,Dp},
-    subfacets::SubTriangulation{Dc,Dp,T},
+    subfacets::SubCellData{Dc,Dp,T},
     subfacet_to_facet::AbstractArray) where {Dc,Dp,T}
 
     reffe = LagrangianRefFE(Float64,Simplex(Val{Dc}()),1)

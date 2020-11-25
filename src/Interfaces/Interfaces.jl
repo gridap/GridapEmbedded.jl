@@ -35,7 +35,7 @@ export CUTIN
 export CUTOUT
 export EmbeddedDiscretization
 export EmbeddedFacetDiscretization
-export SubTriangulation
+export SubCellData
 export FacetSubTriangulation
 export Cutter
 export cut
@@ -57,7 +57,7 @@ end
 const CUTIN = CutInOrOut(IN)
 const CUTOUT = CutInOrOut(OUT)
 
-include("SubTriangulations.jl")
+include("SubCellTriangulations.jl")
 
 include("FacetSubTriangulations.jl")
 

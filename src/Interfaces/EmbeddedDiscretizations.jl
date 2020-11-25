@@ -2,7 +2,7 @@
 struct EmbeddedDiscretization{Dp,T} <: GridapType
   bgmodel::DiscreteModel
   ls_to_bgcell_to_inoutcut::Vector{Vector{Int8}}
-  subcells::SubTriangulation{Dp,Dp,T}
+  subcells::SubCellData{Dp,Dp,T}
   ls_to_subcell_to_inout::Vector{Vector{Int8}}
   subfacets::FacetSubTriangulation{Dp,T}
   ls_to_subfacet_to_inout::Vector{Vector{Int8}}
@@ -211,7 +211,7 @@ function Triangulation(cut::EmbeddedDiscretization,geo::CSG.Geometry,in_or_out::
   subcell_to_inout = compute_subcell_to_inout(cut,geo)
   mask = apply( (a,b) -> a==CUT && b==in_or_out.in_or_out, subcell_to_inoutcut, subcell_to_inout   )
   newsubcells = findall(mask)
-  st = SubTriangulation(cut.subcells,newsubcells)
+  st = SubCellData(cut.subcells,newsubcells)
   SubTriangulationWrapper(st)
 end
 

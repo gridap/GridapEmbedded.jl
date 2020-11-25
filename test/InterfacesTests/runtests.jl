@@ -2,7 +2,7 @@ module InterfacesTests
 
 using Test
 
-@testset "SubTriangulations" begin include("SubTriangulationsTests.jl") end
+@testset "SubCellTriangulations" begin include("SubCellTriangulationsTests.jl") end
 
 @testset "FacetSubTriangulations" begin include("FacetSubTriangulationsTests.jl") end
 

@@ -344,7 +344,7 @@ function _remove_index(a,i)
 end
 
 function allocate_sub_triangulation(
-  m::SubTriangulation{Dc,Dp,T}, n_cells::Integer, n_points::Integer) where {Dc,Dp,T} 
+  m::SubCellData{Dc,Dp,T}, n_cells::Integer, n_points::Integer) where {Dc,Dp,T} 
 
   point_to_coords = zeros(Point{Dp,T},n_points)
   point_to_rcoords = zeros(Point{Dc,T},n_points)
@@ -352,14 +352,14 @@ function allocate_sub_triangulation(
   cell_to_bgcell = zeros(eltype(m.cell_to_bgcell),n_cells)
   cell_to_inoutcut = zeros(Int8,n_cells)
 
-  s = SubTriangulation(
+  s = SubCellData(
     cell_to_points, cell_to_bgcell, point_to_coords, point_to_rcoords)
 
   s, cell_to_inoutcut
 end
 
 function allocate_boundary_triangulation(
-  s::SubTriangulation{Dc,Dp,T}, n_facets::Integer) where {Dc,Dp,T} 
+  s::SubCellData{Dc,Dp,T}, n_facets::Integer) where {Dc,Dp,T} 
 
   facet_to_points = _allocate_table(s.cell_to_points,n_facets,Dc)
   facet_to_bgcell = zeros(eltype(s.cell_to_bgcell),n_facets)
@@ -381,20 +381,20 @@ function _allocate_table(a::Table{T,Vd,Vp},n_cells,n_lpoints) where {T,Vd,Vp}
   Table(data,ptrs)
 end
 
-get_cell_to_points(m::SubTriangulation) = m.cell_to_points
+get_cell_to_points(m::SubCellData) = m.cell_to_points
 
-get_cell_dim(m::SubTriangulation{Dc}) where Dc = Dc
+get_cell_dim(m::SubCellData{Dc}) where Dc = Dc
 
-function set_cell_data!( s::SubTriangulation, m::SubTriangulation, d...)
+function set_cell_data!( s::SubCellData, m::SubCellData, d...)
   set_cell_data!(s.cell_to_bgcell, m.cell_to_bgcell, d...)
 end
 
-function set_point_data!( s::SubTriangulation, m::SubTriangulation, d...)
+function set_point_data!( s::SubCellData, m::SubCellData, d...)
   set_point_data!(s.point_to_coords, m.point_to_coords, d...)
   set_point_data!(s.point_to_rcoords, m.point_to_rcoords, d...)
 end
 
-function set_cell_data_boundary!( s::FacetSubTriangulation, m::SubTriangulation, d...)
+function set_cell_data_boundary!( s::FacetSubTriangulation, m::SubCellData, d...)
   set_cell_data!(s.facet_to_bgcell, m.cell_to_bgcell, d...)
 end
 
@@ -540,7 +540,7 @@ function _simplexify_and_isolate_cells_in_cutgrid(cutgrid,ls_to_cutpoint_to_valu
     @notimplemented
   end
 
-  subtrian = SubTriangulation(
+  subtrian = SubCellData(
     tcell_to_tpoints,
     tcell_to_cell,
     tpoint_to_coords,
