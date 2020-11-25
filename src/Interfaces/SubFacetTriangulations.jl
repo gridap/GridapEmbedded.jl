@@ -34,17 +34,19 @@ struct SubFacetTriangulation{Dc,Dp,T} <: Grid{Dc,Dp}
     reffe = LagrangianRefFE(Float64,Simplex(Val{Dc}()),1)
     facet_types = fill(Int8(1),length(st.facet_to_points))
     reffes = [reffe]
-    face_to_cell_map = _setup_cell_ref_map(st,reffe,facet_types)
+    face_ref_map = _setup_facet_ref_map(st,reffe,facet_types)
     new{Dc,Dp,T}(st,bgtrian,facet_types,reffes,face_ref_map)
   end
 end
 
-#function _setup_facet_ref_map(st,reffe,cell_types)
-#  facet_to_rcoords = LocalToGlobalArray(st.facet_to_points,st.point_to_rcoords)
-#  facet_to_shapefuns = CompressedArray([get_shapefuns(reffe)],cell_types)
-#  face_to_cell_map = lincomb(facet_to_shapefuns,facet_to_rcoords)
-#  face_to_cell_map
-#end
+function _setup_facet_ref_map(st,reffe,facet_types)
+  facet_to_points = st.facet_to_points
+  point_to_rcoords = st.point_to_rcoords
+  facet_to_rcoords = lazy_map(Broadcasting(Reindex(point_to_coords)),facet_to_points)
+  facet_to_shapefuns = expand_cell_data([get_shapefuns(reffe)],facet_types)
+  facet_to_ref_map = lazy_map(linear_combination,facet_to_rcoords,facet_to_shapefuns)
+  facet_to_ref_map
+end
 
 # Triangulation API
 

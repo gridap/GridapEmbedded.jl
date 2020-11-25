@@ -122,7 +122,7 @@ function BoundaryTriangulation(
   subfacets = SubCellData(cut.subfacets,newsubfacets)
   subfacet_to_facet = bgfacet_to_facet[subfacets.cell_to_bgcell]
 
-  BoundarySubTriangulationWrapper(facets,subfacets,subfacet_to_facet)
+  SubFacetBoundaryTriangulation(facets,subfacets,subfacet_to_facet)
 end
 
 function _restrict_boundary_triangulation(model,facets,bgfacet_to_mask)
@@ -168,7 +168,7 @@ function compute_subfacet_to_inout(cut::EmbeddedFacetDiscretization,geo::CSG.Geo
   compute_inoutcut(newtree)
 end
 
-struct BoundarySubTriangulationWrapper{Dc,Dp,T} <: Triangulation{Dc,Dp}
+struct SubFacetBoundaryTriangulation{Dc,Dp,T} <: Grid{Dc,Dp}
   facets::BoundaryTriangulation{Dc,Dp}
   subfacets::SubCellData{Dc,Dp,T}
   subfacet_to_facet::AbstractArray
@@ -176,9 +176,9 @@ struct BoundarySubTriangulationWrapper{Dc,Dp,T} <: Triangulation{Dc,Dp}
   cell_types::Vector{Int8}
   cell_ids
   cell_normals
-  subfacet_to_facet_map
+  cell_ref_map
 
-  function BoundarySubTriangulationWrapper(
+  function SubFacetBoundaryTriangulation(
     facets::BoundaryTriangulation{Dc,Dp},
     subfacets::SubCellData{Dc,Dp,T},
     subfacet_to_facet::AbstractArray) where {Dc,Dp,T}
@@ -186,46 +186,31 @@ struct BoundarySubTriangulationWrapper{Dc,Dp,T} <: Triangulation{Dc,Dp}
     reffe = LagrangianRefFE(Float64,Simplex(Val{Dc}()),1)
     cell_types = fill(Int8(1),length(subfacets.cell_to_points))
     reffes = [reffe]
-    cell_ids = reindex(get_cell_id(facets),subfacet_to_facet)
-    cell_normals = reindex(get_normal_vector(facets),subfacet_to_facet)
-    subfacet_to_facet_map = _setup_subcell_to_cell_map(subfacets,reffe,cell_types)
-    new{Dc,Dp,T}(facets,subfacets,subfacet_to_facet,reffes,cell_types,cell_ids,cell_normals,subfacet_to_facet_map)
+    cell_ids = lazy_map(Reindex(get_cell_id(facets)),subfacet_to_facet)
+    cell_normals = lazy_map(Reindex(get_facet_normal(facets)),subfacet_to_facet)
+    subfacet_to_facet_map = _setup_cell_to_ref_map(subfacets,reffe,cell_types)
+    face_ref_map = lazy_map(Reindex(get_cell_ref_map(facets)),subfacet_to_facet)
+    cell_ref_map = lazy_map(∘,face_ref_map,subfacet_to_facet_map)
+    
+    new{Dc,Dp,T}(
+      facets,
+      subfacets,
+      subfacet_to_facet,
+      reffes,
+      cell_types,
+      cell_ids,
+      cell_normals,
+      cell_ref_map)
   end
 end
 
-function get_node_coordinates(trian::BoundarySubTriangulationWrapper)
-  trian.subfacets.point_to_coords
-end
-
-function get_cell_nodes(trian::BoundarySubTriangulationWrapper)
-  trian.subfacets.cell_to_points
-end
-
-function get_cell_coordinates(trian::BoundarySubTriangulationWrapper)
-  node_to_coords = get_node_coordinates(trian)
-  cell_to_nodes = get_cell_nodes(trian)
-  LocalToGlobalArray(cell_to_nodes,node_to_coords)
-end
-
-function get_reffes(trian::BoundarySubTriangulationWrapper)
-  trian.reffes
-end
-
-function get_cell_type(trian::BoundarySubTriangulationWrapper)
-  trian.cell_types
-end
-
-function get_normal_vector(trian::BoundarySubTriangulationWrapper)
-  trian.cell_normals
-end
-
-function get_cell_id(trian::BoundarySubTriangulationWrapper)
-  trian.cell_ids
-end
-
-function restrict(f::AbstractArray,trian::BoundarySubTriangulationWrapper)
-  g = restrict(f,trian.facets)
-  h = reindex(g,trian.subfacet_to_facet)
-  compose_field_arrays(h,trian.subfacet_to_facet_map)
-end
+Geometry.get_node_coordinates(trian::SubFacetBoundaryTriangulation) = trian.subfacets.point_to_coords
+Geometry.get_cell_nodes(trian::SubFacetBoundaryTriangulation) = trian.subfacets.cell_to_points
+Geometry.get_reffes(trian::SubFacetBoundaryTriangulation) = trian.reffes
+Geometry.get_cell_type(trian::SubFacetBoundaryTriangulation) = trian.cell_types
+Geometry.get_facet_normal(trian::SubFacetBoundaryTriangulation) = trian.cell_normals
+Geometry.get_cell_id(trian::SubFacetBoundaryTriangulation) = trian.cell_ids
+Geometry.TriangulationStyle(::Type{<:SubFacetBoundaryTriangulation}) = SubTriangulation()
+Geometry.get_background_triangulation(trian::SubFacetBoundaryTriangulation) = get_background_triangulation(trian.facets)
+Geometry.get_cell_ref_map(trian::SubFacetTriangulation) = trian.cell_ref_map
 

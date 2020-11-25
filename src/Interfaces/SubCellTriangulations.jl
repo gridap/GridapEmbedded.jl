@@ -29,8 +29,8 @@ struct SubCellTriangulation{Dp,T} <: Grid{Dp,Dp}
     reffe = LagrangianRefFE(Float64,Simplex(Val{Dp}()),1)
     cell_types = fill(Int8(1),length(st.cell_to_points))
     reffes = [reffe]
-    subcell_to_cell_map = _setup_cell_ref_map(st,reffe,cell_types)
-    new{Dp,T}(st,bgtrian,cell_types,reffes,subcell_to_cell_map)
+    cell_to_ref_map = _setup_cell_ref_map(st,reffe,cell_types)
+    new{Dp,T}(st,bgtrian,cell_types,reffes,cell_to_ref_map)
   end
 end
 
@@ -39,8 +39,8 @@ function _setup_cell_ref_map(st,reffe,cell_types)
   point_to_rcoords = st.point_to_rcoords
   cell_to_rcoords = lazy_map(Broadcasting(Reindex(point_to_coords)),cell_to_points)
   cell_to_shapefuns = expand_cell_data([get_shapefuns(reffe)],cell_types)
-  cell_to_cell_map = lazy_map(linear_combination,cell_to_rcoords,cell_to_shapefuns)
-  cell_to_cell_map
+  cell_to_ref_map = lazy_map(linear_combination,cell_to_rcoords,cell_to_shapefuns)
+  cell_to_ref_map
 end
 
 # Triangulation API
