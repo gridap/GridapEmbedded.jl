@@ -365,7 +365,7 @@ function allocate_boundary_triangulation(
   facet_to_bgcell = zeros(eltype(s.cell_to_bgcell),n_facets)
   facet_to_normal = zeros(VectorValue{Dp,T},n_facets)
 
-  FacetSubTriangulation(
+  SubFacetData(
     facet_to_points,
     facet_to_normal,
     facet_to_bgcell,
@@ -394,12 +394,12 @@ function set_point_data!( s::SubCellData, m::SubCellData, d...)
   set_point_data!(s.point_to_rcoords, m.point_to_rcoords, d...)
 end
 
-function set_cell_data_boundary!( s::FacetSubTriangulation, m::SubCellData, d...)
+function set_cell_data_boundary!( s::SubFacetData, m::SubCellData, d...)
   set_cell_data!(s.facet_to_bgcell, m.cell_to_bgcell, d...)
 end
 
 function allocate_sub_triangulation(
-  m::FacetSubTriangulation{Dp,T}, n_facets::Integer, n_points::Integer) where {Dp,T} 
+  m::SubFacetData{Dp,T}, n_facets::Integer, n_points::Integer) where {Dp,T} 
 
   point_to_coords = zeros(Point{Dp,T},n_points)
   point_to_rcoords = zeros(Point{Dp,T},n_points)
@@ -408,7 +408,7 @@ function allocate_sub_triangulation(
   facet_to_normal = zeros(VectorValue{Dp,T},n_facets)
   facet_to_inoutcut = zeros(Int8,n_facets)
 
-  s = FacetSubTriangulation(
+  s = SubFacetData(
     facet_to_points,
     facet_to_normal,
     facet_to_bgcell,
@@ -418,20 +418,20 @@ function allocate_sub_triangulation(
   s, facet_to_inoutcut
 end
 
-get_cell_to_points(m::FacetSubTriangulation) = m.facet_to_points
+get_cell_to_points(m::SubFacetData) = m.facet_to_points
 
-get_cell_dim(m::FacetSubTriangulation{Dp}) where Dp = Dp-1
+get_cell_dim(m::SubFacetData{Dp}) where Dp = Dp-1
 
-get_point_to_coords(m::FacetSubTriangulation) = m.point_to_coords
+get_point_to_coords(m::SubFacetData) = m.point_to_coords
 
-get_facet_to_normal(m::FacetSubTriangulation) = m.facet_to_normal
+get_facet_to_normal(m::SubFacetData) = m.facet_to_normal
 
-function set_cell_data!( s::FacetSubTriangulation, m::FacetSubTriangulation, d...)
+function set_cell_data!( s::SubFacetData, m::SubFacetData, d...)
   set_cell_data!(s.facet_to_bgcell, m.facet_to_bgcell, d...)
   set_cell_data!(s.facet_to_normal, m.facet_to_normal, d...)
 end
 
-function set_point_data!( s::FacetSubTriangulation, m::FacetSubTriangulation, d...)
+function set_point_data!( s::SubFacetData, m::SubFacetData, d...)
   set_point_data!(s.point_to_coords, m.point_to_coords, d...)
   set_point_data!(s.point_to_rcoords, m.point_to_rcoords, d...)
 end

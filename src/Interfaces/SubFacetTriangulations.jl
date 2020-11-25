@@ -1,5 +1,5 @@
 
-struct FacetSubTriangulation{Dp,T} <: GridapType
+struct SubFacetData{Dp,T} <: GridapType
   facet_to_points::Table{Int,Vector{Int},Vector{Int32}}
   facet_to_normal::Vector{Point{Dp,T}}
   facet_to_bgcell::Vector{Int32}
@@ -7,12 +7,12 @@ struct FacetSubTriangulation{Dp,T} <: GridapType
   point_to_rcoords::Vector{Point{Dp,T}}
 end
 
-function FacetSubTriangulation(
-  st::FacetSubTriangulation,newfacets::AbstractVector{<:Integer},orientation::AbstractVector)
+function SubFacetData(
+  st::SubFacetData,newfacets::AbstractVector{<:Integer},orientation::AbstractVector)
   facet_to_points = Table(reindex(st.facet_to_points,newfacets))
   facet_to_normal = st.facet_to_normal[newfacets] .* orientation
   facet_to_bgcell = st.facet_to_bgcell[newfacets]
-  FacetSubTriangulation(
+  SubFacetData(
     facet_to_points,
     facet_to_normal,
     facet_to_bgcell,
@@ -22,13 +22,13 @@ end
 
 # Implementation of the Gridap.Triangulation interface
 
-struct FacetSubTriangulationWrapper{Dc,Dp,T} <: Triangulation{Dc,Dp}
-  subfacets::FacetSubTriangulation{Dp,T}
+struct SubFacetTriangulation{Dc,Dp,T} <: Triangulation{Dc,Dp}
+  subfacets::SubFacetData{Dp,T}
   cell_types::Vector{Int8}
   reffes::Vector{LagrangianRefFE{Dc}}
   face_to_cell_map
 
-  function FacetSubTriangulationWrapper(st::FacetSubTriangulation{Dp,T}) where {Dp,T}
+  function SubFacetTriangulation(st::SubFacetData{Dp,T}) where {Dp,T}
     Dc = Dp - 1
     reffe = LagrangianRefFE(Float64,Simplex(Val{Dc}()),1)
     cell_types = fill(Int8(1),length(st.facet_to_points))
@@ -45,53 +45,53 @@ function _setup_face_to_cell_map(st,reffe,cell_types)
   face_to_cell_map
 end
 
-function get_node_coordinates(trian::FacetSubTriangulationWrapper)
+function get_node_coordinates(trian::SubFacetTriangulation)
   trian.subfacets.point_to_coords
 end
 
-function get_cell_nodes(trian::FacetSubTriangulationWrapper)
+function get_cell_nodes(trian::SubFacetTriangulation)
   trian.subfacets.facet_to_points
 end
 
-function get_reffes(trian::FacetSubTriangulationWrapper)
+function get_reffes(trian::SubFacetTriangulation)
   trian.reffes
 end
 
-function get_cell_type(trian::FacetSubTriangulationWrapper)
+function get_cell_type(trian::SubFacetTriangulation)
   trian.cell_types
 end
 
-function get_normal_vector(trian::FacetSubTriangulationWrapper)
+function get_normal_vector(trian::SubFacetTriangulation)
   cell_map = get_cell_map(trian)
   a = trian.subfacets.facet_to_normal
   GenericCellField(a,cell_map)
 end
 
-function get_face_to_cell(trian::FacetSubTriangulationWrapper)
+function get_face_to_cell(trian::SubFacetTriangulation)
   trian.subfacets.facet_to_bgcell
 end
 
-function get_face_to_cell_map(trian::FacetSubTriangulationWrapper)
+function get_face_to_cell_map(trian::SubFacetTriangulation)
   trian.face_to_cell_map
 end
 
-function get_cell_coordinates(trian::FacetSubTriangulationWrapper)
+function get_cell_coordinates(trian::SubFacetTriangulation)
   node_to_coords = get_node_coordinates(trian)
   cell_to_nodes = get_cell_nodes(trian)
   LocalToGlobalArray(cell_to_nodes,node_to_coords)
 end
 
-function restrict(f::AbstractArray, trian::FacetSubTriangulationWrapper)
+function restrict(f::AbstractArray, trian::SubFacetTriangulation)
   compose_field_arrays(reindex(f,trian), get_face_to_cell_map(trian))
 end
 
-function get_cell_id(trian::FacetSubTriangulationWrapper)
+function get_cell_id(trian::SubFacetTriangulation)
   get_face_to_cell(trian)
 end
 
 # API
 
-function UnstructuredGrid(st::FacetSubTriangulation{Dp}) where Dp
+function UnstructuredGrid(st::SubFacetData{Dp}) where Dp
   Dc = Dp -1
   reffe = LagrangianRefFE(Float64,Simplex(Val{Dc}()),1)
   cell_types = fill(Int8(1),length(st.facet_to_points))
@@ -102,7 +102,7 @@ function UnstructuredGrid(st::FacetSubTriangulation{Dp}) where Dp
     cell_types)
 end
 
-function writevtk(st::FacetSubTriangulation,filename::String,celldata=[])
+function writevtk(st::SubFacetData,filename::String,celldata=[])
   ug = UnstructuredGrid(st)
   degree = 0
   quad = CellQuadrature(ug,degree)
@@ -131,7 +131,7 @@ function merge_facet_sub_triangulations(ls_to_subfacets,ls_to_ls_to_facet_to_ino
   fst, ls_to_facet_to_inout
 end
 
-function Base.empty(st::FacetSubTriangulation{Dp,T}) where {Dp,T}
+function Base.empty(st::SubFacetData{Dp,T}) where {Dp,T}
 
   facet_to_points = Table(Int[],Int32[1,])
   facet_to_normal = Point{Dp,T}[]
@@ -139,7 +139,7 @@ function Base.empty(st::FacetSubTriangulation{Dp,T}) where {Dp,T}
   point_to_coords = Point{Dp,T}[]
   point_to_rcoords = Point{Dp,T}[]
 
-  FacetSubTriangulation(
+  SubFacetData(
     facet_to_points,
     facet_to_normal,
     facet_to_bgcell,
@@ -147,7 +147,7 @@ function Base.empty(st::FacetSubTriangulation{Dp,T}) where {Dp,T}
     point_to_rcoords)
 end
 
-function Base.append!(a::FacetSubTriangulation{D},b::FacetSubTriangulation{D}) where D
+function Base.append!(a::SubFacetData{D},b::SubFacetData{D}) where D
 
   o = length(a.point_to_coords)
 

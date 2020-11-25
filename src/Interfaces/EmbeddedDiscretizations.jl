@@ -4,7 +4,7 @@ struct EmbeddedDiscretization{Dp,T} <: GridapType
   ls_to_bgcell_to_inoutcut::Vector{Vector{Int8}}
   subcells::SubCellData{Dp,Dp,T}
   ls_to_subcell_to_inout::Vector{Vector{Int8}}
-  subfacets::FacetSubTriangulation{Dp,T}
+  subfacets::SubFacetData{Dp,T}
   ls_to_subfacet_to_inout::Vector{Vector{Int8}}
   oid_to_ls::Dict{UInt,Int}
   geo::CSG.Geometry
@@ -323,8 +323,8 @@ function EmbeddedBoundary(cut::EmbeddedDiscretization,geo::CSG.Geometry)
   subfacet_to_inoutcut, orientation = compute_inoutboundary(newtree)
   newsubfacets = findall(subfacet_to_inoutcut .== INTERFACE)
   neworientation = orientation[newsubfacets]
-  fst = FacetSubTriangulation(cut.subfacets,newsubfacets,neworientation)
-  FacetSubTriangulationWrapper(fst)
+  fst = SubFacetData(cut.subfacets,newsubfacets,neworientation)
+  SubFacetTriangulation(fst)
 
 end
 
@@ -353,8 +353,8 @@ function EmbeddedBoundary(cut::EmbeddedDiscretization,geo1::CSG.Geometry,geo2::C
   mask = apply( (i,j)->(i==INTERFACE) && (j==INTERFACE), subfacet_to_inoutcut1, subfacet_to_inoutcut2 )
   newsubfacets = findall( mask )
   neworientation = orientation[newsubfacets]
-  fst = FacetSubTriangulation(cut.subfacets,newsubfacets,neworientation)
-  FacetSubTriangulationWrapper(fst)
+  fst = SubFacetData(cut.subfacets,newsubfacets,neworientation)
+  SubFacetTriangulation(fst)
 
 end
 
