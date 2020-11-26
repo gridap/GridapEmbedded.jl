@@ -37,7 +37,7 @@ end
 function _setup_cell_ref_map(st,reffe,cell_types)
   cell_to_points = st.cell_to_points
   point_to_rcoords = st.point_to_rcoords
-  cell_to_rcoords = lazy_map(Broadcasting(Reindex(point_to_coords)),cell_to_points)
+  cell_to_rcoords = lazy_map(Broadcasting(Reindex(point_to_rcoords)),cell_to_points)
   cell_to_shapefuns = expand_cell_data([get_shapefuns(reffe)],cell_types)
   cell_to_ref_map = lazy_map(linear_combination,cell_to_rcoords,cell_to_shapefuns)
   cell_to_ref_map
@@ -45,18 +45,18 @@ end
 
 # Triangulation API
 
-Geometry.get_node_coordinates(trian::SubCellTriangulation) = trian.subcells.point_to_coords
-Geometry.get_cell_nodes(trian::SubCellTriangulation) = trian.subcells.cell_to_points
-Geometry.get_reffes(trian::SubCellTriangulation) = trian.reffes
-Geometry.get_cell_type(trian::SubCellTriangulation) = trian.cell_types
-Geometry.TriangulationStyle(::Type{<:SubCellTriangulation}) = SubTriangulation()
-Geometry.get_background_triangulation(trian::SubCellTriangulation) = trian.bgtrian
-Geometry.get_cell_id(trian::SubCellTriangulation) = trian.subcells.cell_to_bgcell
-Geometry.get_cell_ref_map(trian::SubCellTriangulation) = trian.cell_ref_map
+get_node_coordinates(trian::SubCellTriangulation) = trian.subcells.point_to_coords
+get_cell_nodes(trian::SubCellTriangulation) = trian.subcells.cell_to_points
+get_reffes(trian::SubCellTriangulation) = trian.reffes
+get_cell_type(trian::SubCellTriangulation) = trian.cell_types
+TriangulationStyle(::Type{<:SubCellTriangulation}) = SubTriangulation()
+get_background_triangulation(trian::SubCellTriangulation) = trian.bgtrian
+get_cell_id(trian::SubCellTriangulation) = trian.subcells.cell_to_bgcell
+get_cell_ref_map(trian::SubCellTriangulation) = trian.cell_ref_map
 
 # API
 
-function Geometry.UnstructuredGrid(st::SubCellData{D}) where D
+function UnstructuredGrid(st::SubCellData{D}) where D
   reffe = LagrangianRefFE(Float64,Simplex(Val{D}()),1)
   cell_types = fill(Int8(1),length(st.cell_to_points))
   UnstructuredGrid(
@@ -66,12 +66,19 @@ function Geometry.UnstructuredGrid(st::SubCellData{D}) where D
     cell_types)
 end
 
-function Visualization.visualization_data(st::SubCellData,filename::String)
+function Visualization.visualization_data(st::SubCellData,filename::String;celldata=Dict())
   ug = UnstructuredGrid(st)
   degree = 0
   quad = CellQuadrature(ug,degree)
   dV = integrate(1,quad)
-  celldata = ["bgcell"=>st.cell_to_bgcell, "dV"=>dV]
-  (VisualizationData(ug,filename,celldata=celldata),)
+  newcelldata = ["bgcell"=>st.cell_to_bgcell, "dV"=>dV]
+  _celldata = Dict()
+  for (k,v) in celldata
+    _celldata[k] = v
+  end
+  for (k,v) in newcelldata
+    _celldata[k] = v
+  end
+  (Visualization.VisualizationData(ug,filename,celldata=_celldata),)
 end
 

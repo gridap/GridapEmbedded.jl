@@ -207,9 +207,9 @@ end
 
 function Triangulation(cut::EmbeddedDiscretization,geo::CSG.Geometry,in_or_out::CutInOrOut)
   bgcell_to_inoutcut = compute_bgcell_to_inoutcut(cut,geo)
-  subcell_to_inoutcut = reindex(bgcell_to_inoutcut,cut.subcells.cell_to_bgcell)
+  subcell_to_inoutcut = lazy_map(Reindex(bgcell_to_inoutcut),cut.subcells.cell_to_bgcell)
   subcell_to_inout = compute_subcell_to_inout(cut,geo)
-  mask = apply( (a,b) -> a==CUT && b==in_or_out.in_or_out, subcell_to_inoutcut, subcell_to_inout   )
+  mask = lazy_map( (a,b) -> a==CUT && b==in_or_out.in_or_out, subcell_to_inoutcut, subcell_to_inout   )
   newsubcells = findall(mask)
   st = SubCellData(cut.subcells,newsubcells)
   SubCellTriangulation(st,Triangulation(cut.bgmodel))
@@ -350,7 +350,7 @@ function EmbeddedBoundary(cut::EmbeddedDiscretization,geo1::CSG.Geometry,geo2::C
   newtree2 = replace_data(identity,conversion,tree2)
   subfacet_to_inoutcut1, orientation = compute_inoutboundary(newtree1)
   subfacet_to_inoutcut2 = compute_inoutcut(newtree2)
-  mask = apply( (i,j)->(i==INTERFACE) && (j==INTERFACE), subfacet_to_inoutcut1, subfacet_to_inoutcut2 )
+  mask = lazy_map( (i,j)->(i==INTERFACE) && (j==INTERFACE), subfacet_to_inoutcut1, subfacet_to_inoutcut2 )
   newsubfacets = findall( mask )
   neworientation = orientation[newsubfacets]
   fst = SubFacetData(cut.subfacets,newsubfacets,neworientation)

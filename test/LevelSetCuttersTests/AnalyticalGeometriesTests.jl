@@ -1,9 +1,21 @@
 module AnalyticalGeometriesTests
 
 using Gridap
+using Gridap.Geometry
 using GridapEmbedded.CSG
 using GridapEmbedded.Interfaces
 using GridapEmbedded.LevelSetCutters
+
+function tmpdir(f::Function)
+ d = mktempdir()
+ try 
+   f(d)
+ finally
+   rm(d,recursive=true)
+ end
+end
+
+tmpdir() do d
 
 R = 0.7
 r = 0.15
@@ -44,14 +56,15 @@ model = CartesianDiscreteModel(box.pmin,box.pmax,partition)
 cutgeo = cut(model,geo2)
 
 trian = Triangulation(model)
-#writevtk(trian,"trian")
+writevtk(trian,joinpath(d,"trian"))
 
 trian1 = Triangulation(cutgeo)
-#writevtk(trian1,"trian1")
+test_triangulation(trian1)
+writevtk(trian1,joinpath(d,"trian1"))
 
 trian_Γ = EmbeddedBoundary(cutgeo)
-#writevtk(trian_Γ,"trian_G",cellfields=["normal"=>get_normal_vector(trian_Γ)])
-
+test_triangulation(trian_Γ)
+writevtk(trian_Γ,joinpath(d,"trian_G"),cellfields=["normal"=>get_normal_vector(trian_Γ)])
 
 geo2 = disk(0.8*R,name="geo2")
 box = get_metadata(geo2)
@@ -64,16 +77,16 @@ model = CartesianDiscreteModel(box.pmin,box.pmax,partition)
 cutgeo = cut(model,geo1)
 
 trian = Triangulation(model)
-#writevtk(trian,"trian")
+writevtk(trian,joinpath(d,"trian"))
 
 trian1 = Triangulation(cutgeo,"geo1")
-#writevtk(trian1,"trian1")
+writevtk(trian1,joinpath(d,"trian1"))
 
 trian_Γ = EmbeddedBoundary(cutgeo,"geo1")
-#writevtk(trian_Γ,"trian_G",cellfields=["normal"=>get_normal_vector(trian_Γ)])
+writevtk(trian_Γ,joinpath(d,"trian_G"),cellfields=["normal"=>get_normal_vector(trian_Γ)])
 
 trian_Γ13 = EmbeddedBoundary(cutgeo,"geo1","geo3")
-#writevtk(trian_Γ13,"trian_G13",cellfields=["normal"=>get_normal_vector(trian_Γ13)])
+writevtk(trian_Γ13,joinpath(d,"trian_G13"),cellfields=["normal"=>get_normal_vector(trian_Γ13)])
 
 R = 1.2
 r = 0.2
@@ -86,13 +99,13 @@ model = CartesianDiscreteModel(box.pmin,box.pmax,partition)
 cutgeo = cut(model,geo1)
 
 trian = Triangulation(model)
-#writevtk(trian,"trian")
+writevtk(trian,joinpath(d,"trian"))
 
 trian1 = Triangulation(cutgeo)
-#writevtk(trian1,"trian1")
+writevtk(trian1,joinpath(d,"trian1"))
 
 trian_Γ = EmbeddedBoundary(cutgeo)
-#writevtk(trian_Γ,"trian_G",cellfields=["normal"=>get_normal_vector(trian_Γ)])
+writevtk(trian_Γ,joinpath(d,"trian_G"),cellfields=["normal"=>get_normal_vector(trian_Γ)])
 
 R = 0.7
 L = 5.0
@@ -106,13 +119,13 @@ model = CartesianDiscreteModel(box.pmin,box.pmax,partition)
 cutgeo = cut(model,geo1)
 
 trian = Triangulation(model)
-#writevtk(trian,"trian")
+writevtk(trian,joinpath(d,"trian"))
 
 trian1 = Triangulation(cutgeo)
-#writevtk(trian1,"trian1")
+writevtk(trian1,joinpath(d,"trian1"))
 
 trian_Γ = EmbeddedBoundary(cutgeo)
-#writevtk(trian_Γ,"trian_G",cellfields=["normal"=>get_normal_vector(trian_Γ)])
+writevtk(trian_Γ,joinpath(d,"trian_G"),cellfields=["normal"=>get_normal_vector(trian_Γ)])
 
 n = 40
 partition = (n,n,n)
@@ -136,19 +149,20 @@ geo8 = setdiff(geo7,geo4)
 cutgeo = cut(model,geo8)
 
 trian = Triangulation(model)
-#writevtk(trian,"trian")
+writevtk(trian,joinpath(d,"trian"))
 
 trian1 = Triangulation(cutgeo)
-#writevtk(trian1,"trian1")
+writevtk(trian1,joinpath(d,"trian1"))
 
 trian4_Γ = EmbeddedBoundary(cutgeo,geo8,geo4)
-#writevtk(trian4_Γ,"trian4_G")
+writevtk(trian4_Γ,joinpath(d,"trian4_G"))
 
 trian5_Γ = EmbeddedBoundary(cutgeo,geo8,geo5)
-#writevtk(trian5_Γ,"trian5_G")
+writevtk(trian5_Γ,joinpath(d,"trian5_G"))
 
 trian6_Γ = EmbeddedBoundary(cutgeo,geo8,geo6)
-#writevtk(trian6_Γ,"trian6_G")
+writevtk(trian6_Γ,joinpath(d,"trian6_G"))
+
 n = 5
 partition = (n,n)
 domain = (-0.01,1.01,-0.01,1.01)
@@ -158,5 +172,8 @@ test_geometry(geo)
 cutgeo = cut(model,geo)
 trian_Ω = Triangulation(cutgeo)
 trian_Γ = EmbeddedBoundary(cutgeo)
-#writevtk(trian_Γ,"trian_G")
+writevtk(trian_Γ,joinpath(d,"trian_G"))
+
+end # tmpdir
+
 end # module

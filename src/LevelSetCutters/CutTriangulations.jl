@@ -475,7 +475,7 @@ function _extract_grid_of_cut_cells(grid,ls_to_point_to_value)
   cutgrid = GridPortion(grid,cutcell_to_cell)
 
   ls_to_cutpoint_to_value = [
-    point_to_value[cutgrid.node_to_oldnode] for point_to_value in ls_to_point_to_value ]
+    point_to_value[cutgrid.node_to_parent_node] for point_to_value in ls_to_point_to_value ]
 
   cutgrid, ls_to_cutpoint_to_value, ls_to_cell_to_inoutcut
 end
@@ -529,7 +529,7 @@ function _simplexify_and_isolate_cells_in_cutgrid(cutgrid,ls_to_cutpoint_to_valu
 
   ntcells = length(tcell_to_tpoints)
   nltcells = length(ltcell_to_lpoints)
-  tcell_to_cell = _setup_cell_to_bgcell(cutgrid.cell_to_oldcell,nltcells,ntcells)
+  tcell_to_cell = _setup_cell_to_bgcell(cutgrid.cell_to_parent_cell,nltcells,ntcells)
 
   if Dc == Dp
     _ensure_positive_jacobians!(tcell_to_tpoints,tpoint_to_coords,simplex)
@@ -650,15 +650,15 @@ function _ensure_positive_jacobians_facets!(
   tgrid = UnstructuredGrid(tpoint_to_coords,tcell_to_tpoints,ctype_to_reffe,tcell_to_ctype)
 
   tmap = get_cell_map(tgrid)
-  cutmap = reindex(get_cell_map(cutgrid),tcell_to_cutcell)
+  cutmap = lazy_map(Reindex(get_cell_map(cutgrid)),tcell_to_cutcell)
 
   ctype_to_q = map(r->[first(get_node_coordinates(r))],ctype_to_reffe)
-  tcell_to_q = CompressedArray(ctype_to_q,tcell_to_ctype)
+  tcell_to_q = expand_cell_data(ctype_to_q,tcell_to_ctype)
 
-  tjac = gradient(tmap)
-  jac = gradient(cutmap)
-  tjac_q = evaluate(tjac,tcell_to_q)
-  jac_q = evaluate(jac,tcell_to_q)
+  tjac = lazy_map(∇,tmap)
+  jac = lazy_map(∇,cutmap)
+  tjac_q = lazy_map(evaluate,tjac,tcell_to_q)
+  jac_q = lazy_map(evaluate,jac,tcell_to_q)
 
   c1 = array_cache(tjac_q)
   c2 = array_cache(jac_q)

@@ -12,17 +12,17 @@ import Gridap.Geometry: UnstructuredGrid
 import Gridap.Geometry: BoundaryTriangulation
 import Gridap.Geometry: SkeletonTriangulation
 import Gridap.Geometry: Triangulation
-import Gridap.Visualization: DiscreteModel
+import Gridap.Geometry: DiscreteModel
 import Gridap.Geometry: get_node_coordinates
 import Gridap.Geometry: get_cell_nodes
 import Gridap.Geometry: get_cell_coordinates
 import Gridap.Geometry: get_reffes
 import Gridap.Geometry: get_cell_type
-import Gridap.Geometry: get_normal_vector
-import Gridap.Geometry: get_face_to_cell
-import Gridap.Geometry: get_face_to_cell_map
-import Gridap.Geometry: restrict
 import Gridap.Geometry: get_cell_id
+import Gridap.Geometry: TriangulationStyle
+import Gridap.Geometry: get_background_triangulation
+import Gridap.Geometry: get_cell_ref_map
+import Gridap.Geometry: get_facet_normal
 
 using GridapEmbedded.CSG
 
