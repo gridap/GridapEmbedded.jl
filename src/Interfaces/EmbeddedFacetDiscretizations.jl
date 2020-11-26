@@ -71,7 +71,7 @@ function BoundaryTriangulation(cut::EmbeddedFacetDiscretization,tags,name::Strin
 end
 
 function BoundaryTriangulation(cut::EmbeddedFacetDiscretization,tags,geo::CSG.Geometry,in_or_out)
-  facets = BoundaryTriangulation(cut.bgmodel,tags)
+  facets = BoundaryTriangulation(cut.bgmodel,tags=tags)
   BoundaryTriangulation(cut,facets,geo,in_or_out)
 end
 
@@ -107,7 +107,7 @@ function BoundaryTriangulation(
   bgfacet_to_mask = lazy_map( a->a==CUT, bgfacet_to_inoutcut)
   facets = _restrict_boundary_triangulation(cut.bgmodel,_facets,bgfacet_to_mask)
 
-  facet_to_bgfacet = get_face_to_face(facets)
+  facet_to_bgfacet = facets.glue.face_to_bgface
   n_bgfacets = num_facets(cut.bgmodel)
   bgfacet_to_facet = zeros(Int,n_bgfacets)
   bgfacet_to_facet[facet_to_bgfacet] .= 1:length(facet_to_bgfacet)
@@ -127,13 +127,13 @@ end
 
 function _restrict_boundary_triangulation(model,facets,bgfacet_to_mask)
 
-  facet_to_bgfacet = get_face_to_face(facets)
+  facet_to_bgfacet = facets.glue.face_to_bgface
   facet_to_mask = lazy_map(Reindex(bgfacet_to_mask),facet_to_bgfacet)
   n_bgfacets = length(bgfacet_to_mask)
   bgfacet_to_mask2 = fill(false,n_bgfacets)
   bgfacet_to_mask2[facet_to_bgfacet] .= facet_to_mask
 
-  BoundaryTriangulation(model,bgfacet_to_mask2,get_cell_around(facets))
+  BoundaryTriangulation(model,bgfacet_to_mask2,facets.glue.bgface_to_lcell)
 end
 
 function compute_bgfacet_to_inoutcut(cut::EmbeddedFacetDiscretization,geo::CSG.Geometry)
@@ -188,7 +188,7 @@ struct SubFacetBoundaryTriangulation{Dc,Dp,T} <: Grid{Dc,Dp}
     reffes = [reffe]
     cell_ids = lazy_map(Reindex(get_cell_id(facets)),subfacet_to_facet)
     cell_normals = lazy_map(Reindex(get_facet_normal(facets)),subfacet_to_facet)
-    subfacet_to_facet_map = _setup_cell_to_ref_map(subfacets,reffe,cell_types)
+    subfacet_to_facet_map = _setup_cell_ref_map(subfacets,reffe,cell_types)
     face_ref_map = lazy_map(Reindex(get_cell_ref_map(facets)),subfacet_to_facet)
     cell_ref_map = lazy_map(∘,face_ref_map,subfacet_to_facet_map)
     

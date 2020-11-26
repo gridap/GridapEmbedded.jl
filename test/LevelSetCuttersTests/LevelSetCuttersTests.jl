@@ -74,9 +74,7 @@ trian8_Γ = EmbeddedBoundary(cutgeo,geo8)
 trian82_Γ = EmbeddedBoundary(cutgeo,geo8,geo2)
 #writevtk(trian82_Γ,"trian82_G")
 
-
 #writevtk(cutdisc,"cutdisc")
-
 
 n = 20
 partition = (n,n)
@@ -99,16 +97,13 @@ trian3 = Triangulation(cutgeo,geo3)
 btrian3in = BoundaryTriangulation(cutgeo_facets,"boundary",geo3,IN)
 btrian3 = BoundaryTriangulation(cutgeo_facets,"boundary",geo3,(CUTIN,IN))
 
-writevtk(trian,"trian")
-writevtk(trian3,"trian3")
-writevtk(btrian3in,"btrian3in",
-  celldata=["bgcell"=>get_cell_id(btrian3in)],
-  cellfields=["normal"=>get_normal_vector(btrian3in)])
-writevtk(btrian3,"btrian3",
-  celldata=["bgcell"=>get_cell_id(btrian3)],
-  cellfields=["normal"=>get_normal_vector(btrian3)])
-
-#
-#btrian
+#writevtk(trian,"trian")
+#writevtk(trian3,"trian3")
+#writevtk(btrian3in,"btrian3in",
+#  celldata=["bgcell"=>get_cell_id(btrian3in)],
+#  cellfields=["normal"=>get_normal_vector(btrian3in)])
+#writevtk(btrian3,"btrian3",
+#  celldata=["bgcell"=>get_cell_id(btrian3)],
+#  cellfields=["normal"=>get_normal_vector(btrian3)])
 
 end # module
