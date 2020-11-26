@@ -16,63 +16,59 @@ partition = (n,n)
 model_quad = CartesianDiscreteModel(box.pmin,box.pmax,partition)
 model_tet = simplexify(CartesianDiscreteModel(box.pmin,box.pmax,partition))
 
+reffe = ReferenceFE(:Lagrangian,Float64,1)
+
 for model in (model_quad, model_tet)
 
   cutgeom = cut(model,geom)
   
   model_in = DiscreteModel(cutgeom)
-  
   model_out = DiscreteModel(cutgeom,geom,(OUT,CUT))
-  
-  trian_in = Triangulation(cutgeom)
-  test_triangulation(trian_in)
-  quad_in = CellQuadrature(trian_in,2)
-  vol = sum(integrate(1,trian_in,quad_in))
+
+  Ω = Triangulation(model)
+  Ω_in = Triangulation(cutgeom)
+  Γ = EmbeddedBoundary(cutgeom)
+  Λ_in = GhostSkeleton(cutgeom)
+  Λ_out = GhostSkeleton(cutgeom,geom,OUT)
+
+  test_triangulation(Ω_in)
+  test_triangulation(Γ)
+  test_triangulation(Λ_in)
+  test_triangulation(Λ_out)
+
+  dΩ_in = LebesgueMeasure(Ω_in,2)
+  dΓ = LebesgueMeasure(Γ,2)
+  n_Γ = get_normal_vector(Γ)
+
+  vol = sum( ∫(1)*dΩ_in )
+  surf = sum( ∫(1)*dΓ )
+
   @test abs(pi*R^2 - vol) < 1.0e-3
-  
-  trian_Γ = EmbeddedBoundary(cutgeom)
-  test_triangulation(trian_Γ)
-  quad_Γ = CellQuadrature(trian_Γ,2)
-  surf = sum(integrate(1,trian_Γ,quad_Γ))
   @test abs(surf - 2*pi*R) < 1.0e-3
   
-  trian_Γg_in = GhostSkeleton(cutgeom)
-  
-  trian_Γg_out = GhostSkeleton(cutgeom,geom,OUT)
-  
-  n_Γ = get_normal_vector(trian_Γ)
-  
-  V_in = TestFESpace(model=model_in,valuetype=Float64,reffe=:Lagrangian,order=1,conformity=:H1)
-  
-  v_in = FEFunction(V_in,rand(num_free_dofs(V_in)))
-  
-  v_in_Γ = restrict(v_in,trian_Γ)
-  
-  v_in_in = restrict(v_in,trian_in)
-  
-  v_in_Γg_in = restrict(v_in,trian_Γg_in)
-  
-  trian = Triangulation(model)
-  
-  # Check divergence theorem
+  V_in = FESpace(model_in,reffe,conformity=:H1)
   u(x) = x[1] + x[2]
   u_in = interpolate(u,V_in)
-  u_in_Γ = restrict(u_in,trian_Γ)
-  u_in_in = restrict(u_in,trian_in)
-  a = sum( integrate(∇(v_in_in)⋅∇(u_in_in),trian_in,quad_in) )
-  b = sum( integrate(v_in_Γ*n_Γ⋅∇(u_in_Γ),trian_Γ,quad_Γ) )
+  v_in = FEFunction(V_in,rand(num_free_dofs(V_in)))
+  
+  # Check divergence theorem
+  a = sum( ∫( ∇(v_in)⋅∇(u_in) )*dΩ_in )
+  b = sum( ∫( v_in*n_Γ⋅∇(u_in) )*dΓ )
   @test abs(a-b) < 1.0e-9
   
   d = mktempdir()
-  writevtk(trian,joinpath(d,"trian"),order=2,cellfields=["v_in"=>v_in])
-  writevtk(trian_Γ,joinpath(d,"trian_G"),order=2,cellfields=["v_in"=>v_in_Γ,"normal"=>n_Γ])
-  writevtk(trian_Γg_in,joinpath(d,"trian_Gg_in"),cellfields=["v_in"=>mean(v_in_Γg_in)])
-  writevtk(trian_Γg_out,joinpath(d,"trian_Gg_out"))
-  writevtk(trian_in,joinpath(d,"trian_in"),order=2,cellfields=["v_in"=>v_in_in])
+  try
+  writevtk(Ω,joinpath(d,"trian"),order=2,cellfields=["v_in"=>v_in])
+  writevtk(Γ,joinpath(d,"trian_G"),order=2,cellfields=["v_in"=>v_in,"normal"=>n_Γ])
+  writevtk(Λ_in,joinpath(d,"trian_Gg_in"),cellfields=["v_in"=>mean(v_in)])
+  writevtk(Λ_out,joinpath(d,"trian_Gg_out"))
+  writevtk(Ω_in,joinpath(d,"trian_in"),order=2,cellfields=["v_in"=>v_in])
   #writevtk(cutgeom,joinpath(d,"cutgeom"))
   writevtk(model_in,joinpath(d,"model_in"))
   writevtk(model_out,joinpath(d,"model_out"))
-  rm(d,recursive=true)
+  finally
+    rm(d,recursive=true)
+  end
 
 end
 
