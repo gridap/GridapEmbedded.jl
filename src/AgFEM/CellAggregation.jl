@@ -89,10 +89,10 @@ function _aggregate_by_threshold(threshold,cut,geo,loc,facet_to_inoutcut)
   cutinorout = loc == IN ? (CUTIN,IN) : (CUTOUT,OUT)
   trian = Triangulation(cut,geo,cutinorout)
   model = cut.bgmodel
-  cell_to_cut_meas = cell_measure(trian,num_cells(model))
+  cell_to_cut_meas = get_cell_measure(trian)
   bgtrian = get_triangulation(model)
-  cell_to_meas = cell_measure(bgtrian,num_cells(model))
-  cell_to_unit_cut_meas = apply(/,cell_to_cut_meas,cell_to_meas)
+  cell_to_meas = get_cell_measure(bgtrian)
+  cell_to_unit_cut_meas = lazy_map(/,cell_to_cut_meas,cell_to_meas)
 
   cell_to_coords = get_cell_coordinates(bgtrian)
   topo = get_grid_topology(model)
