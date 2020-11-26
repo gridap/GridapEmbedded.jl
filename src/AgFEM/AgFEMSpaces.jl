@@ -7,9 +7,9 @@ function AgFEMSpace(
   f::SingleFieldFESpace,
   cell_to_cellin::AbstractVector,
   cell_to_basis_ext::CellField,
-  cell_to_dof_basis_ext::CellDofBasis)
+  cell_to_dof_basis_ext::CellDof)
 
-  cell_to_isactive = apply(i->(i>0),cell_to_cellin)
+  cell_to_isactive = lazy_map(i->(i>0),cell_to_cellin)
   acell_to_cell = findall( cell_to_isactive  )
   acell_to_cellin = cell_to_cellin[acell_to_cell]
   cell_to_acell = zeros(Int32,length(cell_to_cellin))

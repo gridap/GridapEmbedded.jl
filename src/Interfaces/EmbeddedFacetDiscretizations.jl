@@ -40,8 +40,8 @@ end
 
 function SkeletonTriangulation(
   cut::EmbeddedFacetDiscretization,facets::SkeletonTriangulation,geo::CSG.Geometry,in_or_out)
-  facets1 = get_left_boundary(facets)
-  facets2 = get_right_boundary(facets)
+  facets1 = facets.⁺
+  facets2 = facets.⁻
   trian1 = BoundaryTriangulation(cut,facets1,geo,in_or_out)
   trian2 = BoundaryTriangulation(cut,facets2,geo,in_or_out)
   SkeletonTriangulation(trian1,trian2)

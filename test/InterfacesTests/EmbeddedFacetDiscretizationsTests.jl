@@ -23,47 +23,36 @@ cutgeo_facets = cut_facets(bgmodel,geo)
 model = DiscreteModel(cutgeo)
 
 order = 1
-V = FESpace(
-  model=model,conformity=:H1,reffe=:Lagrangian,order=order,valuetype=Float64)
-
-U = TrialFESpace(V)
+reffe = ReferenceFE(:Lagrangian,Float64,order)
+V = FESpace(model,reffe,conformity=:H1)
 
 Random.seed!(1234)
 v = FEFunction(V,rand(num_free_dofs(V)))
+u = interpolate(x->x[1]+x[2],V)
 
-u = interpolate(x->x[1]+x[2],U)
+Ωbg = Triangulation(bgmodel)
+Ω = Triangulation(cutgeo)
+Γu = EmbeddedBoundary(cutgeo)
+Γf = BoundaryTriangulation(cutgeo_facets)
+Γ = lazy_append(Γu,Γf)
+Λ = SkeletonTriangulation(cutgeo_facets)
 
-trian = Triangulation(bgmodel)
-trian_Ω = Triangulation(cutgeo)
-trian_Γu = EmbeddedBoundary(cutgeo)
-trian_Γf = BoundaryTriangulation(cutgeo_facets)
-trian_Γ = lazy_append(trian_Γu,trian_Γf)
-trian_sΩ = SkeletonTriangulation(cutgeo_facets)
+dΩ = LebesgueMeasure(Ω,2*order)
+dΓ = LebesgueMeasure(Γ,2*order)
+dΛ = LebesgueMeasure(Λ,2*order)
 
-quad_Ω = CellQuadrature(trian_Ω,2*order)
-quad_Γ = CellQuadrature(trian_Γ,2*order)
-quad_sΩ = CellQuadrature(trian_sΩ,2*order)
-
-n_Γ = get_normal_vector(trian_Γ)
-n_sΩ = get_normal_vector(trian_sΩ)
-
-v_Ω = restrict(v,trian_Ω)
-v_Γ = restrict(v,trian_Γ)
-u_Ω = restrict(u,trian_Ω)
-u_Γ = restrict(u,trian_Γ)
-
-v_sΩ = restrict(v,trian_sΩ)
-u_sΩ = restrict(u,trian_sΩ)
+n_Γ = get_normal_vector(Γ)
+n_Λ = get_normal_vector(Λ)
 
 # Check divergence theorem
-a = sum( integrate(∇(v_Ω)⋅∇(u_Ω),trian_Ω,quad_Ω) )
-b = sum( integrate(v_Γ*n_Γ⋅∇(u_Γ),trian_Γ,quad_Γ) )
+a = sum( ∫( ∇(v)⋅∇(u) )*dΩ )
+b = sum( ∫( v*n_Γ⋅∇(u) )*dΓ )
 @test abs(a-b) < 1.0e-9
 
-a = sum(integrate(jump(u_sΩ),trian_sΩ,quad_sΩ))
+a = sum( ∫( jump(u) )*dΛ )
 @test abs(a) < 1.0e-9
 
-a = sum(integrate(jump(v_sΩ),trian_sΩ,quad_sΩ))
+a = sum( ∫( jump(v) )*dΛ )
 @test abs(a) < 1.0e-9
 
 #celldata_Ω = ["bgcell"=>collect(Int,get_cell_id(trian_Ω))]
@@ -76,7 +65,7 @@ a = sum(integrate(jump(v_sΩ),trian_sΩ,quad_sΩ))
 #  "bgcell_right"=>collect(Int,get_cell_id(trian_sΩ).right)]
 #cellfields_sΩ = ["normal"=> n_sΩ,"jump_v"=>jump(v_sΩ),"jump_u"=>jump(u_sΩ)]
 #
-#writevtk(trian,"trian")
+#writevtk(Ωbg,"trian")
 #writevtk(trian_Ω,"trian_O",celldata=celldata_Ω,cellfields=cellfields_Ω)
 #writevtk(trian_Γ,"trian_G",celldata=celldata_Γ,cellfields=cellfields_Γ)
 #writevtk(trian_sΩ,"trian_sO",celldata=celldata_sΩ,cellfields=cellfields_sΩ)
