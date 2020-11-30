@@ -17,9 +17,9 @@ geo1 = disk(R,x0=p1)
 geo2 = disk(R,x0=p2)
 geo3 = setdiff(geo1,geo2)
 
-a = 1.01
-pmin = p1-a*R
-pmax = p1+a*R
+t = 1.01
+pmin = p1-t*R
+pmax = p1+t*R
 
 n = 30
 partition = (n,n)
@@ -32,48 +32,52 @@ cutgeo = cut(bgmodel,geo3)
 strategy = AggregateAllCutCells()
 aggregates = aggregate(strategy,cutgeo)
 
-trian = Triangulation(bgmodel)
-trian_Ω = Triangulation(cutgeo)
-trian_Γ = EmbeddedBoundary(cutgeo)
+Ω_bg = Triangulation(bgmodel)
+Ω = Triangulation(cutgeo)
+Γ = EmbeddedBoundary(cutgeo)
 
-n_Γ = get_normal_vector(trian_Γ)
+n_Γ = get_normal_vector(Γ)
 
 order = 1
-quad_Ω = CellQuadrature(trian_Ω,2*order)
-quad_Γ = CellQuadrature(trian_Γ,2*order)
+degree = 2*order
+dΩ = LebesgueMeasure(Ω,degree)
+dΓ = LebesgueMeasure(Γ,degree)
 
 model = DiscreteModel(cutgeo)
 
-Vstd = TestFESpace(
-  model=model,valuetype=Float64,reffe=:Lagrangian,
-  order=order,conformity=:H1,dof_space=:physical)
+Vstd = FESpace(model,FiniteElements(PhysicalDomain(),model,:Lagrangian,Float64,order))
 
 V = AgFEMSpace(Vstd,aggregates)
 U = TrialFESpace(V)
 
 const γd = 10.0
-a_Ω(u,v) = ∇(v)⋅∇(u)
-l_Ω(v) = v*f
-a_Γ(u,v) = (γd/h)*v*u  - v*(n_Γ⋅∇(u)) - (n_Γ⋅∇(v))*u
-l_Γ(v) = (γd/h)*v*ud - (n_Γ⋅∇(v))*ud
 
-t_Ω = AffineFETerm(a_Ω,l_Ω,trian_Ω,quad_Ω)
-t_Γ = AffineFETerm(a_Γ,l_Γ,trian_Γ,quad_Γ)
-op = AffineFEOperator(U,V,t_Ω,t_Γ)
+a(u,v) =
+  ∫( ∇(v)⋅∇(u) ) * dΩ +
+  ∫( (γd/h)*v*u  - v*(n_Γ⋅∇(u)) - (n_Γ⋅∇(v))*u ) * dΓ
+
+l(v) =
+  ∫( v*f ) * dΩ +
+  ∫( (γd/h)*v*ud - (n_Γ⋅∇(v))*ud ) * dΓ
+
+op = AffineFEOperator(a,l,U,V)
 uh = solve(op)
 
-uh_Ω = restrict(uh,trian_Ω)
+e = u - uh
 
-tol = 1.0e-9
-e = u - uh_Ω
-el2 = sqrt(sum(integrate(e*e,trian_Ω,quad_Ω)))
-@test el2 < tol
-eh1 = sqrt(sum(integrate(e*e+a_Ω(e,e),trian_Ω,quad_Ω)))
-@test eh1 < tol
+l2(u) = sqrt(sum( ∫( u*u )*dΩ ))
+h1(u) = sqrt(sum( ∫( u*u + ∇(u)⋅∇(u) )*dΩ ))
+
+el2 = l2(e)
+eh1 = h1(e)
+ul2 = l2(uh)
+uh1 = h1(uh)
 
 #colors = color_aggregates(aggregates,bgmodel)
-#writevtk(trian,"trian",celldata=["aggregate"=>aggregates,"color"=>colors],cellfields=["uh"=>uh])
-#writevtk(trian_Ω,"trian_O",cellfields=["uh"=>uh_Ω])
-#writevtk(trian_Γ,"trian_G")
+#writevtk(Ω_bg,"trian",celldata=["aggregate"=>aggregates,"color"=>colors],cellfields=["uh"=>uh])
+#writevtk(Ω,"trian_O",cellfields=["uh"=>uh])
+#writevtk(Γ,"trian_G")
+@test el2/ul2 < 1.e-8
+@test eh1/uh1 < 1.e-7
 
 end # module
