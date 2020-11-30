@@ -100,16 +100,16 @@ i_Γg(u,v) = (β2*h)*jump(n_Γg⋅∇(u))⋅jump(n_Γg⋅∇(v))
 j_Γg(p,q) = (β3*h^3)*jump(n_Γg⋅∇(p))*jump(n_Γg⋅∇(q)) + c_Γi(p,q)
 ϕ_Ω(q) = (β1*h^2)*∇(q)⋅f
 
-a((u,p),(v,q)) =
-  ∫( a_Ω(u,v)+b_Ω(u,q)+b_Ω(v,p)-c_Ω(p,q) ) * dΩ +
-  ∫( - c_Γi(p,q) ) * dΓi +
-  ∫( a_Γ(u,v)+b_Γ(u,q)+b_Γ(v,p) ) * dΓ +
-  ∫( i_Γg(u,v) - j_Γg(p,q) ) * dΓg
-
 # a((u,p),(v,q)) =
 #   ∫( a_Ω(u,v)+b_Ω(u,q)+b_Ω(v,p)-c_Ω(p,q) ) * dΩ +
+#   ∫( - c_Γi(p,q) ) * dΓi +
 #   ∫( a_Γ(u,v)+b_Γ(u,q)+b_Γ(v,p) ) * dΓ +
 #   ∫( i_Γg(u,v) - j_Γg(p,q) ) * dΓg
+
+a((u,p),(v,q)) =
+  ∫( a_Ω(u,v)+b_Ω(u,q)+b_Ω(v,p)-c_Ω(p,q) ) * dΩ +
+  ∫( a_Γ(u,v)+b_Γ(u,q)+b_Γ(v,p) ) * dΓ +
+  ∫( i_Γg(u,v) - j_Γg(p,q) ) * dΓg
 
 l((v,q)) =
   ∫( v⋅f - ϕ_Ω(q) - q*g ) * dΩ +

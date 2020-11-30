@@ -43,7 +43,7 @@ function main(;n,outputfile=nothing)
   #writevtk(Γg,"trian_Gg",cellfields=["normal"=>n_Γg])
   #writevtk(Triangulation(bgmodel),"bgtrian")
 
-  # Setup cuadratures
+  # Setup Lebesgue measures
   order = 1
   degree = 2*order
   dΩ = LebesgueMeasure(Ω,degree)

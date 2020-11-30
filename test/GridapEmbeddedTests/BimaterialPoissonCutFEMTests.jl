@@ -49,12 +49,27 @@ model2 = DiscreteModel(cutgeo,geo2)
 # Setup normal vectors
 const n_Γ = get_normal_vector(Γ)
 
-# Setup cuadratures
+# Setup Lebesgue measures
 order = 1
 degree = 2*order
 dΩ1 = LebesgueMeasure(Ω1,degree)
 dΩ2 = LebesgueMeasure(Ω2,degree)
 dΓ = LebesgueMeasure(Γ,degree)
+
+# Setup FESpace
+
+V1 = TestFESpace(model1,ReferenceFE(:Lagrangian,Float64,order),conformity=:H1)
+
+V2 = TestFESpace(model2,
+                 ReferenceFE(:Lagrangian,Float64,order),
+                 conformity=:H1,
+                 dirichlet_tags="boundary")
+
+U1 = TrialFESpace(V1)
+U2 = TrialFESpace(V2,ud)
+
+V = MultiFieldFESpace([V1,V2])
+U = MultiFieldFESpace([U1,U2])
 
 # Setup stabilization parameters
 
@@ -75,27 +90,9 @@ meas_KΓ = get_cell_measure(Γ)
 #  cellfields=["normal"=>n_Γ])
 
 γ_hat = 2
-# const κ1 = (α2*meas_K1_Γ) ./ (α2*meas_K1_Γ .+ α1*meas_K2_Γ)
-# const κ2 = (α1*meas_K2_Γ) ./ (α2*meas_K1_Γ .+ α1*meas_K2_Γ)
-# const β = (γ_hat*meas_KΓ_Γ) ./ ( meas_K1_Γ/α1 .+ meas_K2_Γ/α2 )
 const κ1 = (α2*meas_K1) ./ (α2*meas_K1 .+ α1*meas_K2)
 const κ2 = (α1*meas_K2) ./ (α2*meas_K1 .+ α1*meas_K2)
 const β = (γ_hat*meas_KΓ) ./ ( meas_K1/α1 .+ meas_K2/α2 )
-
-# Setup FESpace
-
-V1 = TestFESpace(model1,ReferenceFE(:Lagrangian,Float64,order),conformity=:H1)
-
-V2 = TestFESpace(model2,
-                 ReferenceFE(:Lagrangian,Float64,order),
-                 conformity=:H1,
-                 dirichlet_tags="boundary")
-
-U1 = TrialFESpace(V1)
-U2 = TrialFESpace(V2,ud)
-
-V = MultiFieldFESpace([V1,V2])
-U = MultiFieldFESpace([U1,U2])
 
 # Jump and mean operators for this formulation
 
