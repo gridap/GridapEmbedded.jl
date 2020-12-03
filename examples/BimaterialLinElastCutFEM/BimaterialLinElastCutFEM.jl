@@ -123,8 +123,8 @@ function main(;n,outputfile=nothing)
 
   # Postprocess
   if outputfile !== nothing
-    writevtk(Ω1,"$(outputfile)_steel",cellfields=["uh"=>uh1,"sigma"=>σ1(ε(uh1))])
-    writevtk(Ω2,"$(outputfile)_concrete",cellfields=["uh"=>uh2,"sigma"=>σ2(ε(uh2))])
+    writevtk(Ω1,"$(outputfile)_steel",cellfields=["uh"=>uh1,"sigma"=>σ1∘ε(uh1)])
+    writevtk(Ω2,"$(outputfile)_concrete",cellfields=["uh"=>uh2,"sigma"=>σ2∘ε(uh2)])
   end
 
 end
