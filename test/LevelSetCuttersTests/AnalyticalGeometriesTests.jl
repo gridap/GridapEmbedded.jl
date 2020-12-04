@@ -149,14 +149,48 @@ trian5_Γ = EmbeddedBoundary(cutgeo,geo8,geo5)
 
 trian6_Γ = EmbeddedBoundary(cutgeo,geo8,geo6)
 #writevtk(trian6_Γ,"trian6_G")
+
 n = 5
 partition = (n,n)
-domain = (-0.01,1.01,-0.01,1.01)
+domain = (-0.01,2.01,-0.01,1.01)
 model = CartesianDiscreteModel(domain,partition)
+trian = Triangulation(model)
+#writevtk(trian,"trian")
+
 geo = quadrilateral(x0=Point(0,0),d1=VectorValue(1,0),d2=VectorValue(0,1))
 test_geometry(geo)
 cutgeo = cut(model,geo)
+
 trian_Ω = Triangulation(cutgeo)
 trian_Γ = EmbeddedBoundary(cutgeo)
-#writevtk(trian_Γ,"trian_G")
+n_Γ = get_normal_vector(trian_Γ)
+#writevtk(trian_Ω,"trian_O")
+#writevtk(trian_Γ,"trian_G",cellfields=["n_g"=>n_Γ])
+
+geo1 = quadrilateral(x0=Point(0,0),d1=VectorValue(1,0),d2=VectorValue(1,1))
+test_geometry(geo1)
+cutgeo = cut(model,geo1)
+
+trian_Ω = Triangulation(cutgeo)
+trian_Γ = EmbeddedBoundary(cutgeo)
+n_Γ = get_normal_vector(trian_Γ)
+#writevtk(trian_Ω,"trian_O")
+#writevtk(trian_Γ,"trian_G",cellfields=["n_g"=>n_Γ])
+
+domain = (-0.01,2.01,-0.01,3.01)
+model = CartesianDiscreteModel(domain,partition)
+trian = Triangulation(model)
+#writevtk(trian,"trian")
+
+geo2 = quadrilateral(x0=Point(0,0),d1=VectorValue(1,1),d2=VectorValue(1,2))
+test_geometry(geo2)
+cutgeo = cut(model,geo2)
+
+trian_Ω = Triangulation(cutgeo)
+trian_Γ = EmbeddedBoundary(cutgeo)
+n_Γ = get_normal_vector(trian_Γ)
+#writevtk(trian_Ω,"trian_O")
+#writevtk(trian_Γ,"trian_G",cellfields=["n_g"=>n_Γ])
+
+
 end # module
