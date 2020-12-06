@@ -4,6 +4,7 @@ using Gridap
 using GridapEmbedded.CSG
 using GridapEmbedded.Interfaces
 using GridapEmbedded.LevelSetCutters
+using Test
 
 R = 0.7
 r = 0.15
@@ -162,20 +163,32 @@ test_geometry(geo)
 cutgeo = cut(model,geo)
 
 trian_Ω = Triangulation(cutgeo)
+quad_Ω = CellQuadrature(trian_Ω,2)
 trian_Γ = EmbeddedBoundary(cutgeo)
 n_Γ = get_normal_vector(trian_Γ)
 #writevtk(trian_Ω,"trian_O")
 #writevtk(trian_Γ,"trian_G",cellfields=["n_g"=>n_Γ])
+
+area_1 = sum(integrate(1,trian_Ω,quad_Ω))
+tol = 1.0e-9
+Area_1 = 1.0
+@test Area_1 - area_1 < tol
+
 
 geo1 = quadrilateral(x0=Point(0,0),d1=VectorValue(1,0),d2=VectorValue(1,1))
 test_geometry(geo1)
 cutgeo = cut(model,geo1)
 
 trian_Ω = Triangulation(cutgeo)
+quad_Ω = CellQuadrature(trian_Ω,2)
 trian_Γ = EmbeddedBoundary(cutgeo)
 n_Γ = get_normal_vector(trian_Γ)
 #writevtk(trian_Ω,"trian_O")
 #writevtk(trian_Γ,"trian_G",cellfields=["n_g"=>n_Γ])
+
+area_2 = sum(integrate(1,trian_Ω,quad_Ω))
+Area_2 = 1.0
+@test Area_2 - area_2 < tol
 
 domain = (-0.01,2.01,-0.01,3.01)
 model = CartesianDiscreteModel(domain,partition)
@@ -187,10 +200,15 @@ test_geometry(geo2)
 cutgeo = cut(model,geo2)
 
 trian_Ω = Triangulation(cutgeo)
+quad_Ω = CellQuadrature(trian_Ω,2)
 trian_Γ = EmbeddedBoundary(cutgeo)
 n_Γ = get_normal_vector(trian_Γ)
 #writevtk(trian_Ω,"trian_O")
 #writevtk(trian_Γ,"trian_G",cellfields=["n_g"=>n_Γ])
+
+area_3 = sum(integrate(1,trian_Ω,quad_Ω))
+Area_3 = 1.0
+@test Area_1 - area_1 < tol
 
 
 end # module
