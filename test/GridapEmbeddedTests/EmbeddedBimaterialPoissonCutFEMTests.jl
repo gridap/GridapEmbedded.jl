@@ -46,11 +46,11 @@ n_Γg = get_normal_vector(Γg)
 # Setup quadratures
 order = 1
 degree = 2*order
-dΩ1 = LebesgueMeasure(Ω1,degree)
-dΩ2 = LebesgueMeasure(Ω2,degree)
-dΓ = LebesgueMeasure(Γ,degree)
-dΓd = LebesgueMeasure(Γd,degree)
-dΓg = LebesgueMeasure(Γg,degree)
+dΩ1 = Measure(Ω1,degree)
+dΩ2 = Measure(Ω2,degree)
+dΓ = Measure(Γ,degree)
+dΓd = Measure(Γd,degree)
+dΓg = Measure(Γg,degree)
 
 # Setup FESpace
 

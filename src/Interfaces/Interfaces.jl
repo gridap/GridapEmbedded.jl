@@ -14,11 +14,11 @@ import Gridap.Geometry: SkeletonTriangulation
 import Gridap.Geometry: Triangulation
 import Gridap.Geometry: DiscreteModel
 import Gridap.Geometry: get_node_coordinates
-import Gridap.Geometry: get_cell_nodes
+import Gridap.Geometry: get_cell_node_ids
 import Gridap.Geometry: get_cell_coordinates
 import Gridap.Geometry: get_reffes
 import Gridap.Geometry: get_cell_type
-import Gridap.Geometry: get_cell_id
+import Gridap.Geometry: get_cell_to_bgcell
 import Gridap.Geometry: TriangulationStyle
 import Gridap.Geometry: get_background_triangulation
 import Gridap.Geometry: get_cell_ref_map

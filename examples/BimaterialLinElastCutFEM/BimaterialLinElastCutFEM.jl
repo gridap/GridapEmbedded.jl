@@ -69,9 +69,9 @@ function main(;n,outputfile=nothing)
   # Setup Lebesgue measures
   order = 1
   degree = 2*order
-  dΩ1 = LebesgueMeasure(Ω1,degree)
-  dΩ2 = LebesgueMeasure(Ω2,degree)
-  dΓ = LebesgueMeasure(Γ,degree)
+  dΩ1 = Measure(Ω1,degree)
+  dΩ2 = Measure(Ω2,degree)
+  dΓ = Measure(Γ,degree)
 
   # Setup FESpace
 

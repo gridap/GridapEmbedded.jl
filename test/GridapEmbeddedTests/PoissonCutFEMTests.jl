@@ -56,9 +56,9 @@ n_Γg = get_normal_vector(Γg)
 # Setup Lebesgue measures
 order = 1
 degree = 2*order
-dΩ = LebesgueMeasure(Ω,degree)
-dΓ = LebesgueMeasure(Γ,degree)
-dΓg = LebesgueMeasure(Γg,degree)
+dΩ = Measure(Ω,degree)
+dΓ = Measure(Γ,degree)
+dΓg = Measure(Γg,degree)
 
 # Setup FESpace
 model = DiscreteModel(cutdisc)

@@ -36,8 +36,8 @@ for model in (model_quad, model_tet)
   test_triangulation(Λ_in)
   test_triangulation(Λ_out)
 
-  dΩ_in = LebesgueMeasure(Ω_in,2)
-  dΓ = LebesgueMeasure(Γ,2)
+  dΩ_in = Measure(Ω_in,2)
+  dΓ = Measure(Γ,2)
   n_Γ = get_normal_vector(Γ)
 
   vol = sum( ∫(1)*dΩ_in )

@@ -36,9 +36,9 @@ aggregates = aggregate(strategy,cutgeo)
 
 order = 2
 degree = 2*order
-dΩ = LebesgueMeasure(Ω,degree)
-dΓd = LebesgueMeasure(Γd,degree)
-dΓn = LebesgueMeasure(Γn,degree)
+dΩ = Measure(Ω,degree)
+dΓd = Measure(Γd,degree)
+dΓn = Measure(Γn,degree)
 
 n_Γd = get_normal_vector(Γd)
 n_Γn = get_normal_vector(Γn)

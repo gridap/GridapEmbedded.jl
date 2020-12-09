@@ -41,9 +41,9 @@ test_triangulation(Ω)
 test_triangulation(Γ)
 test_triangulation(Λ)
 
-dΩ = LebesgueMeasure(Ω,2*order)
-dΓ = LebesgueMeasure(Γ,2*order)
-dΛ = LebesgueMeasure(Λ,2*order)
+dΩ = Measure(Ω,2*order)
+dΓ = Measure(Γ,2*order)
+dΛ = Measure(Λ,2*order)
 
 n_Γ = get_normal_vector(Γ)
 n_Λ = get_normal_vector(Λ)
@@ -59,13 +59,13 @@ a = sum( ∫( jump(u) )*dΛ )
 a = sum( ∫( jump(v) )*dΛ )
 @test abs(a) < 1.0e-9
 
-celldata_Ω = ["bgcell"=>collect(Int,get_cell_id(Ω))]
-celldata_Γ = ["bgcell"=>collect(Int,get_cell_id(Γ))]
+celldata_Ω = ["bgcell"=>collect(Int,get_cell_to_bgcell(Ω))]
+celldata_Γ = ["bgcell"=>collect(Int,get_cell_to_bgcell(Γ))]
 cellfields_Ω = ["v"=>v,"u"=>u]
 cellfields_Γ = ["normal"=>n_Γ,"v"=>v,"u"=>u]
 celldata_Λ = [
-  "bgcell_left"=>collect(Int,get_cell_id(Λ.⁺)),
-  "bgcell_right"=>collect(Int,get_cell_id(Λ.⁻))]
+  "bgcell_left"=>collect(Int,get_cell_to_bgcell(Λ.⁺)),
+  "bgcell_right"=>collect(Int,get_cell_to_bgcell(Λ.⁻))]
 cellfields_Λ = ["normal"=> n_Λ.⁺,"jump_v"=>jump(v),"jump_u"=>jump(u)]
 
 d = mktempdir()

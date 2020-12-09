@@ -51,12 +51,12 @@ end
 # Triangulation API
 
 get_node_coordinates(trian::SubFacetTriangulation) = trian.subfacets.point_to_coords
-get_cell_nodes(trian::SubFacetTriangulation) = trian.subfacets.facet_to_points
+get_cell_node_ids(trian::SubFacetTriangulation) = trian.subfacets.facet_to_points
 get_reffes(trian::SubFacetTriangulation) = trian.reffes
 get_cell_type(trian::SubFacetTriangulation) = trian.facet_types
 TriangulationStyle(::Type{<:SubFacetTriangulation}) = SubTriangulation()
 get_background_triangulation(trian::SubFacetTriangulation) = trian.bgtrian
-get_cell_id(trian::SubFacetTriangulation) = trian.subfacets.facet_to_bgcell
+get_cell_to_bgcell(trian::SubFacetTriangulation) = trian.subfacets.facet_to_bgcell
 get_cell_ref_map(trian::SubFacetTriangulation) = trian.facet_ref_map
 get_facet_normal(trian::SubFacetTriangulation) = lazy_map(ConstantField,trian.subfacets.facet_to_normal)
 

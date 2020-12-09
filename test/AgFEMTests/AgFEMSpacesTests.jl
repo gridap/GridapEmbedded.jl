@@ -18,9 +18,9 @@ cutdisc = cut(bgmodel,geom)
 Ω = Triangulation(cutdisc)
 Ω_in = Triangulation(cutdisc,geom,IN)
 
-dΩ_bg = LebesgueMeasure(Ω_bg,2)
-dΩ = LebesgueMeasure(Ω,2)
-dΩ_in = LebesgueMeasure(Ω_in,2)
+dΩ_bg = Measure(Ω_bg,2)
+dΩ = Measure(Ω,2)
+dΩ_in = Measure(Ω_in,2)
 
 model = DiscreteModel(cutdisc)
 order = 1

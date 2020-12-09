@@ -46,12 +46,12 @@ end
 # Triangulation API
 
 get_node_coordinates(trian::SubCellTriangulation) = trian.subcells.point_to_coords
-get_cell_nodes(trian::SubCellTriangulation) = trian.subcells.cell_to_points
+get_cell_node_ids(trian::SubCellTriangulation) = trian.subcells.cell_to_points
 get_reffes(trian::SubCellTriangulation) = trian.reffes
 get_cell_type(trian::SubCellTriangulation) = trian.cell_types
 TriangulationStyle(::Type{<:SubCellTriangulation}) = SubTriangulation()
 get_background_triangulation(trian::SubCellTriangulation) = trian.bgtrian
-get_cell_id(trian::SubCellTriangulation) = trian.subcells.cell_to_bgcell
+get_cell_to_bgcell(trian::SubCellTriangulation) = trian.subcells.cell_to_bgcell
 get_cell_ref_map(trian::SubCellTriangulation) = trian.cell_ref_map
 
 # API

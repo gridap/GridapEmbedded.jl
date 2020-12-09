@@ -40,8 +40,8 @@ n_Γ = get_normal_vector(Γ)
 
 order = 1
 degree = 2*order
-dΩ = LebesgueMeasure(Ω,degree)
-dΓ = LebesgueMeasure(Γ,degree)
+dΩ = Measure(Ω,degree)
+dΓ = Measure(Γ,degree)
 
 model = DiscreteModel(cutgeo)
 

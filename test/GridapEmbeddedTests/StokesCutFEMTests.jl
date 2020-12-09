@@ -62,10 +62,10 @@ n_Γi = get_normal_vector(Γi)
 # Setup Lebesgue measures
 order = 1
 degree = 2*order
-dΩ = LebesgueMeasure(Ω,degree)
-dΓ = LebesgueMeasure(Γ,degree)
-dΓg = LebesgueMeasure(Γg,degree)
-dΓi = LebesgueMeasure(Γi,degree)
+dΩ = Measure(Ω,degree)
+dΓ = Measure(Γ,degree)
+dΓg = Measure(Γg,degree)
+dΓi = Measure(Γi,degree)
 
 # Setup FESpace
 

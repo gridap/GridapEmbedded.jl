@@ -52,9 +52,9 @@ const n_Γ = get_normal_vector(Γ)
 # Setup Lebesgue measures
 order = 1
 degree = 2*order
-dΩ1 = LebesgueMeasure(Ω1,degree)
-dΩ2 = LebesgueMeasure(Ω2,degree)
-dΓ = LebesgueMeasure(Γ,degree)
+dΩ1 = Measure(Ω1,degree)
+dΩ2 = Measure(Ω2,degree)
+dΓ = Measure(Γ,degree)
 
 # Setup FESpace
 
@@ -77,9 +77,9 @@ meas_K1 = get_cell_measure(Ω1)
 meas_K2 = get_cell_measure(Ω2)
 meas_KΓ = get_cell_measure(Γ)
 
-# meas_K1_Γ = lazy_map(Reindex(meas_K1),get_cell_id(Γ))
-# meas_K2_Γ = lazy_map(Reindex(meas_K2),get_cell_id(Γ))
-# meas_KΓ_Γ = lazy_map(Reindex(meas_KΓ),get_cell_id(Γ))
+# meas_K1_Γ = lazy_map(Reindex(meas_K1),get_cell_to_bgcell(Γ))
+# meas_K2_Γ = lazy_map(Reindex(meas_K2),get_cell_to_bgcell(Γ))
+# meas_KΓ_Γ = lazy_map(Reindex(meas_KΓ),get_cell_to_bgcell(Γ))
 
 #writevtk(model1,"model1")
 #writevtk(model2,"model2")

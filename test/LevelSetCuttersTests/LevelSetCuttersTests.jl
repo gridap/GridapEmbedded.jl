@@ -100,10 +100,10 @@ btrian3 = BoundaryTriangulation(cutgeo_facets,"boundary",geo3,(CUTIN,IN))
 #writevtk(trian,"trian")
 #writevtk(trian3,"trian3")
 #writevtk(btrian3in,"btrian3in",
-#  celldata=["bgcell"=>get_cell_id(btrian3in)],
+#  celldata=["bgcell"=>get_cell_to_bgcell(btrian3in)],
 #  cellfields=["normal"=>get_normal_vector(btrian3in)])
 #writevtk(btrian3,"btrian3",
-#  celldata=["bgcell"=>get_cell_id(btrian3)],
+#  celldata=["bgcell"=>get_cell_to_bgcell(btrian3)],
 #  cellfields=["normal"=>get_normal_vector(btrian3)])
 
 end # module

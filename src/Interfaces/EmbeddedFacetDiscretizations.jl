@@ -186,7 +186,7 @@ struct SubFacetBoundaryTriangulation{Dc,Dp,T} <: Grid{Dc,Dp}
     reffe = LagrangianRefFE(Float64,Simplex(Val{Dc}()),1)
     cell_types = fill(Int8(1),length(subfacets.cell_to_points))
     reffes = [reffe]
-    cell_ids = lazy_map(Reindex(get_cell_id(facets)),subfacet_to_facet)
+    cell_ids = lazy_map(Reindex(get_cell_to_bgcell(facets)),subfacet_to_facet)
     cell_normals = lazy_map(Reindex(get_facet_normal(facets)),subfacet_to_facet)
     subfacet_to_facet_map = _setup_cell_ref_map(subfacets,reffe,cell_types)
     face_ref_map = lazy_map(Reindex(get_cell_ref_map(facets)),subfacet_to_facet)
@@ -205,11 +205,11 @@ struct SubFacetBoundaryTriangulation{Dc,Dp,T} <: Grid{Dc,Dp}
 end
 
 get_node_coordinates(trian::SubFacetBoundaryTriangulation) = trian.subfacets.point_to_coords
-get_cell_nodes(trian::SubFacetBoundaryTriangulation) = trian.subfacets.cell_to_points
+get_cell_node_ids(trian::SubFacetBoundaryTriangulation) = trian.subfacets.cell_to_points
 get_reffes(trian::SubFacetBoundaryTriangulation) = trian.reffes
 get_cell_type(trian::SubFacetBoundaryTriangulation) = trian.cell_types
 get_facet_normal(trian::SubFacetBoundaryTriangulation) = trian.cell_normals
-get_cell_id(trian::SubFacetBoundaryTriangulation) = trian.cell_ids
+get_cell_to_bgcell(trian::SubFacetBoundaryTriangulation) = trian.cell_ids
 TriangulationStyle(::Type{<:SubFacetBoundaryTriangulation}) = SubTriangulation()
 get_background_triangulation(trian::SubFacetBoundaryTriangulation) = get_background_triangulation(trian.facets)
 get_cell_ref_map(trian::SubFacetBoundaryTriangulation) = trian.cell_ref_map

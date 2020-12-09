@@ -46,9 +46,9 @@ function main(;n,outputfile=nothing)
   # Setup Lebesgue measures
   order = 1
   degree = 2*order
-  dΩ = LebesgueMeasure(Ω,degree)
-  dΓd = LebesgueMeasure(Γd,degree)
-  dΓg = LebesgueMeasure(Γg,degree)
+  dΩ = Measure(Ω,degree)
+  dΓd = Measure(Γd,degree)
+  dΓg = Measure(Γg,degree)
 
   # Setup FESpace
   model = DiscreteModel(cutgeo,"csg")

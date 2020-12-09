@@ -464,7 +464,7 @@ function _extract_grid_of_cut_cells(grid,ls_to_point_to_value)
 
   p = _check_and_get_polytope(grid)
   table = LookupTable(p)
-  cell_to_points = get_cell_nodes(grid)
+  cell_to_points = get_cell_node_ids(grid)
 
   ls_to_cell_to_inoutcut = [
     _compute_in_out_or_cut(table,cell_to_points,point_to_value)
@@ -517,7 +517,7 @@ function _simplexify_and_isolate_cells_in_cutgrid(cutgrid,ls_to_cutpoint_to_valu
 
   out = _simplexify(
     get_node_coordinates(cutgrid),
-    get_cell_nodes(cutgrid),
+    get_cell_node_ids(cutgrid),
     ltcell_to_lpoints,
     lpoint_to_lcoords,
     ls_to_cutpoint_to_value,
