@@ -54,8 +54,8 @@ dΓg = Measure(Γg,degree)
 
 # Setup FESpace
 
-V1 = TestFESpace(model1,ReferenceFE(:Lagrangian,Float64,order),conformity=:H1)
-V2 = TestFESpace(model2,ReferenceFE(:Lagrangian,Float64,order),conformity=:H1)
+V1 = TestFESpace(model1,ReferenceFE(lagrangian,Float64,order),conformity=:H1)
+V2 = TestFESpace(model2,ReferenceFE(lagrangian,Float64,order),conformity=:H1)
 
 U1 = TrialFESpace(V1)
 U2 = TrialFESpace(V2)

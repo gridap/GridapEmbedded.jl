@@ -62,7 +62,7 @@ dΓg = Measure(Γg,degree)
 
 # Setup FESpace
 model = DiscreteModel(cutdisc)
-V = TestFESpace(model,ReferenceFE(:Lagrangian,Float64,order),conformity=:H1)
+V = TestFESpace(model,ReferenceFE(lagrangian,Float64,order),conformity=:H1)
 U = TrialFESpace(V)
 
 # Weak form Nitsche + ghost penalty (CutFEM paper Sect. 6.1)

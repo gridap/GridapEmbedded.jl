@@ -58,10 +58,10 @@ dΓ = Measure(Γ,degree)
 
 # Setup FESpace
 
-V1 = TestFESpace(model1,ReferenceFE(:Lagrangian,Float64,order),conformity=:H1)
+V1 = TestFESpace(model1,ReferenceFE(lagrangian,Float64,order),conformity=:H1)
 
 V2 = TestFESpace(model2,
-                 ReferenceFE(:Lagrangian,Float64,order),
+                 ReferenceFE(lagrangian,Float64,order),
                  conformity=:H1,
                  dirichlet_tags="boundary")
 

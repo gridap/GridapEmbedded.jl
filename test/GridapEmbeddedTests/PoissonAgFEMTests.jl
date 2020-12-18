@@ -45,7 +45,7 @@ dΓ = Measure(Γ,degree)
 
 model = DiscreteModel(cutgeo)
 
-Vstd = FESpace(model,FiniteElements(PhysicalDomain(),model,:Lagrangian,Float64,order))
+Vstd = FESpace(model,FiniteElements(PhysicalDomain(),model,lagrangian,Float64,order))
 
 V = AgFEMSpace(Vstd,aggregates)
 U = TrialFESpace(V)

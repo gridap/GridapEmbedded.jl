@@ -79,8 +79,8 @@ function main(;n,outputfile=nothing)
 
   # Setup FESpace
 
-  reffe_u = ReferenceFE(:Lagrangian,VectorValue{D,Float64},order,space=:P)
-  reffe_p = ReferenceFE(:Lagrangian,Float64,order,space=:P)
+  reffe_u = ReferenceFE(lagrangian,VectorValue{D,Float64},order,space=:P)
+  reffe_p = ReferenceFE(lagrangian,Float64,order,space=:P)
 
   V = TestFESpace(model,reffe_u,conformity=:H1)
   Q = TestFESpace(model,reffe_p,conformity=:H1)

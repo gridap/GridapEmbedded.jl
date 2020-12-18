@@ -23,7 +23,7 @@ cutgeo_facets = cut_facets(bgmodel,geo)
 model = DiscreteModel(cutgeo)
 
 order = 1
-reffe = ReferenceFE(:Lagrangian,Float64,order)
+reffe = ReferenceFE(lagrangian,Float64,order)
 V = FESpace(model,reffe,conformity=:H1)
 
 Random.seed!(1234)

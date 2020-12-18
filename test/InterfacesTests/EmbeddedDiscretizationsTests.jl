@@ -16,12 +16,12 @@ partition = (n,n)
 model_quad = CartesianDiscreteModel(box.pmin,box.pmax,partition)
 model_tet = simplexify(CartesianDiscreteModel(box.pmin,box.pmax,partition))
 
-reffe = ReferenceFE(:Lagrangian,Float64,1)
+reffe = ReferenceFE(lagrangian,Float64,1)
 
 for model in (model_quad, model_tet)
 
   cutgeom = cut(model,geom)
-  
+
   model_in = DiscreteModel(cutgeom)
   model_out = DiscreteModel(cutgeom,geom,(OUT,CUT))
 
@@ -45,17 +45,17 @@ for model in (model_quad, model_tet)
 
   @test abs(pi*R^2 - vol) < 1.0e-3
   @test abs(surf - 2*pi*R) < 1.0e-3
-  
+
   V_in = FESpace(model_in,reffe,conformity=:H1)
   u(x) = x[1] + x[2]
   u_in = interpolate(u,V_in)
   v_in = FEFunction(V_in,rand(num_free_dofs(V_in)))
-  
+
   # Check divergence theorem
   a = sum( ∫( ∇(v_in)⋅∇(u_in) )*dΩ_in )
   b = sum( ∫( v_in*n_Γ⋅∇(u_in) )*dΓ )
   @test abs(a-b) < 1.0e-9
-  
+
   d = mktempdir()
   try
   writevtk(Ω,joinpath(d,"trian"),order=2,cellfields=["v_in"=>v_in])

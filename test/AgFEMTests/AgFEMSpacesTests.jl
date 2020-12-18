@@ -25,7 +25,7 @@ dΩ_in = Measure(Ω_in,2)
 model = DiscreteModel(cutdisc)
 order = 1
 
-cell_fe = FiniteElements(PhysicalDomain(),model,:Lagrangian,Float64,order)
+cell_fe = FiniteElements(PhysicalDomain(),model,lagrangian,Float64,order)
 V = FESpace(model,cell_fe)
 
 cell_to_cellin = [0,0,9,8,8,9,8,8,9]

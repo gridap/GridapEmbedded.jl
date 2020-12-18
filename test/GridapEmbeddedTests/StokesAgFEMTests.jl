@@ -45,14 +45,14 @@ n_Γn = get_normal_vector(Γn)
 
 V_cell_fe_std = FiniteElements(PhysicalDomain(),
                                model,
-                               :Lagrangian,
+                               lagrangian,
                                VectorValue{2,Float64},
                                order)
 Vstd = FESpace(model,V_cell_fe_std)
 
 V_cell_fe_ser = FiniteElements(PhysicalDomain(),
                                model,
-                               :Lagrangian,
+                               lagrangian,
                                VectorValue{2,Float64},
                                order,
                                space=:S)
@@ -62,7 +62,7 @@ Vser = FESpace(model,V_cell_fe_ser,conformity=:L2)
 
 Q_cell_fe_std = FiniteElements(PhysicalDomain(),
                                model,
-                               :Lagrangian,
+                               lagrangian,
                                Float64,
                                order-1,
                                space=:P)

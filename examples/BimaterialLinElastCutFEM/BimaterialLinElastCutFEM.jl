@@ -76,11 +76,11 @@ function main(;n,outputfile=nothing)
   # Setup FESpace
 
   V1 = TestFESpace(model1,
-                   ReferenceFE(:Lagrangian,VectorValue{3,Float64},order),
+                   ReferenceFE(lagrangian,VectorValue{3,Float64},order),
                    conformity=:H1,
                    dirichlet_tags=["support0","support1"])
   V2 = TestFESpace(model2,
-                   ReferenceFE(:Lagrangian,VectorValue{3,Float64},order),
+                   ReferenceFE(lagrangian,VectorValue{3,Float64},order),
                    conformity=:H1,
                    dirichlet_tags=["support0","support1"])
 

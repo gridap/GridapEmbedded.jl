@@ -52,7 +52,7 @@ function main(;n,outputfile=nothing)
 
   # Setup FESpace
   model = DiscreteModel(cutgeo,"csg")
-  V = TestFESpace(model,ReferenceFE(:Lagrangian,Float64,order),conformity=:H1)
+  V = TestFESpace(model,ReferenceFE(lagrangian,Float64,order),conformity=:H1)
   U = TrialFESpace(V)
 
   # Weak form
