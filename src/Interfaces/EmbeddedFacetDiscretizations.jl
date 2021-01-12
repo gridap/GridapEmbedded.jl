@@ -2,7 +2,7 @@
 struct EmbeddedFacetDiscretization{Dc,Dp,T} <: GridapType
   bgmodel::DiscreteModel{Dp,Dp}
   ls_to_facet_to_inoutcut::Vector{Vector{Int8}}
-  subfacets::SubTriangulation{Dc,Dp,T}
+  subfacets::SubCellData{Dc,Dp,T}
   ls_to_subfacet_to_inout::Vector{Vector{Int8}}
   oid_to_ls::Dict{UInt,Int}
   geo::CSG.Geometry
@@ -40,8 +40,8 @@ end
 
 function SkeletonTriangulation(
   cut::EmbeddedFacetDiscretization,facets::SkeletonTriangulation,geo::CSG.Geometry,in_or_out)
-  facets1 = get_left_boundary(facets)
-  facets2 = get_right_boundary(facets)
+  facets1 = facets.⁺
+  facets2 = facets.⁻
   trian1 = BoundaryTriangulation(cut,facets1,geo,in_or_out)
   trian2 = BoundaryTriangulation(cut,facets2,geo,in_or_out)
   SkeletonTriangulation(trian1,trian2)
@@ -71,7 +71,7 @@ function BoundaryTriangulation(cut::EmbeddedFacetDiscretization,tags,name::Strin
 end
 
 function BoundaryTriangulation(cut::EmbeddedFacetDiscretization,tags,geo::CSG.Geometry,in_or_out)
-  facets = BoundaryTriangulation(cut.bgmodel,tags)
+  facets = BoundaryTriangulation(cut.bgmodel,tags=tags)
   BoundaryTriangulation(cut,facets,geo,in_or_out)
 end
 
@@ -93,7 +93,7 @@ function BoundaryTriangulation(
   in_or_out::Integer)
 
   bgfacet_to_inoutcut = compute_bgfacet_to_inoutcut(cut,geo)
-  bgfacet_to_mask = apply( a->a==in_or_out, bgfacet_to_inoutcut)
+  bgfacet_to_mask = lazy_map( a->a==in_or_out, bgfacet_to_inoutcut)
   _restrict_boundary_triangulation(cut.bgmodel,facets,bgfacet_to_mask)
 end
 
@@ -104,36 +104,36 @@ function BoundaryTriangulation(
   in_or_out::CutInOrOut)
 
   bgfacet_to_inoutcut = compute_bgfacet_to_inoutcut(cut,geo)
-  bgfacet_to_mask = apply( a->a==CUT, bgfacet_to_inoutcut)
+  bgfacet_to_mask = lazy_map( a->a==CUT, bgfacet_to_inoutcut)
   facets = _restrict_boundary_triangulation(cut.bgmodel,_facets,bgfacet_to_mask)
 
-  facet_to_bgfacet = get_face_to_face(facets)
+  facet_to_bgfacet = facets.glue.face_to_bgface
   n_bgfacets = num_facets(cut.bgmodel)
   bgfacet_to_facet = zeros(Int,n_bgfacets)
   bgfacet_to_facet[facet_to_bgfacet] .= 1:length(facet_to_bgfacet)
 
-  subfacet_to_inoutcut = reindex(bgfacet_to_inoutcut,cut.subfacets.cell_to_bgcell)
-  _subfacet_to_facet = reindex(bgfacet_to_facet,cut.subfacets.cell_to_bgcell)
+  subfacet_to_inoutcut = lazy_map(Reindex(bgfacet_to_inoutcut),cut.subfacets.cell_to_bgcell)
+  _subfacet_to_facet = lazy_map(Reindex(bgfacet_to_facet),cut.subfacets.cell_to_bgcell)
 
   subfacet_to_inout = compute_subfacet_to_inout(cut,geo)
   pred(a,b,c) = c != 0 && a==CUT && b==in_or_out.in_or_out
-  mask = apply( pred, subfacet_to_inoutcut, subfacet_to_inout, _subfacet_to_facet )
+  mask = lazy_map( pred, subfacet_to_inoutcut, subfacet_to_inout, _subfacet_to_facet )
   newsubfacets = findall(mask)
-  subfacets = SubTriangulation(cut.subfacets,newsubfacets)
+  subfacets = SubCellData(cut.subfacets,newsubfacets)
   subfacet_to_facet = bgfacet_to_facet[subfacets.cell_to_bgcell]
 
-  BoundarySubTriangulationWrapper(facets,subfacets,subfacet_to_facet)
+  SubFacetBoundaryTriangulation(facets,subfacets,subfacet_to_facet)
 end
 
 function _restrict_boundary_triangulation(model,facets,bgfacet_to_mask)
 
-  facet_to_bgfacet = get_face_to_face(facets)
-  facet_to_mask = reindex(bgfacet_to_mask,facet_to_bgfacet)
+  facet_to_bgfacet = facets.glue.face_to_bgface
+  facet_to_mask = lazy_map(Reindex(bgfacet_to_mask),facet_to_bgfacet)
   n_bgfacets = length(bgfacet_to_mask)
   bgfacet_to_mask2 = fill(false,n_bgfacets)
   bgfacet_to_mask2[facet_to_bgfacet] .= facet_to_mask
 
-  BoundaryTriangulation(model,bgfacet_to_mask2,get_cell_around(facets))
+  BoundaryTriangulation(model,bgfacet_to_mask2,facets.glue.bgface_to_lcell)
 end
 
 function compute_bgfacet_to_inoutcut(cut::EmbeddedFacetDiscretization,geo::CSG.Geometry)
@@ -168,64 +168,49 @@ function compute_subfacet_to_inout(cut::EmbeddedFacetDiscretization,geo::CSG.Geo
   compute_inoutcut(newtree)
 end
 
-struct BoundarySubTriangulationWrapper{Dc,Dp,T} <: Triangulation{Dc,Dp}
+struct SubFacetBoundaryTriangulation{Dc,Dp,T} <: Grid{Dc,Dp}
   facets::BoundaryTriangulation{Dc,Dp}
-  subfacets::SubTriangulation{Dc,Dp,T}
+  subfacets::SubCellData{Dc,Dp,T}
   subfacet_to_facet::AbstractArray
   reffes::Vector{LagrangianRefFE{Dc}}
   cell_types::Vector{Int8}
   cell_ids
   cell_normals
-  subfacet_to_facet_map
+  cell_ref_map
 
-  function BoundarySubTriangulationWrapper(
+  function SubFacetBoundaryTriangulation(
     facets::BoundaryTriangulation{Dc,Dp},
-    subfacets::SubTriangulation{Dc,Dp,T},
+    subfacets::SubCellData{Dc,Dp,T},
     subfacet_to_facet::AbstractArray) where {Dc,Dp,T}
 
     reffe = LagrangianRefFE(Float64,Simplex(Val{Dc}()),1)
     cell_types = fill(Int8(1),length(subfacets.cell_to_points))
     reffes = [reffe]
-    cell_ids = reindex(get_cell_id(facets),subfacet_to_facet)
-    cell_normals = reindex(get_normal_vector(facets),subfacet_to_facet)
-    subfacet_to_facet_map = _setup_subcell_to_cell_map(subfacets,reffe,cell_types)
-    new{Dc,Dp,T}(facets,subfacets,subfacet_to_facet,reffes,cell_types,cell_ids,cell_normals,subfacet_to_facet_map)
+    cell_ids = lazy_map(Reindex(get_cell_to_bgcell(facets)),subfacet_to_facet)
+    cell_normals = lazy_map(Reindex(get_facet_normal(facets)),subfacet_to_facet)
+    subfacet_to_facet_map = _setup_cell_ref_map(subfacets,reffe,cell_types)
+    face_ref_map = lazy_map(Reindex(get_cell_ref_map(facets)),subfacet_to_facet)
+    cell_ref_map = lazy_map(∘,face_ref_map,subfacet_to_facet_map)
+    
+    new{Dc,Dp,T}(
+      facets,
+      subfacets,
+      subfacet_to_facet,
+      reffes,
+      cell_types,
+      cell_ids,
+      cell_normals,
+      cell_ref_map)
   end
 end
 
-function get_node_coordinates(trian::BoundarySubTriangulationWrapper)
-  trian.subfacets.point_to_coords
-end
-
-function get_cell_nodes(trian::BoundarySubTriangulationWrapper)
-  trian.subfacets.cell_to_points
-end
-
-function get_cell_coordinates(trian::BoundarySubTriangulationWrapper)
-  node_to_coords = get_node_coordinates(trian)
-  cell_to_nodes = get_cell_nodes(trian)
-  LocalToGlobalArray(cell_to_nodes,node_to_coords)
-end
-
-function get_reffes(trian::BoundarySubTriangulationWrapper)
-  trian.reffes
-end
-
-function get_cell_type(trian::BoundarySubTriangulationWrapper)
-  trian.cell_types
-end
-
-function get_normal_vector(trian::BoundarySubTriangulationWrapper)
-  trian.cell_normals
-end
-
-function get_cell_id(trian::BoundarySubTriangulationWrapper)
-  trian.cell_ids
-end
-
-function restrict(f::AbstractArray,trian::BoundarySubTriangulationWrapper)
-  g = restrict(f,trian.facets)
-  h = reindex(g,trian.subfacet_to_facet)
-  compose_field_arrays(h,trian.subfacet_to_facet_map)
-end
+get_node_coordinates(trian::SubFacetBoundaryTriangulation) = trian.subfacets.point_to_coords
+get_cell_node_ids(trian::SubFacetBoundaryTriangulation) = trian.subfacets.cell_to_points
+get_reffes(trian::SubFacetBoundaryTriangulation) = trian.reffes
+get_cell_type(trian::SubFacetBoundaryTriangulation) = trian.cell_types
+get_facet_normal(trian::SubFacetBoundaryTriangulation) = trian.cell_normals
+get_cell_to_bgcell(trian::SubFacetBoundaryTriangulation) = trian.cell_ids
+TriangulationStyle(::Type{<:SubFacetBoundaryTriangulation}) = SubTriangulation()
+get_background_triangulation(trian::SubFacetBoundaryTriangulation) = get_background_triangulation(trian.facets)
+get_cell_ref_map(trian::SubFacetBoundaryTriangulation) = trian.cell_ref_map
 

@@ -2,9 +2,9 @@
 struct EmbeddedDiscretization{Dp,T} <: GridapType
   bgmodel::DiscreteModel
   ls_to_bgcell_to_inoutcut::Vector{Vector{Int8}}
-  subcells::SubTriangulation{Dp,Dp,T}
+  subcells::SubCellData{Dp,Dp,T}
   ls_to_subcell_to_inout::Vector{Vector{Int8}}
-  subfacets::FacetSubTriangulation{Dp,T}
+  subfacets::SubFacetData{Dp,T}
   ls_to_subfacet_to_inout::Vector{Vector{Int8}}
   oid_to_ls::Dict{UInt,Int}
   geo::CSG.Geometry
@@ -207,12 +207,12 @@ end
 
 function Triangulation(cut::EmbeddedDiscretization,geo::CSG.Geometry,in_or_out::CutInOrOut)
   bgcell_to_inoutcut = compute_bgcell_to_inoutcut(cut,geo)
-  subcell_to_inoutcut = reindex(bgcell_to_inoutcut,cut.subcells.cell_to_bgcell)
+  subcell_to_inoutcut = lazy_map(Reindex(bgcell_to_inoutcut),cut.subcells.cell_to_bgcell)
   subcell_to_inout = compute_subcell_to_inout(cut,geo)
-  mask = apply( (a,b) -> a==CUT && b==in_or_out.in_or_out, subcell_to_inoutcut, subcell_to_inout   )
+  mask = lazy_map( (a,b) -> a==CUT && b==in_or_out.in_or_out, subcell_to_inoutcut, subcell_to_inout   )
   newsubcells = findall(mask)
-  st = SubTriangulation(cut.subcells,newsubcells)
-  SubTriangulationWrapper(st)
+  st = SubCellData(cut.subcells,newsubcells)
+  SubCellTriangulation(st,Triangulation(cut.bgmodel))
 end
 
 function Triangulation(cut::EmbeddedDiscretization,geo::CSG.Geometry,in_or_out::Integer)
@@ -323,8 +323,8 @@ function EmbeddedBoundary(cut::EmbeddedDiscretization,geo::CSG.Geometry)
   subfacet_to_inoutcut, orientation = compute_inoutboundary(newtree)
   newsubfacets = findall(subfacet_to_inoutcut .== INTERFACE)
   neworientation = orientation[newsubfacets]
-  fst = FacetSubTriangulation(cut.subfacets,newsubfacets,neworientation)
-  FacetSubTriangulationWrapper(fst)
+  fst = SubFacetData(cut.subfacets,newsubfacets,neworientation)
+  SubFacetTriangulation(fst,Triangulation(cut.bgmodel))
 
 end
 
@@ -350,11 +350,11 @@ function EmbeddedBoundary(cut::EmbeddedDiscretization,geo1::CSG.Geometry,geo2::C
   newtree2 = replace_data(identity,conversion,tree2)
   subfacet_to_inoutcut1, orientation = compute_inoutboundary(newtree1)
   subfacet_to_inoutcut2 = compute_inoutcut(newtree2)
-  mask = apply( (i,j)->(i==INTERFACE) && (j==INTERFACE), subfacet_to_inoutcut1, subfacet_to_inoutcut2 )
+  mask = lazy_map( (i,j)->(i==INTERFACE) && (j==INTERFACE), subfacet_to_inoutcut1, subfacet_to_inoutcut2 )
   newsubfacets = findall( mask )
   neworientation = orientation[newsubfacets]
-  fst = FacetSubTriangulation(cut.subfacets,newsubfacets,neworientation)
-  FacetSubTriangulationWrapper(fst)
+  fst = SubFacetData(cut.subfacets,newsubfacets,neworientation)
+  SubFacetTriangulation(fst,Triangulation(cut.bgmodel))
 
 end
 

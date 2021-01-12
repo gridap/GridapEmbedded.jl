@@ -13,7 +13,7 @@ import GridapEmbedded.Interfaces: cut_facets
 import GridapEmbedded.Interfaces: compute_bgcell_to_inoutcut
 import GridapEmbedded.Interfaces: compute_bgfacet_to_inoutcut
 using GridapEmbedded.Interfaces: Simplex
-using GridapEmbedded.Interfaces: merge_facet_sub_triangulations
+using GridapEmbedded.Interfaces: merge_sub_face_data
 using GridapEmbedded.Interfaces: compute_inoutcut
 
 using LinearAlgebra
@@ -167,7 +167,7 @@ function _compute_ls_to_bgcell_to_inoutcut(grid,geom::DiscreteGeometry)
   ls_to_point_to_value, oid_to_ls = _find_unique_leaves(tree)
   p = _check_and_get_polytope(ugrid)
   table = LookupTable(p)
-  cell_to_points = get_cell_nodes(ugrid)
+  cell_to_points = get_cell_node_ids(ugrid)
   ls_to_cell_to_inoutcut = [
     _compute_in_out_or_cut(table,cell_to_points,point_to_value)
     for point_to_value in ls_to_point_to_value]

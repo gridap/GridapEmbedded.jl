@@ -332,7 +332,7 @@ function cut_sub_triangulation_with_boundary_several_levelsets(sub_trian,pending
   end
 
   m_boundary, done_ls_to_facet_to_inoutcut =
-    merge_facet_sub_triangulations(done_ls_to_boundary,done_ls_to_ls_to_facet_inoutcut)
+    merge_sub_face_data(done_ls_to_boundary,done_ls_to_ls_to_facet_inoutcut)
 
   m.sub_trian, m.done_ls_to_cell_to_inoutcut, m_boundary, done_ls_to_facet_to_inoutcut
 
@@ -344,7 +344,7 @@ function _remove_index(a,i)
 end
 
 function allocate_sub_triangulation(
-  m::SubTriangulation{Dc,Dp,T}, n_cells::Integer, n_points::Integer) where {Dc,Dp,T} 
+  m::SubCellData{Dc,Dp,T}, n_cells::Integer, n_points::Integer) where {Dc,Dp,T} 
 
   point_to_coords = zeros(Point{Dp,T},n_points)
   point_to_rcoords = zeros(Point{Dc,T},n_points)
@@ -352,20 +352,20 @@ function allocate_sub_triangulation(
   cell_to_bgcell = zeros(eltype(m.cell_to_bgcell),n_cells)
   cell_to_inoutcut = zeros(Int8,n_cells)
 
-  s = SubTriangulation(
+  s = SubCellData(
     cell_to_points, cell_to_bgcell, point_to_coords, point_to_rcoords)
 
   s, cell_to_inoutcut
 end
 
 function allocate_boundary_triangulation(
-  s::SubTriangulation{Dc,Dp,T}, n_facets::Integer) where {Dc,Dp,T} 
+  s::SubCellData{Dc,Dp,T}, n_facets::Integer) where {Dc,Dp,T} 
 
   facet_to_points = _allocate_table(s.cell_to_points,n_facets,Dc)
   facet_to_bgcell = zeros(eltype(s.cell_to_bgcell),n_facets)
   facet_to_normal = zeros(VectorValue{Dp,T},n_facets)
 
-  FacetSubTriangulation(
+  SubFacetData(
     facet_to_points,
     facet_to_normal,
     facet_to_bgcell,
@@ -381,25 +381,25 @@ function _allocate_table(a::Table{T,Vd,Vp},n_cells,n_lpoints) where {T,Vd,Vp}
   Table(data,ptrs)
 end
 
-get_cell_to_points(m::SubTriangulation) = m.cell_to_points
+get_cell_to_points(m::SubCellData) = m.cell_to_points
 
-get_cell_dim(m::SubTriangulation{Dc}) where Dc = Dc
+get_cell_dim(m::SubCellData{Dc}) where Dc = Dc
 
-function set_cell_data!( s::SubTriangulation, m::SubTriangulation, d...)
+function set_cell_data!( s::SubCellData, m::SubCellData, d...)
   set_cell_data!(s.cell_to_bgcell, m.cell_to_bgcell, d...)
 end
 
-function set_point_data!( s::SubTriangulation, m::SubTriangulation, d...)
+function set_point_data!( s::SubCellData, m::SubCellData, d...)
   set_point_data!(s.point_to_coords, m.point_to_coords, d...)
   set_point_data!(s.point_to_rcoords, m.point_to_rcoords, d...)
 end
 
-function set_cell_data_boundary!( s::FacetSubTriangulation, m::SubTriangulation, d...)
+function set_cell_data_boundary!( s::SubFacetData, m::SubCellData, d...)
   set_cell_data!(s.facet_to_bgcell, m.cell_to_bgcell, d...)
 end
 
 function allocate_sub_triangulation(
-  m::FacetSubTriangulation{Dp,T}, n_facets::Integer, n_points::Integer) where {Dp,T} 
+  m::SubFacetData{Dp,T}, n_facets::Integer, n_points::Integer) where {Dp,T} 
 
   point_to_coords = zeros(Point{Dp,T},n_points)
   point_to_rcoords = zeros(Point{Dp,T},n_points)
@@ -408,7 +408,7 @@ function allocate_sub_triangulation(
   facet_to_normal = zeros(VectorValue{Dp,T},n_facets)
   facet_to_inoutcut = zeros(Int8,n_facets)
 
-  s = FacetSubTriangulation(
+  s = SubFacetData(
     facet_to_points,
     facet_to_normal,
     facet_to_bgcell,
@@ -418,20 +418,20 @@ function allocate_sub_triangulation(
   s, facet_to_inoutcut
 end
 
-get_cell_to_points(m::FacetSubTriangulation) = m.facet_to_points
+get_cell_to_points(m::SubFacetData) = m.facet_to_points
 
-get_cell_dim(m::FacetSubTriangulation{Dp}) where Dp = Dp-1
+get_cell_dim(m::SubFacetData{Dp}) where Dp = Dp-1
 
-get_point_to_coords(m::FacetSubTriangulation) = m.point_to_coords
+get_point_to_coords(m::SubFacetData) = m.point_to_coords
 
-get_facet_to_normal(m::FacetSubTriangulation) = m.facet_to_normal
+get_facet_to_normal(m::SubFacetData) = m.facet_to_normal
 
-function set_cell_data!( s::FacetSubTriangulation, m::FacetSubTriangulation, d...)
+function set_cell_data!( s::SubFacetData, m::SubFacetData, d...)
   set_cell_data!(s.facet_to_bgcell, m.facet_to_bgcell, d...)
   set_cell_data!(s.facet_to_normal, m.facet_to_normal, d...)
 end
 
-function set_point_data!( s::FacetSubTriangulation, m::FacetSubTriangulation, d...)
+function set_point_data!( s::SubFacetData, m::SubFacetData, d...)
   set_point_data!(s.point_to_coords, m.point_to_coords, d...)
   set_point_data!(s.point_to_rcoords, m.point_to_rcoords, d...)
 end
@@ -464,7 +464,7 @@ function _extract_grid_of_cut_cells(grid,ls_to_point_to_value)
 
   p = _check_and_get_polytope(grid)
   table = LookupTable(p)
-  cell_to_points = get_cell_nodes(grid)
+  cell_to_points = get_cell_node_ids(grid)
 
   ls_to_cell_to_inoutcut = [
     _compute_in_out_or_cut(table,cell_to_points,point_to_value)
@@ -475,7 +475,7 @@ function _extract_grid_of_cut_cells(grid,ls_to_point_to_value)
   cutgrid = GridPortion(grid,cutcell_to_cell)
 
   ls_to_cutpoint_to_value = [
-    point_to_value[cutgrid.node_to_oldnode] for point_to_value in ls_to_point_to_value ]
+    point_to_value[cutgrid.node_to_parent_node] for point_to_value in ls_to_point_to_value ]
 
   cutgrid, ls_to_cutpoint_to_value, ls_to_cell_to_inoutcut
 end
@@ -517,7 +517,7 @@ function _simplexify_and_isolate_cells_in_cutgrid(cutgrid,ls_to_cutpoint_to_valu
 
   out = _simplexify(
     get_node_coordinates(cutgrid),
-    get_cell_nodes(cutgrid),
+    get_cell_node_ids(cutgrid),
     ltcell_to_lpoints,
     lpoint_to_lcoords,
     ls_to_cutpoint_to_value,
@@ -529,7 +529,7 @@ function _simplexify_and_isolate_cells_in_cutgrid(cutgrid,ls_to_cutpoint_to_valu
 
   ntcells = length(tcell_to_tpoints)
   nltcells = length(ltcell_to_lpoints)
-  tcell_to_cell = _setup_cell_to_bgcell(cutgrid.cell_to_oldcell,nltcells,ntcells)
+  tcell_to_cell = _setup_cell_to_bgcell(cutgrid.cell_to_parent_cell,nltcells,ntcells)
 
   if Dc == Dp
     _ensure_positive_jacobians!(tcell_to_tpoints,tpoint_to_coords,simplex)
@@ -540,7 +540,7 @@ function _simplexify_and_isolate_cells_in_cutgrid(cutgrid,ls_to_cutpoint_to_valu
     @notimplemented
   end
 
-  subtrian = SubTriangulation(
+  subtrian = SubCellData(
     tcell_to_tpoints,
     tcell_to_cell,
     tpoint_to_coords,
@@ -650,15 +650,15 @@ function _ensure_positive_jacobians_facets!(
   tgrid = UnstructuredGrid(tpoint_to_coords,tcell_to_tpoints,ctype_to_reffe,tcell_to_ctype)
 
   tmap = get_cell_map(tgrid)
-  cutmap = reindex(get_cell_map(cutgrid),tcell_to_cutcell)
+  cutmap = lazy_map(Reindex(get_cell_map(cutgrid)),tcell_to_cutcell)
 
   ctype_to_q = map(r->[first(get_node_coordinates(r))],ctype_to_reffe)
-  tcell_to_q = CompressedArray(ctype_to_q,tcell_to_ctype)
+  tcell_to_q = expand_cell_data(ctype_to_q,tcell_to_ctype)
 
-  tjac = gradient(tmap)
-  jac = gradient(cutmap)
-  tjac_q = evaluate(tjac,tcell_to_q)
-  jac_q = evaluate(jac,tcell_to_q)
+  tjac = lazy_map(∇,tmap)
+  jac = lazy_map(∇,cutmap)
+  tjac_q = lazy_map(evaluate,tjac,tcell_to_q)
+  jac_q = lazy_map(evaluate,jac,tcell_to_q)
 
   c1 = array_cache(tjac_q)
   c2 = array_cache(jac_q)

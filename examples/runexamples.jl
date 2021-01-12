@@ -12,4 +12,9 @@ end
   StokesTubeWithObstacleCutFEM.main(n=10)
 end
 
+@time @testset "BimaterialLinElastCutFEM" begin
+  include("BimaterialLinElastCutFEM/BimaterialLinElastCutFEM.jl")
+  BimaterialLinElastCutFEM.main(n=4,outputfile="bimaterial")
+end
+
 end # module

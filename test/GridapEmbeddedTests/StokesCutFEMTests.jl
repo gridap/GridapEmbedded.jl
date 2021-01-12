@@ -49,34 +49,31 @@ cutgeo_facets = cut_facets(bgmodel,geo1)
 model = DiscreteModel(cutgeo)
 
 # Setup integration meshes
-trian_Ω = Triangulation(cutgeo)
-trian_Γ = EmbeddedBoundary(cutgeo)
-trian_Γg = GhostSkeleton(cutgeo)
-trian_Γi = SkeletonTriangulation(cutgeo_facets)
+Ω = Triangulation(cutgeo)
+Γ = EmbeddedBoundary(cutgeo)
+Γg = GhostSkeleton(cutgeo)
+Γi = SkeletonTriangulation(cutgeo_facets)
 
 # Setup normal vectors
-n_Γ = get_normal_vector(trian_Γ)
-n_Γg = get_normal_vector(trian_Γg)
-n_Γi = get_normal_vector(trian_Γi)
+n_Γ = get_normal_vector(Γ)
+n_Γg = get_normal_vector(Γg)
+n_Γi = get_normal_vector(Γi)
 
-# Setup cuadratures
+# Setup Lebesgue measures
 order = 1
-quad_Ω = CellQuadrature(trian_Ω,2*order)
-quad_Γ = CellQuadrature(trian_Γ,2*order)
-quad_Γg = CellQuadrature(trian_Γg,2*order)
-quad_Γi = CellQuadrature(trian_Γi,2*order)
-
-#writevtk(trian_Γi,"trian_Gi")
+degree = 2*order
+dΩ = Measure(Ω,degree)
+dΓ = Measure(Γ,degree)
+dΓg = Measure(Γg,degree)
+dΓi = Measure(Γi,degree)
 
 # Setup FESpace
 
-V = TestFESpace(
-  model=model,valuetype=VectorValue{D,Float64},reffe=:PLagrangian,
-  order=order,conformity=:H1)
+reffe_u = ReferenceFE(lagrangian,VectorValue{D,Float64},order,space=:P)
+reffe_p = ReferenceFE(lagrangian,Float64,order,space=:P)
 
-Q = TestFESpace(
-  model=model,valuetype=Float64,reffe=:PLagrangian,
-  order=order,conformity=:H1,constraint=:zeromean,zeromean_trian=trian_Ω)
+V = TestFESpace(model,reffe_u,conformity=:H1)
+Q = TestFESpace(model,reffe_p,conformity=:H1,constraint=:zeromean)
 
 U = TrialFESpace(V)
 P = TrialFESpace(Q)
@@ -103,63 +100,39 @@ i_Γg(u,v) = (β2*h)*jump(n_Γg⋅∇(u))⋅jump(n_Γg⋅∇(v))
 j_Γg(p,q) = (β3*h^3)*jump(n_Γg⋅∇(p))*jump(n_Γg⋅∇(q)) + c_Γi(p,q)
 ϕ_Ω(q) = (β1*h^2)*∇(q)⋅f
 
-function A_Ω(X,Y)
-  u,p = X
-  v,q = Y
-  a_Ω(u,v)+b_Ω(u,q)+b_Ω(v,p)-c_Ω(p,q)
-end
+# a((u,p),(v,q)) =
+#   ∫( a_Ω(u,v)+b_Ω(u,q)+b_Ω(v,p)-c_Ω(p,q) ) * dΩ +
+#   ∫( - c_Γi(p,q) ) * dΓi +
+#   ∫( a_Γ(u,v)+b_Γ(u,q)+b_Γ(v,p) ) * dΓ +
+#   ∫( i_Γg(u,v) - j_Γg(p,q) ) * dΓg
 
-function A_Γi(X,Y)
-  u,p = X
-  v,q = Y
-  -c_Γi(p,q)
-end
+a((u,p),(v,q)) =
+  ∫( a_Ω(u,v)+b_Ω(u,q)+b_Ω(v,p)-c_Ω(p,q) ) * dΩ +
+  ∫( a_Γ(u,v)+b_Γ(u,q)+b_Γ(v,p) ) * dΓ +
+  ∫( i_Γg(u,v) - j_Γg(p,q) ) * dΓg
 
-function A_Γ(X,Y)
-  u,p = X
-  v,q = Y
-  a_Γ(u,v)+b_Γ(u,q)+b_Γ(v,p)
-end
+l((v,q)) =
+  ∫( v⋅f - ϕ_Ω(q) - q*g ) * dΩ +
+  ∫( ud⊙( (γ/h)*v - n_Γ⋅∇(v) + q*n_Γ ) ) * dΓ
 
-function J_Γg(X,Y)
-  u,p = X
-  v,q = Y
-  i_Γg(u,v) - j_Γg(p,q) 
-end
+op = AffineFEOperator(a,l,X,Y)
 
-function L_Ω(Y)
-  v,q = Y
-  v⋅f - ϕ_Ω(q) - q*g
-end
-
-function L_Γ(Y)
-  v,q = Y
-  ud⊙( (γ/h)*v - n_Γ⋅∇(v) + q*n_Γ )
-end
-
-# FE problem
-t_Ω = AffineFETerm(A_Ω,L_Ω,trian_Ω,quad_Ω)
-t_Γ = AffineFETerm(A_Γ,L_Γ,trian_Γ,quad_Γ)
-t_Γi = LinearFETerm(A_Γi,trian_Γi,quad_Γi)
-t_Γg = LinearFETerm(J_Γg,trian_Γg,quad_Γg)
-op = AffineFEOperator(X,Y,t_Ω,t_Γ,t_Γg,t_Γi)
 uh, ph = solve(op)
 
-# Postprocess
-uh_Ω = restrict(uh,trian_Ω)
-ph_Ω = restrict(ph,trian_Ω)
-eu_Ω = u - uh_Ω
-ep_Ω = p - ph_Ω
-writevtk(trian_Ω,"results",
-  cellfields=["uh"=>uh_Ω,"ph"=>ph_Ω,"eu"=>eu_Ω,"ep"=>ep_Ω])
+eu = u - uh
+ep = p - ph
 
-# Checks
+l2(u) = sqrt(sum( ∫( u⊙u )*dΩ ))
+h1(u) = sqrt(sum( ∫( u⊙u + ∇(u)⊙∇(u) )*dΩ ))
+
+eu_l2 = l2(eu)
+eu_h1 = h1(eu)
+ep_l2 = l2(ep)
+
+# writevtk(Ω,"results",
+#   cellfields=["uh"=>uh,"ph"=>ph,"eu"=>eu,"ep"=>ep])
+
 tol = 1.0e-9
-l2(v) = v⊙v
-h1(v) = ∇(v)⊙∇(v)
-eu_l2 = sqrt(sum(integrate(l2(eu_Ω),trian_Ω,quad_Ω)))
-eu_h1 = sqrt(sum(integrate(h1(eu_Ω),trian_Ω,quad_Ω)))
-ep_l2 = sqrt(sum(integrate(l2(ep_Ω),trian_Ω,quad_Ω)))
 @test eu_l2 < tol
 @test eu_h1 < tol
 @test ep_l2 < tol

@@ -174,8 +174,7 @@ function _ensure_positive_jacobians!(subcell_to_points,point_to_coords,p::Polyto
   lfacet_to_lpoints = get_faces(simplex,D-1,0)
   shapefuns = get_shapefuns(reffe)
   vertex_to_coords = get_vertex_coordinates(p)
-  shapefuns_grad = collect1d(evaluate_field(gradient(shapefuns),vertex_to_coords)[1,:])
-
+  shapefuns_grad = collect1d(evaluate(Broadcasting(∇)(shapefuns),vertex_to_coords)[1,:])
    _ensure_positive_jacobians_work!(subcell_to_points,point_to_coords,shapefuns_grad)
 end
 
@@ -246,14 +245,14 @@ function _find_subfacets(point_to_coords,subcell_to_points, subcell_to_inout,p::
   labels = FaceLabeling(topo)
   model = DiscreteModel(subgrid,topo,labels)
   interface = InterfaceTriangulation(model,collect(Bool,subcell_to_inout .== IN))
-  subfacet_to_subcell = get_face_to_cell(interface.left)
-  subfacet_to_lfacet = get_face_to_lface(interface.left)
+  subfacet_to_subcell = interface.⁺.glue.face_to_cell
+  subfacet_to_lfacet = interface.⁺.glue.face_to_lface
   subfacet_to_points = _find_subfacet_to_points(
     subcell_to_points, subfacet_to_subcell, subfacet_to_lfacet, lfacet_to_lpoints)
   degree = 0
-  quad = CellQuadrature(interface,degree)
-  q = get_coordinates(quad)
-  n = get_normal_vector(interface)
+  quad = CellQuadrature(interface.⁺,degree)
+  q = get_cell_points(quad)
+  n = get_normal_vector(interface.⁺)
   n_q = collect(evaluate(n,q))
   subfacet_to_normal = map(first,n_q)
 

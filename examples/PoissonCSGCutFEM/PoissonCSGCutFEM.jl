@@ -10,7 +10,7 @@ function main(;n,outputfile=nothing)
   pmin = 0.8*Point(-1,-1,-1)
   pmax = 0.8*Point(1,1,1)
   bgmodel = CartesianDiscreteModel(pmin,pmax,partition)
-  
+
   # Select geometry
   R = 0.5
   geo1 = cylinder(R,v=VectorValue(1,0,0))
@@ -30,51 +30,52 @@ function main(;n,outputfile=nothing)
   cutgeo = cut(bgmodel,geo8)
 
   # Setup integration meshes
-  trian_Ω = Triangulation(cutgeo,"csg")
-  trian_Γd = EmbeddedBoundary(cutgeo,"csg","source")
-  trian_Γg = GhostSkeleton(cutgeo,"csg")
+  Ω = Triangulation(cutgeo,"csg")
+  Γd = EmbeddedBoundary(cutgeo,"csg","source")
+  Γg = GhostSkeleton(cutgeo,"csg")
 
   # Setup normal vectors
-  n_Γd = get_normal_vector(trian_Γd)
-  n_Γg = get_normal_vector(trian_Γg)
+  n_Γd = get_normal_vector(Γd)
+  n_Γg = get_normal_vector(Γg)
 
-  #writevtk(trian_Ω,"trian_O")
-  #writevtk(trian_Γd,"trian_Gd",cellfields=["normal"=>n_Γd])
-  #writevtk(trian_Γg,"trian_Gg",cellfields=["normal"=>n_Γg])
+  #writevtk(Ω,"trian_O")
+  #writevtk(Γd,"trian_Gd",cellfields=["normal"=>n_Γd])
+  #writevtk(Γg,"trian_Gg",cellfields=["normal"=>n_Γg])
   #writevtk(Triangulation(bgmodel),"bgtrian")
 
-  # Setup cuadratures
+  # Setup Lebesgue measures
   order = 1
-  quad_Ω = CellQuadrature(trian_Ω,2*order)
-  quad_Γd = CellQuadrature(trian_Γd,2*order)
-  quad_Γg = CellQuadrature(trian_Γg,2*order)
+  degree = 2*order
+  dΩ = Measure(Ω,degree)
+  dΓd = Measure(Γd,degree)
+  dΓg = Measure(Γg,degree)
 
   # Setup FESpace
   model = DiscreteModel(cutgeo,"csg")
-  V = TestFESpace(model=model,valuetype=Float64,reffe=:Lagrangian,order=order,conformity=:H1)
+  V = TestFESpace(model,ReferenceFE(lagrangian,Float64,order),conformity=:H1)
   U = TrialFESpace(V)
 
   # Weak form
   γd = 10.0
   γg = 0.1
   h = (pmax - pmin)[1] / partition[1]
-  a_Ω(u,v) = ∇(v)⋅∇(u)
-  l_Ω(v) = v*f
-  a_Γd(u,v) = (γd/h)*v*u  - v*(n_Γd⋅∇(u)) - (n_Γd⋅∇(v))*u
-  l_Γd(v) = (γd/h)*v*ud - (n_Γd⋅∇(v))*ud
-  a_Γg(v,u) = (γg*h)*jump(n_Γg⋅∇(v))*jump(n_Γg⋅∇(u))
+
+  a(u,v) =
+    ∫( ∇(v)⋅∇(u) ) * dΩ +
+    ∫( (γd/h)*v*u  - v*(n_Γd⋅∇(u)) - (n_Γd⋅∇(v))*u ) * dΓd +
+    ∫( (γg*h)*jump(n_Γg⋅∇(v))*jump(n_Γg⋅∇(u)) ) * dΓg
+
+  l(v) =
+    ∫( v*f ) * dΩ +
+    ∫( (γd/h)*v*ud - (n_Γd⋅∇(v))*ud ) * dΓd
 
   # FE problem
-  t_Ω = AffineFETerm(a_Ω,l_Ω,trian_Ω,quad_Ω)
-  t_Γd = AffineFETerm(a_Γd,l_Γd,trian_Γd,quad_Γd)
-  t_Γg = LinearFETerm(a_Γg,trian_Γg,quad_Γg)
-  op = AffineFEOperator(U,V,t_Ω,t_Γd,t_Γg)
+  op = AffineFEOperator(a,l,U,V)
   uh = solve(op)
 
   # Postprocess
-  uh_Ω = restrict(uh,trian_Ω)
   if outputfile !== nothing
-    writevtk(trian_Ω,outputfile,cellfields=["uh"=>uh_Ω])
+    writevtk(Ω,outputfile,cellfields=["uh"=>uh])
   end
 
 end

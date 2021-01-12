@@ -1,3 +1,0 @@
-module SubTriangulationsTests
-
-end # module
