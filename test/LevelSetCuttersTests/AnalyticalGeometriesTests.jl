@@ -182,7 +182,7 @@ n_Γ = get_normal_vector(trian_Γ)
 #writevtk(trian_Ω,"trian_O")
 #writevtk(trian_Γ,"trian_G",cellfields=["n_g"=>n_Γ])
 
-area_1 = sum(integrate(1,trian_Ω,quad_Ω))
+area_1 = sum(integrate(1,quad_Ω))
 tol = 1.0e-9
 Area_1 = 1.0
 @test Area_1 - area_1 < tol
@@ -201,7 +201,7 @@ n_Γ = get_normal_vector(trian_Γ)
 #writevtk(trian_Ω,"trian_O")
 #writevtk(trian_Γ,"trian_G",cellfields=["n_g"=>n_Γ])
 
-area_2 = sum(integrate(1,trian_Ω,quad_Ω))
+area_2 = sum(integrate(1,quad_Ω))
 Area_2 = 1.0
 @test Area_2 - area_2 < tol
 
@@ -221,7 +221,7 @@ n_Γ = get_normal_vector(trian_Γ)
 #writevtk(trian_Ω,"trian_O")
 #writevtk(trian_Γ,"trian_G",cellfields=["n_g"=>n_Γ])
 
-area_3 = sum(integrate(1,trian_Ω,quad_Ω))
+area_3 = sum(integrate(1,quad_Ω))
 Area_3 = 1.0
 @test Area_1 - area_1 < tol
   
