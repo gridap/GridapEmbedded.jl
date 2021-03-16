@@ -47,6 +47,14 @@ end
 function aggregate(
   strategy,
   cut::EmbeddedDiscretization,
+  facet_to_inoutcut::AbstractVector)
+
+  aggregate(strategy,cut,cut.geo,IN,facet_to_inoutcut)
+end
+
+function aggregate(
+  strategy,
+  cut::EmbeddedDiscretization,
   cut_facets::EmbeddedFacetDiscretization,
   geo::CSG.Geometry,
   in_or_out)
@@ -80,6 +88,16 @@ function aggregate(
   in_or_out)
 
   facet_to_inoutcut = compute_bgfacet_to_inoutcut(cut_facets,geo)
+  _aggregate_by_threshold(strategy.threshold,cut,geo,in_or_out,facet_to_inoutcut)
+end
+
+function aggregate(
+  strategy::AggregateCutCellsByThreshold,
+  cut::EmbeddedDiscretization,
+  geo::CSG.Geometry,
+  in_or_out,
+  facet_to_inoutcut::AbstractVector)
+
   _aggregate_by_threshold(strategy.threshold,cut,geo,in_or_out,facet_to_inoutcut)
 end
 
