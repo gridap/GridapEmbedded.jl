@@ -1,5 +1,6 @@
 module CellAggregationTests
 
+using Test
 using Gridap
 using GridapEmbedded
 using GridapEmbedded.AgFEM
@@ -31,5 +32,11 @@ colors_out = color_aggregates(aggregates_out,bgmodel)
 
 cutdisc_facets = cut_facets(bgmodel,geom)
 aggregates = aggregate(strategy,cutdisc,cutdisc_facets)
+
+facet_to_inoutcut = compute_bgfacet_to_inoutcut(bgmodel,geom)
+
+@test aggregates == aggregate(strategy,cutdisc,facet_to_inoutcut)
+
+@test aggregates_out == aggregate(strategy,cutdisc,geom,OUT,facet_to_inoutcut)
 
 end # module
