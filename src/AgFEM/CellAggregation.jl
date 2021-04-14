@@ -134,7 +134,7 @@ function _aggregate_by_threshold_barrier(
   cell_to_touched = fill(false,n_cells)
 
   for cell in 1:n_cells
-    if cell_to_inoutcut[cell] == loc || cell_to_unit_cut_meas[cell] ≥ threshold
+    if cell_to_unit_cut_meas[cell] ≥ threshold
       cell_to_cellin[cell] = cell
       cell_to_touched[cell] = true
     end
