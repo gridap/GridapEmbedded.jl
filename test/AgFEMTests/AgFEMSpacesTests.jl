@@ -25,9 +25,29 @@ dΩ_in = Measure(Ω_in,2)
 model = DiscreteModel(cutdisc)
 order = 1
 
+# In the physical domain
+
 cell_fe = FiniteElements(PhysicalDomain(),model,lagrangian,Float64,order)
 V = FESpace(model,cell_fe)
 
+cell_to_cellin = [0,0,9,8,8,9,8,8,9]
+Vagg = AgFEMSpace(V,cell_to_cellin)
+
+v(x) = x[1] + 2*x[2]
+vhagg = interpolate(v,Vagg)
+
+tol = 10e-9
+@test sum( ∫(abs2(v-vhagg))dΩ ) < tol
+@test sum( ∫(abs2(v-vhagg))dΩ_in ) < tol
+
+vh = FEFunction(V,rand(num_free_dofs(V)))
+vhagg = interpolate(vh,Vagg)
+@test sum( ∫(abs2(vh-vhagg))dΩ_in ) < tol
+
+# In the reference space
+
+reffe = ReferenceFE(lagrangian,Float64,order)
+V = FESpace(model,reffe)
 cell_to_cellin = [0,0,9,8,8,9,8,8,9]
 Vagg = AgFEMSpace(V,cell_to_cellin)
 
