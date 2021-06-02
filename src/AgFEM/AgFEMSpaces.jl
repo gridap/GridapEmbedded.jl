@@ -1,6 +1,6 @@
 
 function AgFEMSpace(f::SingleFieldFESpace,cell_to_cellin::AbstractVector,g::SingleFieldFESpace=f)
-  AgFEMSpace(f,cell_to_cellin,get_cell_shapefuns(g),get_cell_dof_basis(g))
+  AgFEMSpace(f,cell_to_cellin,get_fe_basis(g),get_fe_dof_basis(g))
 end
 
 # Note: cell is in fact bgcell in this function since f will usually be an ExtendedFESpace
@@ -22,8 +22,8 @@ function AgFEMSpace(
   trian_a = Triangulation(trian,acell_to_cell)
 
   # Celldata Defined on trian
-  dofs_f = get_cell_dof_basis(f)
-  shfns_f = get_cell_shapefuns(f)
+  dofs_f = get_fe_dof_basis(f)
+  shfns_f = get_fe_basis(f)
   dofs_g = cell_dof_basis_g
   shfns_g = cell_shapefuns_g
 
@@ -39,10 +39,10 @@ function AgFEMSpace(
   acell_to_dof_ids = lazy_map(Reindex(get_cell_dof_ids(f)),acell_to_cell)
 
   #acell_to_dofs = reindex(get_cell_dofs(f),acell_to_cell)
-  #n_fdofs = 
+  #n_fdofs =
   #acell_to_fbasis = reindex(get_cell_basis(f),acell_to_cellin)
   #acell_to_gbasis = reindex(cell_shapefuns_g,acell_to_cellin)
-  #acell_to_dof_fbasis = reindex(get_cell_dof_basis(f),acell_to_cell)
+  #acell_to_dof_fbasis = reindex(get_fe_dof_basis(f),acell_to_cell)
   #acell_to_dof_gbasis = reindex(cell_dof_basis_g,acell_to_cellin)
   #@notimplementedif is_in_ref_space(acell_to_dof_fbasis)
   #@notimplementedif is_in_ref_space(acell_to_gbasis)
@@ -149,4 +149,3 @@ function _setup_agfem_constraints(
 
   aggdof_to_fdof, aggdof_to_dofs, aggdof_to_coeffs
 end
-
