@@ -31,6 +31,7 @@ using Gridap.Visualization
 
 export LevelSetCutter
 export doughnut
+export popcorn
 export tube
 export olympic_rings
 export sphere
