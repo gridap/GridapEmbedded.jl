@@ -43,6 +43,54 @@ end
   (R - sqrt(_x[1]^2+_x[2]^2) )^2 + _x[3]^2 - r^2
 end
 
+function popcorn(;
+  r0=0.6,
+  σ=0.2,
+  A=2,
+  x0=zero(Point{3,typeof(r0)}),
+  name="popcorn")
+
+  box = _popcorn_box(x0,r0)
+
+  function popcornfun(x)
+    _popcorn_fun(x,x0,r0,σ,A)
+  end
+
+  tree = Leaf((popcornfun,name,box))
+
+  AnalyticalGeometry(tree)
+end
+
+function _popcorn_box(x0,R)
+  e = 1.5
+  pmin = x0 - e*R
+  pmax = x0 + e*R
+  BoundingBox(pmin, pmax)
+end
+
+@inline function _popcorn_fun(_x,x0,r0,σ,A)
+  function point_k(k,r0)
+    if 0 <= k && k<=4
+      α = 2*k*π/5
+      (r0/sqrt(5))*Point(2*cos(α),2*sin(α),1.)
+    elseif 5<=k && k <=9
+      α = (2*(k-5)-1)*π/5
+      (r0/sqrt(5))*Point(2*cos(α),2*sin(α),-1.)
+    elseif k==10
+      Point(0.,0.,r0)
+    else
+      Point(0.,0.,-r0)
+    end
+  end
+  x,y,z = _x - x0
+  val = sqrt(x^2+y^2+z^2) - r0
+  for k in 0:11
+    xk,yk,zk = point_k(k,r0)
+    val -= A*exp(-((x-xk)^2+(y-yk)^2+(z-zk)^2)/σ^2)
+  end
+  val
+end
+
 function sphere(R;x0=zero(Point{3,eltype(R)}),name="sphere")
 
   function spherefun(x)
