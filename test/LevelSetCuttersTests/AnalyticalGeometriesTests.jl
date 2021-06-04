@@ -18,6 +18,16 @@ end
 
 tmpdir() do d
 
+geo0 = popcorn()
+test_geometry(geo0)
+
+box = get_metadata(geo0)
+partition = (40,40,40)
+model = CartesianDiscreteModel(box.pmin,box.pmax,partition)
+cutgeo = cut(model,geo0)
+Γ = EmbeddedBoundary(cutgeo)
+writevtk(Γ,joinpath(d,"popcorn"))
+
 R = 0.7
 r = 0.15
 geo1 = doughnut(R,r)

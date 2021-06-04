@@ -20,6 +20,7 @@ end
 @publish Interfaces OUT
 
 @publish LevelSetCutters LevelSetCutter
+@publish LevelSetCutters popcorn
 @publish LevelSetCutters doughnut
 @publish LevelSetCutters tube
 @publish LevelSetCutters olympic_rings
