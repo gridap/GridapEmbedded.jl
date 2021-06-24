@@ -14,6 +14,11 @@ struct BoundingBox{D,T}
   pmax::Point{D,T}
 end
 
+function AnalyticalGeometry(f::Function)
+  tree = Leaf((f,string(nameof(f)),nothing))
+  AnalyticalGeometry(tree)
+end
+
 # Factories
 
 function doughnut(R,r;x0=zero(Point{3,typeof(R)}),name="doughnut")
