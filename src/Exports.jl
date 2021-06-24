@@ -20,6 +20,7 @@ end
 @publish Interfaces OUT
 
 @publish LevelSetCutters LevelSetCutter
+@publish LevelSetCutters AnalyticalGeometry
 @publish LevelSetCutters popcorn
 @publish LevelSetCutters doughnut
 @publish LevelSetCutters tube
