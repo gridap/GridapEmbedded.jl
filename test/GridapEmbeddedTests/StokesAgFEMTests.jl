@@ -55,18 +55,20 @@ V_cell_fe_ser = FiniteElements(PhysicalDomain(),
                                lagrangian,
                                VectorValue{2,Float64},
                                order,
-                               space=:S)
+                               space=:S,
+                               conformity=:L2)
 # RMK: we don't neet to impose continuity since
 # we only use the cell dof basis / shapefuns
-Vser = FESpace(model,V_cell_fe_ser,conformity=:L2)
+Vser = FESpace(model,V_cell_fe_ser)
 
 Q_cell_fe_std = FiniteElements(PhysicalDomain(),
                                model,
                                lagrangian,
                                Float64,
                                order-1,
-                               space=:P)
-Qstd = FESpace(model,Q_cell_fe_std,conformity=:L2)
+                               space=:P,
+                               conformity=:L2)
+Qstd = FESpace(model,Q_cell_fe_std)
 
 V = AgFEMSpace(Vstd,aggregates,Vser)
 Q = AgFEMSpace(Qstd,aggregates)
