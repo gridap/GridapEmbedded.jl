@@ -18,6 +18,12 @@ end
 
 tmpdir() do d
 
+geo0 = AnalyticalGeometry(x->.9*x[1]^2+1.1*x[2]^2-0.6)
+model = CartesianDiscreteModel((-1,1,-1,1),(10,10))
+cutgeo = cut(model,geo0)
+Γ = EmbeddedBoundary(cutgeo)
+writevtk(Γ,joinpath(d,"user"))
+
 geo0 = popcorn()
 test_geometry(geo0)
 

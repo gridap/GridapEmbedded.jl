@@ -30,6 +30,7 @@ using Gridap.Polynomials
 using Gridap.Visualization
 
 export LevelSetCutter
+export AnalyticalGeometry
 export doughnut
 export popcorn
 export tube
