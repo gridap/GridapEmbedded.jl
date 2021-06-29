@@ -26,7 +26,6 @@ using Gridap.Fields
 using Gridap.Helpers
 using Gridap.Geometry
 using Gridap.CellData
-using Gridap.Integration
 using Gridap.Polynomials
 using Gridap.Visualization
 
