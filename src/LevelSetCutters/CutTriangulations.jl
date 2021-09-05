@@ -11,10 +11,10 @@ function MiniCell(p::Polytope{0})
   MiniCell(1,[Int[]])
 end
 
-struct CutTriangulation{Dc,A}
+struct CutTriangulation{Dc,A,T}
   sub_trian::A
   done_ls_to_cell_to_inoutcut::Vector{Vector{Int8}}
-  pending_ls_to_point_to_value::Vector{Vector{Float64}}
+  pending_ls_to_point_to_value::Vector{Vector{T}}
   minicell::MiniCell
   table::LookupTable{Dc}
 end
@@ -22,7 +22,7 @@ end
 function CutTriangulation(
   sub_trian,
   done_ls_to_cell_to_inoutcut::Vector{Vector{Int8}},
-  pending_ls_to_point_to_value::Vector{Vector{Float64}})
+  pending_ls_to_point_to_value)
 
   Dc = get_cell_dim(sub_trian)
   p = Simplex(Val{Dc}())
@@ -56,7 +56,7 @@ function allocate_sub_triangulation(
   done_ls_to_cell_to_inoutcut = [ zeros(Int8,n_cells) for ls in 1:n_done_ls]
 
   n_pending_ls = length(m.pending_ls_to_point_to_value)
-  pending_ls_to_point_to_value = [zeros(Float64,n_points) for ls in 1:n_pending_ls]
+  pending_ls_to_point_to_value = [zeros(eltype(eltype(m.pending_ls_to_point_to_value)),n_points) for ls in 1:n_pending_ls]
 
   s = CutTriangulation(
     sub_trian,done_ls_to_cell_to_inoutcut,pending_ls_to_point_to_value)
@@ -575,13 +575,15 @@ function _simplexify(
   nltcells = length(ltcell_to_lpoints)
   ntcells = ncells*nltcells
   ntpoints = ncells*nlpoints
-  T = eltype(eltype(point_to_coords))
-
+  T = eltype(first(ls_to_point_to_value))
+  
   tcell_to_tpoints_data = zeros(eltype(cell_to_points.data),nsp*ntcells)
   tcell_to_tpoints_ptrs = fill(eltype(cell_to_points.ptrs)(nsp),ntcells+1)
   length_to_ptrs!(tcell_to_tpoints_ptrs)
   tcell_to_tpoints = Table(tcell_to_tpoints_data,tcell_to_tpoints_ptrs)
-  tpoint_to_coords = zeros(eltype(point_to_coords),ntpoints)
+  
+  Dp = eltype(point_to_coords).parameters[1]
+  tpoint_to_coords = zeros(Point{Dp,T},ntpoints)
   tpoint_to_rcoords = zeros(Point{Dc,T},ntpoints)
   T = eltype(first(ls_to_point_to_value))
   ls_to_tpoint_to_value = [ zeros(T,ntpoints) for i in 1:length(ls_to_point_to_value)]
