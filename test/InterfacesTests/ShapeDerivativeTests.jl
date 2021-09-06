@@ -35,18 +35,17 @@ function f(ϕ)
   Ω = Triangulation(cutgeo)
   degree = 2*order
   dΩ = Measure(Ω,degree)
-  dc = (∫(uₕ)dΩ)
-  sum(map(sum,values(dc.dict)))
+  sum(∫(uₕ)dΩ)
 end
 
 df(ϕ) = ForwardDiff.gradient(f,ϕ) # gradient of an integral wrt the signed distance function
 
 df(ϕ)
 
-#using FiniteDifferences
-#using Test
-#dfFD(ϕ) = grad(central_fdm(2, 1), f, ϕ)[1]
-#tol=1e-8
-#@test sum((df(ϕ)) - (dfFD(ϕ))) < tol
+using FiniteDifferences
+using Test
+dfFD(ϕ) = grad(central_fdm(2, 1), f, ϕ)[1]
+tol=1e-8
+@test sum((df(ϕ)) - (dfFD(ϕ))) < tol
 
 end 

@@ -576,12 +576,10 @@ function _simplexify(
   ntcells = ncells*nltcells
   ntpoints = ncells*nlpoints
   T = eltype(first(ls_to_point_to_value))
-  
   tcell_to_tpoints_data = zeros(eltype(cell_to_points.data),nsp*ntcells)
   tcell_to_tpoints_ptrs = fill(eltype(cell_to_points.ptrs)(nsp),ntcells+1)
   length_to_ptrs!(tcell_to_tpoints_ptrs)
   tcell_to_tpoints = Table(tcell_to_tpoints_data,tcell_to_tpoints_ptrs)
-  
   Dp = eltype(point_to_coords).parameters[1]
   tpoint_to_coords = zeros(Point{Dp,T},ntpoints)
   tpoint_to_rcoords = zeros(Point{Dc,T},ntpoints)
