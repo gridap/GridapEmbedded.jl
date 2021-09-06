@@ -22,7 +22,7 @@ end
 function CutTriangulation(
   sub_trian,
   done_ls_to_cell_to_inoutcut::Vector{Vector{Int8}},
-  pending_ls_to_point_to_value)
+  pending_ls_to_point_to_value::Vector{Vector{T}}) where T
 
   Dc = get_cell_dim(sub_trian)
   p = Simplex(Val{Dc}())
