@@ -1,7 +1,7 @@
 
-struct SubFacetData{Dp,T} <: GridapType
+struct SubFacetData{Dp,T,Tn} <: GridapType
   facet_to_points::Table{Int32,Vector{Int32},Vector{Int32}}
-  facet_to_normal::Vector{Point{Dp,T}}
+  facet_to_normal::Vector{Point{Dp,Tn}}
   facet_to_bgcell::Vector{Int32}
   point_to_coords::Vector{Point{Dp,T}}
   point_to_rcoords::Vector{Point{Dp,T}}
@@ -22,20 +22,20 @@ end
 
 # Implementation of the Gridap.Triangulation interface
 
-struct SubFacetTriangulation{Dc,Dp,T} <: Grid{Dc,Dp}
-  subfacets::SubFacetData{Dp,T}
+struct SubFacetTriangulation{Dc,Dp,T,Tn} <: Grid{Dc,Dp}
+  subfacets::SubFacetData{Dp,T,Tn}
   bgtrian::Triangulation
   facet_types::Vector{Int8}
   reffes::Vector{LagrangianRefFE{Dc}}
   facet_ref_map
 
-  function SubFacetTriangulation(st::SubFacetData{Dp,T},bgtrian::Triangulation) where {Dp,T}
+  function SubFacetTriangulation(st::SubFacetData{Dp,T,Tn},bgtrian::Triangulation) where {Dp,T,Tn}
     Dc = Dp - 1
     reffe = LagrangianRefFE(Float64,Simplex(Val{Dc}()),1)
     facet_types = fill(Int8(1),length(st.facet_to_points))
     reffes = [reffe]
     face_ref_map = _setup_facet_ref_map(st,reffe,facet_types)
-    new{Dc,Dp,T}(st,bgtrian,facet_types,reffes,face_ref_map)
+    new{Dc,Dp,T,Tn}(st,bgtrian,facet_types,reffes,face_ref_map)
   end
 end
 
@@ -113,10 +113,10 @@ function merge_sub_face_data(ls_to_subfacets,ls_to_ls_to_facet_to_inout)
   fst, ls_to_facet_to_inout
 end
 
-function Base.empty(st::SubFacetData{Dp,T}) where {Dp,T}
+function Base.empty(st::SubFacetData{Dp,T,Tn}) where {Dp,T,Tn}
 
   facet_to_points = Table(Int32[],Int32[1,])
-  facet_to_normal = Point{Dp,T}[]
+  facet_to_normal = Point{Dp,Tn}[]
   facet_to_bgcell = Int32[]
   point_to_coords = Point{Dp,T}[]
   point_to_rcoords = Point{Dp,T}[]
