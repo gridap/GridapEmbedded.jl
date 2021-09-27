@@ -22,54 +22,49 @@ end
 
 # Implementation of the Gridap.Triangulation interface
 
-struct SubFacetTriangulation{Dc,Dp,T} <: Grid{Dc,Dp}
+struct SubFacetTriangulation{Dc,Dp,T,A} <: Triangulation{Dc,Dp}
   subfacets::SubFacetData{Dp,T}
-  bgtrian::Triangulation
-  facet_types::Vector{Int8}
-  reffes::Vector{LagrangianRefFE{Dc}}
-  facet_ref_map
-
-  function SubFacetTriangulation(st::SubFacetData{Dp,T},bgtrian::Triangulation) where {Dp,T}
-    Dc = Dp - 1
-    reffe = LagrangianRefFE(Float64,Simplex(Val{Dc}()),1)
-    facet_types = fill(Int8(1),length(st.facet_to_points))
-    reffes = [reffe]
-    face_ref_map = _setup_facet_ref_map(st,reffe,facet_types)
-    new{Dc,Dp,T}(st,bgtrian,facet_types,reffes,face_ref_map)
+  bgmodel::A
+  subgird::UnstructuredGrid{Dc,Dp,T,NonOriented,Vector{Point{Dr,T}}}
+  function SubFacetTriangulation(
+    subfacets::SubFacetData{Dp,T},bgmodel::DiscreteModel) where {Dp,T}
+    Dc = Dp-1
+    subgrid = UnstructuredGrid(subfacets)
+    A = typeof(bgmodel)
+    new{Dc,Dp,T,A}(subfacets,bgmodel,subgrid)
   end
 end
 
-function _setup_facet_ref_map(st,reffe,facet_types)
+function Geometry.get_background_model(a::SubFacetTriangulation)
+  a.bgmodel
+end
+
+function Geometry.get_active_model(a::SubFacetTriangulation)
+  @notimplemented "This is not implemented, but also not needed in practice"
+end
+
+function Geometry.get_glue(a::SubFacetTriangulation{Dc},::Val{D}) where {Dc,D}
+  if (D-1) != Dc
+    msg = "Not possible to move data on objects of dim $(Dc) into a SubFacetTriangulation of cell dim $(D)"
+    @unreachable msg
+  end
+  tface_to_mface = a.subfacets.facet_to_bgcell
+  tface_to_mface_map = _setup_facet_ref_map(a.subfacets,a.subgrid)
+  Geometry.FaceToFaceGlue(tface_to_mface,tface_to_mface_map,nothing)
+end
+
+function _setup_facet_ref_map(st,grid)
   facet_to_points = st.facet_to_points
   point_to_rcoords = st.point_to_rcoords
   facet_to_rcoords = lazy_map(Broadcasting(Reindex(point_to_rcoords)),facet_to_points)
-  facet_to_shapefuns = expand_cell_data([get_shapefuns(reffe)],facet_types)
+  ctype_to_reffe = get_reffes(grid)
+  facet_to_ctype = get_cell_type(grid)
+  @notimplementedif length(ctype_to_reffe) != 1
+  reffe = first(ctype_to_reffe)
+  facet_to_shapefuns = expand_cell_data([get_shapefuns(reffe)],facet_to_ctype)
   facet_to_ref_map = lazy_map(linear_combination,facet_to_rcoords,facet_to_shapefuns)
   facet_to_ref_map
 end
-
-function compress_contributions(cell_mat,trian::SubFacetTriangulation)
-  cell_to_bgcell = get_cell_to_bgcell(trian)
-  ccell_mat = compress_contributions(cell_mat,cell_to_bgcell)
-  ccell_mat
-end
-
-function compress_ids(cell_ids,trian::SubFacetTriangulation)
-  cell_to_bgcell = get_cell_to_bgcell(trian)
-  compress_ids(cell_ids,cell_to_bgcell)
-end
-
-# Triangulation API
-
-get_node_coordinates(trian::SubFacetTriangulation) = trian.subfacets.point_to_coords
-get_cell_node_ids(trian::SubFacetTriangulation) = trian.subfacets.facet_to_points
-get_reffes(trian::SubFacetTriangulation) = trian.reffes
-get_cell_type(trian::SubFacetTriangulation) = trian.facet_types
-TriangulationStyle(::Type{<:SubFacetTriangulation}) = SubTriangulation()
-get_background_triangulation(trian::SubFacetTriangulation) = trian.bgtrian
-get_cell_to_bgcell(trian::SubFacetTriangulation) = trian.subfacets.facet_to_bgcell
-get_cell_ref_map(trian::SubFacetTriangulation) = trian.facet_ref_map
-get_facet_normal(trian::SubFacetTriangulation) = lazy_map(ConstantField,trian.subfacets.facet_to_normal)
 
 # API
 
@@ -81,7 +76,9 @@ function UnstructuredGrid(st::SubFacetData{Dp}) where Dp
     st.point_to_coords,
     st.facet_to_points,
     [reffe,],
-    cell_types)
+    cell_types,
+    NonOriented(),
+    st.facet_to_normal)
 end
 
 function Visualization.visualization_data(st::SubFacetData,filename::String;celldata=Dict())
