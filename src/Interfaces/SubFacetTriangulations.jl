@@ -93,9 +93,10 @@ end
 function Visualization.visualization_data(st::SubFacetData,filename::String;celldata=Dict())
   ug = UnstructuredGrid(st)
   degree = 0
-  quad = CellQuadrature(ug,degree)
-  dS = integrate(1,quad)
-  newcelldata = ["bgcell"=>st.facet_to_bgcell,"dS"=>dS,"normal"=>st.facet_to_normal]
+  #quad = CellQuadrature(ug,degree)
+  #dS = integrate(1,quad)
+  #newcelldata = ["bgcell"=>st.facet_to_bgcell,"dS"=>dS,"normal"=>st.facet_to_normal]
+  newcelldata = ["bgcell"=>st.facet_to_bgcell,"normal"=>st.facet_to_normal]
   _celldata = Dict()
   for (k,v) in celldata
     _celldata[k] = v

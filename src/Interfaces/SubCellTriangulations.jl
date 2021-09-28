@@ -83,9 +83,9 @@ end
 function Visualization.visualization_data(st::SubCellData,filename::String;celldata=Dict())
   ug = UnstructuredGrid(st)
   degree = 0
-  quad = CellQuadrature(ug,degree)
-  dV = integrate(1,quad)
-  newcelldata = ["bgcell"=>st.cell_to_bgcell, "dV"=>dV]
+  #quad = CellQuadrature(ug,degree)
+  #dV = integrate(1,quad)
+  newcelldata = ["bgcell"=>st.cell_to_bgcell]#, "dV"=>dV]
   _celldata = Dict()
   for (k,v) in celldata
     _celldata[k] = v

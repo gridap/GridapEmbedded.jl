@@ -194,6 +194,10 @@ end
 #  Triangulation(cut,geo,(CUT_IN,IN))
 #end
 
+function Triangulation(cut::EmbeddedDiscretization)
+  Triangulation(cut,PHYSICAL_IN,cut.geo)
+end
+
 function Triangulation(cut::EmbeddedDiscretization,in_or_out)
   Triangulation(cut,in_or_out,cut.geo)
 end
