@@ -20,22 +20,22 @@ bgmodel = CartesianDiscreteModel(domain,partition)
 cutgeo = cut(bgmodel,geo)
 cutgeo_facets = cut_facets(bgmodel,geo)
 
-model = DiscreteModel(cutgeo)
+Ωact = Triangulation(cutgeo,ACTIVE)
 
 order = 1
 reffe = ReferenceFE(lagrangian,Float64,order)
-V = FESpace(model,reffe,conformity=:H1)
+V = FESpace(Ωact,reffe)
 
 Random.seed!(1234)
 v = FEFunction(V,rand(num_free_dofs(V)))
 u = interpolate(x->x[1]+x[2],V)
 
 Ωbg = Triangulation(bgmodel)
-Ω = Triangulation(cutgeo)
+Ω = Triangulation(cutgeo,PHYSICAL)
 Γu = EmbeddedBoundary(cutgeo)
-Γf = BoundaryTriangulation(cutgeo_facets)
+Γf = BoundaryTriangulation(cutgeo_facets,PHYSICAL)
 Γ = lazy_append(Γu,Γf)
-Λ = SkeletonTriangulation(cutgeo_facets)
+Λ = SkeletonTriangulation(cutgeo_facets,PHYSICAL)
 
 test_triangulation(Ω)
 test_triangulation(Γ)
@@ -59,13 +59,14 @@ a = sum( ∫( jump(u) )*dΛ )
 a = sum( ∫( jump(v) )*dΛ )
 @test abs(a) < 1.0e-9
 
-celldata_Ω = ["bgcell"=>collect(Int,get_cell_to_bgcell(Ω))]
-celldata_Γ = ["bgcell"=>collect(Int,get_cell_to_bgcell(Γ))]
+D = num_cell_dims(bgmodel)
+celldata_Ω = ["bgcell"=>collect(Int,get_glue(Ω,Val(D)).tface_to_mface)]
+celldata_Γ = ["bgcell"=>collect(Int,get_glue(Γ,Val(D)).tface_to_mface)]
 cellfields_Ω = ["v"=>v,"u"=>u]
 cellfields_Γ = ["normal"=>n_Γ,"v"=>v,"u"=>u]
 celldata_Λ = [
-  "bgcell_left"=>collect(Int,get_cell_to_bgcell(Λ.⁺)),
-  "bgcell_right"=>collect(Int,get_cell_to_bgcell(Λ.⁻))]
+ "bgcell_left"=>collect(Int,get_glue(Λ.⁺,Val(D)).tface_to_mface),
+ "bgcell_right"=>collect(Int,get_glue(Λ.⁻,Val(D)).tface_to_mface)]
 cellfields_Λ = ["normal"=> n_Λ.⁺,"jump_v"=>jump(v),"jump_u"=>jump(u)]
 
 d = mktempdir()
@@ -91,8 +92,8 @@ cutgeo = cut(bgmodel,geo)
 cutgeo_facets = cut_facets(bgmodel,geo)
 
 trian_s = SkeletonTriangulation(bgmodel)
-trian_sΩ = SkeletonTriangulation(cutgeo_facets,trian_s,geo,(CUT_IN,IN))
-trian_sΩo = SkeletonTriangulation(cutgeo_facets,trian_s,geo,(CUT_OUT,OUT))
+trian_sΩ = SkeletonTriangulation(trian_s,cutgeo_facets,PHYSICAL_IN,geo)
+trian_sΩo = SkeletonTriangulation(trian_s,cutgeo_facets,PHYSICAL_OUT,geo)
 
 d = mktempdir()
 try
