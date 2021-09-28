@@ -91,8 +91,8 @@ cutgeo = cut(bgmodel,geo)
 cutgeo_facets = cut_facets(bgmodel,geo)
 
 trian_s = SkeletonTriangulation(bgmodel)
-trian_sΩ = SkeletonTriangulation(cutgeo_facets,trian_s,geo,(CUTIN,IN))
-trian_sΩo = SkeletonTriangulation(cutgeo_facets,trian_s,geo,(CUTOUT,OUT))
+trian_sΩ = SkeletonTriangulation(cutgeo_facets,trian_s,geo,(CUT_IN,IN))
+trian_sΩo = SkeletonTriangulation(cutgeo_facets,trian_s,geo,(CUT_OUT,OUT))
 
 d = mktempdir()
 try

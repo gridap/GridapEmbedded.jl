@@ -22,15 +22,20 @@ for model in (model_quad, model_tet)
 
   cutgeom = cut(model,geom)
 
-  model_in = DiscreteModel(cutgeom)
-  model_out = DiscreteModel(cutgeom,geom,(OUT,CUT))
-
+  Ωact_in = Triangulation(cutgeom,ACTIVE)
+  Ωact_in = Triangulation(cutgeom,ACTIVE_IN)
+  Ωact_out = Triangulation(cutgeom,ACTIVE_OUT)
   Ω = Triangulation(model)
-  Ω_in = Triangulation(cutgeom)
+  Ω_in = Triangulation(cutgeom,PHYSICAL)
+  Ω_in = Triangulation(cutgeom,PHYSICAL_IN)
+  Ω_out = Triangulation(cutgeom,PHYSICAL_OUT)
   Γ = EmbeddedBoundary(cutgeom)
   Λ_in = GhostSkeleton(cutgeom)
-  Λ_out = GhostSkeleton(cutgeom,geom,OUT)
+  Λ_in = GhostSkeleton(cutgeom,ACTIVE_IN)
+  Λ_out = GhostSkeleton(cutgeom,ACTIVE_OUT)
 
+  test_triangulation(Ωact_in)
+  test_triangulation(Ωact_out)
   test_triangulation(Ω_in)
   test_triangulation(Γ)
   test_triangulation(Λ_in)
@@ -46,7 +51,7 @@ for model in (model_quad, model_tet)
   @test abs(pi*R^2 - vol) < 1.0e-3
   @test abs(surf - 2*pi*R) < 1.0e-3
 
-  V_in = FESpace(model_in,reffe,conformity=:H1)
+  V_in = FESpace(Ωact_in,reffe,conformity=:H1)
   u(x) = x[1] + x[2]
   u_in = interpolate(u,V_in)
   v_in = FEFunction(V_in,rand(num_free_dofs(V_in)))
@@ -64,8 +69,8 @@ for model in (model_quad, model_tet)
   writevtk(Λ_out,joinpath(d,"trian_Gg_out"))
   writevtk(Ω_in,joinpath(d,"trian_in"),order=2,cellfields=["v_in"=>v_in])
   #writevtk(cutgeom,joinpath(d,"cutgeom"))
-  writevtk(model_in,joinpath(d,"model_in"))
-  writevtk(model_out,joinpath(d,"model_out"))
+  writevtk(Ωact_in,joinpath(d,"Ωact_in"))
+  writevtk(Ωact_out,joinpath(d,"Ωact_out"))
   finally
     rm(d,recursive=true)
   end

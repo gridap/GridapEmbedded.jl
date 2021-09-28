@@ -21,7 +21,7 @@ end
 struct SubCellTriangulation{Dc,Dp,T,A} <: Triangulation{Dc,Dp}
   subcells::SubCellData{Dc,Dp,T}
   bgmodel::A
-  subgird::UnstructuredGrid{Dc,Dp,T,NonOriented,Nothing}
+  subgrid::UnstructuredGrid{Dc,Dp,T,NonOriented,Nothing}
   function SubCellTriangulation(
     subcells::SubCellData{Dc,Dp,T},bgmodel::DiscreteModel) where {Dc,Dp,T}
     subgrid = UnstructuredGrid(subcells)
@@ -30,22 +30,29 @@ struct SubCellTriangulation{Dc,Dp,T,A} <: Triangulation{Dc,Dp}
   end
 end
 
-function Geometry.get_background_model(a::SubCellTriangulation)
+function get_background_model(a::SubCellTriangulation)
   a.bgmodel
 end
 
-function Geometry.get_active_model(a::SubCellTriangulation)
-  @notimplemented "This is not implemented, but also not needed in practice"
+function get_active_model(a::SubCellTriangulation)
+  msg = """
+  This is not implemented, but also not needed in practice.
+  Embedded Grids implemented for integration, not interpolation.
+  """
+  @notimplemented  msg
 end
 
-function Geometry.get_glue(a::SubCellTriangulation{Dc},::Val{D}) where {Dc,D}
+function get_grid(a::SubCellTriangulation)
+  a.subgrid
+end
+
+function get_glue(a::SubCellTriangulation{Dc},::Val{D}) where {Dc,D}
   if D != Dc
-    msg = "Not possible to move data on objects of dim $(Dc) into a SubCellTriangulation of cell dim $(D)"
-    @unreachable msg
+    return nothing
   end
   tface_to_mface = a.subcells.cell_to_bgcell
   tface_to_mface_map = _setup_cell_ref_map(a.subcells,a.subgrid)
-  Geometry.FaceToFaceGlue(tface_to_mface,tface_to_mface_map,nothing)
+  FaceToFaceGlue(tface_to_mface,tface_to_mface_map,nothing)
 end
 
 function _setup_cell_ref_map(st,grid)
@@ -63,7 +70,7 @@ end
 
 # API
 
-function Geometry.UnstructuredGrid(st::SubCellData{D}) where D
+function UnstructuredGrid(st::SubCellData{D}) where D
   reffe = LagrangianRefFE(Float64,Simplex(Val{D}()),1)
   cell_types = fill(Int8(1),length(st.cell_to_points))
   UnstructuredGrid(

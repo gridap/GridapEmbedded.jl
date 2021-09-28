@@ -25,7 +25,7 @@ end
 struct SubFacetTriangulation{Dc,Dp,T,A} <: Triangulation{Dc,Dp}
   subfacets::SubFacetData{Dp,T}
   bgmodel::A
-  subgird::UnstructuredGrid{Dc,Dp,T,NonOriented,Vector{Point{Dr,T}}}
+  subgrid::UnstructuredGrid{Dc,Dp,T,NonOriented,Nothing}
   function SubFacetTriangulation(
     subfacets::SubFacetData{Dp,T},bgmodel::DiscreteModel) where {Dp,T}
     Dc = Dp-1
@@ -35,22 +35,29 @@ struct SubFacetTriangulation{Dc,Dp,T,A} <: Triangulation{Dc,Dp}
   end
 end
 
-function Geometry.get_background_model(a::SubFacetTriangulation)
+function get_background_model(a::SubFacetTriangulation)
   a.bgmodel
 end
 
-function Geometry.get_active_model(a::SubFacetTriangulation)
-  @notimplemented "This is not implemented, but also not needed in practice"
+function get_active_model(a::SubFacetTriangulation)
+  msg = """
+  This is not implemented, but also not needed in practice.
+  Embedded Grids implemented for integration, not interpolation.
+  """
+  @notimplemented  msg
 end
 
-function Geometry.get_glue(a::SubFacetTriangulation{Dc},::Val{D}) where {Dc,D}
+function get_grid(a::SubFacetTriangulation)
+  a.subgrid
+end
+
+function get_glue(a::SubFacetTriangulation{Dc},::Val{D}) where {Dc,D}
   if (D-1) != Dc
-    msg = "Not possible to move data on objects of dim $(Dc) into a SubFacetTriangulation of cell dim $(D)"
-    @unreachable msg
+    return nothing
   end
   tface_to_mface = a.subfacets.facet_to_bgcell
   tface_to_mface_map = _setup_facet_ref_map(a.subfacets,a.subgrid)
-  Geometry.FaceToFaceGlue(tface_to_mface,tface_to_mface_map,nothing)
+  FaceToFaceGlue(tface_to_mface,tface_to_mface_map,nothing)
 end
 
 function _setup_facet_ref_map(st,grid)
@@ -66,19 +73,21 @@ function _setup_facet_ref_map(st,grid)
   facet_to_ref_map
 end
 
+function get_facet_normal(a::SubFacetTriangulation)
+  lazy_map(constant_field,a.subfacets.facet_to_normal)
+end
+
 # API
 
 function UnstructuredGrid(st::SubFacetData{Dp}) where Dp
-  Dc = Dp -1
+  Dc = Dp - 1
   reffe = LagrangianRefFE(Float64,Simplex(Val{Dc}()),1)
   cell_types = fill(Int8(1),length(st.facet_to_points))
   UnstructuredGrid(
     st.point_to_coords,
     st.facet_to_points,
     [reffe,],
-    cell_types,
-    NonOriented(),
-    st.facet_to_normal)
+    cell_types)
 end
 
 function Visualization.visualization_data(st::SubFacetData,filename::String;celldata=Dict())

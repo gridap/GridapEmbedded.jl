@@ -10,11 +10,11 @@ end
 
 function SkeletonTriangulation(cut::EmbeddedFacetDiscretization)
   facets = SkeletonTriangulation(cut.bgmodel)
-  SkeletonTriangulation(cut,facets,cut.geo,(CUTIN,IN))
+  SkeletonTriangulation(cut,facets,cut.geo,(CUT_IN,IN))
 end
 
 function SkeletonTriangulation(cut::EmbeddedFacetDiscretization,tags)
-  SkeletonTriangulation(cut,tags,cut.geo,(CUTIN,IN))
+  SkeletonTriangulation(cut,tags,cut.geo,(CUT_IN,IN))
 end
 
 function SkeletonTriangulation(cut::EmbeddedFacetDiscretization,tags,name::String)
@@ -24,7 +24,7 @@ end
 
 function SkeletonTriangulation(
   cut::EmbeddedFacetDiscretization,tags,geo::CSG.Geometry)
-  SkeletonTriangulation(cut,tags,geo,(CUTIN,IN))
+  SkeletonTriangulation(cut,tags,geo,(CUT_IN,IN))
 end
 
 function SkeletonTriangulation(cut::EmbeddedFacetDiscretization,tags,name::String,in_or_out)
@@ -49,11 +49,11 @@ end
 
 function BoundaryTriangulation(cut::EmbeddedFacetDiscretization)
   facets = BoundaryTriangulation(cut.bgmodel)
-  BoundaryTriangulation(cut,facets,cut.geo,(CUTIN,IN))
+  BoundaryTriangulation(cut,facets,cut.geo,(CUT_IN,IN))
 end
 
 function BoundaryTriangulation(cut::EmbeddedFacetDiscretization,tags)
-  BoundaryTriangulation(cut,tags,cut.geo,(CUTIN,IN))
+  BoundaryTriangulation(cut,tags,cut.geo,(CUT_IN,IN))
 end
 
 function BoundaryTriangulation(cut::EmbeddedFacetDiscretization,tags,name::String)
@@ -62,7 +62,7 @@ function BoundaryTriangulation(cut::EmbeddedFacetDiscretization,tags,name::Strin
 end
 
 function BoundaryTriangulation(cut::EmbeddedFacetDiscretization,tags,geo::CSG.Geometry)
-  BoundaryTriangulation(cut,tags,geo,(CUTIN,IN))
+  BoundaryTriangulation(cut,tags,geo,(CUT_IN,IN))
 end
 
 function BoundaryTriangulation(cut::EmbeddedFacetDiscretization,tags,name::String,in_or_out)

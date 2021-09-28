@@ -18,6 +18,14 @@ end
 @publish Interfaces GhostSkeleton
 @publish Interfaces IN
 @publish Interfaces OUT
+@publish Interfaces CUT_IN
+@publish Interfaces CUT_OUT
+@publish Interfaces ACTIVE
+@publish Interfaces ACTIVE_IN
+@publish Interfaces ACTIVE_OUT
+@publish Interfaces PHYSICAL
+@publish Interfaces PHYSICAL_IN
+@publish Interfaces PHYSICAL_OUT
 
 @publish LevelSetCutters LevelSetCutter
 @publish LevelSetCutters AnalyticalGeometry
