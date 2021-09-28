@@ -105,7 +105,7 @@ function _aggregate_by_threshold(threshold,cut,geo,loc,facet_to_inoutcut)
   @assert loc in (IN,OUT)
 
   cutinorout = loc == IN ? (CUT_IN,IN) : (CUT_OUT,OUT)
-  trian = Triangulation(cut,geo,cutinorout)
+  trian = Triangulation(cut,cutinorout,geo)
   model = cut.bgmodel
   cell_to_cut_meas = get_cell_measure(trian)
   bgtrian = get_triangulation(model)
