@@ -227,21 +227,13 @@ function Triangulation(cut::EmbeddedDiscretization,geo::CSG.Geometry)
   Triangulation(cut,PHYSICAL_IN,geo)
 end
 
-function Triangulation(cut::EmbeddedDiscretization,name::String,in_or_out)
-  @unreachable """
-  This signature has beed removed. Swap the order of the two last arguments.
-  Eg:
-  Triangulation(cutgeo,name,IN) ->Triangulation(cutgeo,IN,name)
-  """
-end
-
-function Triangulation(cut::EmbeddedDiscretization,geo::CSG.Geometry,in_or_out)
-  @unreachable """
-  This signature has beed removed. Swap the order of the two last arguments.
-  Eg:
-  Triangulation(cutgeo,geo,IN) ->Triangulation(cutgeo,IN,geo)
-  """
-end
+#function Triangulation(cut::EmbeddedDiscretization,name::String,in_or_out)
+#  Triangulation(cut,in_or_out,name)
+#end
+#
+#function Triangulation(cut::EmbeddedDiscretization,geo::CSG.Geometry,in_or_out)
+#  Triangulation(cut,in_or_out,geo)
+#end
 
 function Triangulation(cut::EmbeddedDiscretization,in_or_out,name::String)
   geo = get_geometry(cut.geo,name)
@@ -412,14 +404,6 @@ function EmbeddedBoundary(cut::EmbeddedDiscretization,geo1::CSG.Geometry,geo2::C
 
 end
 
-#function GhostSkeleton(cut::EmbeddedDiscretization)
-#  GhostSkeleton(cut,cut.geo)
-#end
-#
-#function GhostSkeleton(cut::EmbeddedDiscretization,geo)
-#  GhostSkeleton(cut,geo,IN)
-#end
-
 function GhostSkeleton(cut::EmbeddedDiscretization)
   GhostSkeleton(cut,ACTIVE_IN)
 end
@@ -427,6 +411,22 @@ end
 function GhostSkeleton(cut::EmbeddedDiscretization,in_or_out)
   GhostSkeleton(cut,in_or_out,cut.geo)
 end
+
+function GhostSkeleton(cut::EmbeddedDiscretization,name::String)
+  GhostSkeleton(cut,ACTIVE_IN,name)
+end
+
+function GhostSkeleton(cut::EmbeddedDiscretization,geo::CSG.Geometry)
+  GhostSkeleton(cut,ACTIVE_IN,geo)
+end
+
+#function GhostSkeleton(cut::EmbeddedDiscretization,name::String,in_or_out)
+#  GhostSkeleton(cut,in_or_out,name)
+#end
+#
+#function GhostSkeleton(cut::EmbeddedDiscretization,geo::CSG.Geometry,in_or_out)
+#  GhostSkeleton(cut,in_or_out,geo)
+#end
 
 function GhostSkeleton(cut::EmbeddedDiscretization,in_or_out,name::String)
   geo = get_geometry(cut.geo,name)
