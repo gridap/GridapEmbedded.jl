@@ -51,7 +51,7 @@ function main(;n,outputfile=nothing)
   cutgeo = cut(bgmodel,union(geo1,geo5))
 
   # Generate the "active" mesh
-  Ω_act = DiscreteModel(cutgeo,ACTIVE,"fluid")
+  Ω_act = Triangulation(cutgeo,ACTIVE,"fluid")
 
   # Setup integration meshes
   Ω = Triangulation(cutgeo,PHYSICAL,"fluid")
