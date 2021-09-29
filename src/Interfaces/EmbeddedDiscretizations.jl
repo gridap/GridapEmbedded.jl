@@ -10,25 +10,41 @@ struct EmbeddedDiscretization{Dp,T} <: GridapType
   geo::CSG.Geometry
 end
 
-#function DiscreteModel(cut::EmbeddedDiscretization)
-#  DiscreteModel(cut,cut.geo)
-#end
-#
-#function DiscreteModel(cut::EmbeddedDiscretization,geo)
-#  DiscreteModel(cut,geo,(IN,CUT))
-#end
-#
-#function DiscreteModel(cut::EmbeddedDiscretization,name::String,in_or_out)
-#  geo = get_geometry(cut.geo,name)
-#  DiscreteModel(cut,geo,in_or_out)
-#end
-#
-#function DiscreteModel(cut::EmbeddedDiscretization,geo::CSG.Geometry,in_or_out)
-#  pred = i-> i in in_or_out
-#  bgcell_to_inoutcut = compute_bgcell_to_inoutcut(cut,geo)
-#  cell_list = findall(pred, bgcell_to_inoutcut)
-#  DiscreteModel(cut.bgmodel,cell_list)
-#end
+function DiscreteModel(cut::EmbeddedDiscretization)
+  @unreachable """
+  The signature DiscreteModel(cutgeo) has been removed.
+  Use Triangulation(cutgeo,ACTIVE) instead.
+  """
+  #DiscreteModel(cut,cut.geo)
+end
+
+function DiscreteModel(cut::EmbeddedDiscretization,geo)
+  @unreachable """
+  The signature DiscreteModel(cutgeo,geo) has been removed.
+  Use Triangulation(cutgeo,ACTIVE,geo) instead.
+  """
+  #DiscreteModel(cut,geo,(IN,CUT))
+end
+
+function DiscreteModel(cut::EmbeddedDiscretization,name::String,in_or_out)
+  @unreachable """
+  The signature DiscreteModel(cutgeo,name,in_or_out) has been removed.
+  Use Triangulation(cutgeo,ACTIVE_IN,name) or Triangulation(cutgeo,ACTIVE_OUT,name)  instead.
+  """
+  #geo = get_geometry(cut.geo,name)
+  #DiscreteModel(cut,geo,in_or_out)
+end
+
+function DiscreteModel(cut::EmbeddedDiscretization,geo::CSG.Geometry,in_or_out)
+  @unreachable """
+  The signature DiscreteModel(cutgeo,geo,in_or_out) has been removed.
+  Use Triangulation(cutgeo,ACTIVE_IN,geo) or Triangulation(cutgeo,ACTIVE_OUT,geo)  instead.
+  """
+  #pred = i-> i in in_or_out
+  #bgcell_to_inoutcut = compute_bgcell_to_inoutcut(cut,geo)
+  #cell_list = findall(pred, bgcell_to_inoutcut)
+  #DiscreteModel(cut.bgmodel,cell_list)
+end
 
 function compute_bgcell_to_inoutcut(cut::EmbeddedDiscretization,geo::CSG.Geometry)
 
@@ -200,6 +216,31 @@ end
 
 function Triangulation(cut::EmbeddedDiscretization,in_or_out)
   Triangulation(cut,in_or_out,cut.geo)
+end
+
+function Triangulation(cut::EmbeddedDiscretization,name::String)
+  geo = get_geometry(cut.geo,name)
+  Triangulation(cut,PHYSICAL_IN,geo)
+end
+
+function Triangulation(cut::EmbeddedDiscretization,geo::CSG.Geometry)
+  Triangulation(cut,PHYSICAL_IN,geo)
+end
+
+function Triangulation(cut::EmbeddedDiscretization,name::String,in_or_out)
+  @unreachable """
+  This signature has beed removed. Swap the order of the two last arguments.
+  Eg:
+  Triangulation(cutgeo,name,IN) ->Triangulation(cutgeo,IN,name)
+  """
+end
+
+function Triangulation(cut::EmbeddedDiscretization,geo::CSG.Geometry,in_or_out)
+  @unreachable """
+  This signature has beed removed. Swap the order of the two last arguments.
+  Eg:
+  Triangulation(cutgeo,geo,IN) ->Triangulation(cutgeo,IN,geo)
+  """
 end
 
 function Triangulation(cut::EmbeddedDiscretization,in_or_out,name::String)
