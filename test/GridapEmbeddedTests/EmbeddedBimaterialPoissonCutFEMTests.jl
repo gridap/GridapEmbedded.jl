@@ -23,6 +23,7 @@ partition = (n,n)
 
 # Setup background model
 bgmodel = simplexify(CartesianDiscreteModel(domain,partition))
+Ω_bg = Triangulation(bgmodel)
 
 # Cut the background model
 cutgeo = cut(bgmodel,union(geo1,geo2))
@@ -69,9 +70,9 @@ meas_K2 = get_cell_measure(Ω2)
 meas_KΓ = get_cell_measure(Γ)
 
 γ_hat = 2
-κ1 = (α2*meas_K1) ./ (α2*meas_K1 .+ α1*meas_K2)
-κ2 = (α1*meas_K2) ./ (α2*meas_K1 .+ α1*meas_K2)
-β = (γ_hat*meas_KΓ) ./ ( meas_K1/α1 .+ meas_K2/α2 )
+κ1 = CellField( (α2*meas_K1) ./ (α2*meas_K1 .+ α1*meas_K2), Ω_bg)
+κ2 = CellField( (α1*meas_K2) ./ (α2*meas_K1 .+ α1*meas_K2), Ω_bg)
+β = CellField( (γ_hat*meas_KΓ) ./ ( meas_K1/α1 .+ meas_K2/α2 ), Ω_bg)
 
 h = (domain[2]-domain[1])/n
 γd = 10.0
