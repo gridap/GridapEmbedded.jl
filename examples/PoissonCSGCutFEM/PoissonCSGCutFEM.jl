@@ -30,7 +30,7 @@ function main(;n,outputfile=nothing)
   cutgeo = cut(bgmodel,geo8)
 
   # Setup integration meshes
-  Ω = Triangulation(cutgeo,"csg")
+  Ω = Triangulation(cutgeo,PHYSICAL,"csg")
   Γd = EmbeddedBoundary(cutgeo,"csg","source")
   Γg = GhostSkeleton(cutgeo,"csg")
 
@@ -51,8 +51,8 @@ function main(;n,outputfile=nothing)
   dΓg = Measure(Γg,degree)
 
   # Setup FESpace
-  model = DiscreteModel(cutgeo,"csg")
-  V = TestFESpace(model,ReferenceFE(lagrangian,Float64,order),conformity=:H1)
+  Ω_act = Triangulation(cutgeo,ACTIVE,"csg")
+  V = TestFESpace(Ω_act,ReferenceFE(lagrangian,Float64,order),conformity=:H1)
   U = TrialFESpace(V)
 
   # Weak form

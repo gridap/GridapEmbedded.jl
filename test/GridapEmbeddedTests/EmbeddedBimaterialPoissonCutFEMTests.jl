@@ -27,13 +27,13 @@ bgmodel = simplexify(CartesianDiscreteModel(domain,partition))
 # Cut the background model
 cutgeo = cut(bgmodel,union(geo1,geo2))
 
-# Setup models
-model1 = DiscreteModel(cutgeo,geo1)
-model2 = DiscreteModel(cutgeo,geo2)
+# Setup interpolation meshes
+Ω1_act = Triangulation(cutgeo,ACTIVE,geo1)
+Ω2_act = Triangulation(cutgeo,ACTIVE,geo2)
 
 # Setup integration meshes
-Ω1 = Triangulation(cutgeo,geo1)
-Ω2 = Triangulation(cutgeo,geo2)
+Ω1 = Triangulation(cutgeo,PHYSICAL,geo1)
+Ω2 = Triangulation(cutgeo,PHYSICAL,geo2)
 Γ = EmbeddedBoundary(cutgeo,geo1,geo2)
 Γd = EmbeddedBoundary(cutgeo,geo3)
 Γg = GhostSkeleton(cutgeo,geo3)
@@ -54,8 +54,8 @@ dΓg = Measure(Γg,degree)
 
 # Setup FESpace
 
-V1 = TestFESpace(model1,ReferenceFE(lagrangian,Float64,order),conformity=:H1)
-V2 = TestFESpace(model2,ReferenceFE(lagrangian,Float64,order),conformity=:H1)
+V1 = TestFESpace(Ω1_act,ReferenceFE(lagrangian,Float64,order),conformity=:H1)
+V2 = TestFESpace(Ω2_act,ReferenceFE(lagrangian,Float64,order),conformity=:H1)
 
 U1 = TrialFESpace(V1)
 U2 = TrialFESpace(V2)

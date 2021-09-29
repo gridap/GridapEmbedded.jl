@@ -1,6 +1,7 @@
 module PoissonAgFEMTests
 
 using Gridap
+using Gridap.Geometry: get_active_model # perhaps not needed anymore
 using GridapEmbedded
 using Test
 
@@ -33,7 +34,8 @@ strategy = AggregateAllCutCells()
 aggregates = aggregate(strategy,cutgeo)
 
 Ω_bg = Triangulation(bgmodel)
-Ω = Triangulation(cutgeo)
+Ω_act = Triangulation(cutgeo,ACTIVE)
+Ω = Triangulation(cutgeo,PHYSICAL)
 Γ = EmbeddedBoundary(cutgeo)
 
 n_Γ = get_normal_vector(Γ)
@@ -43,9 +45,8 @@ degree = 2*order
 dΩ = Measure(Ω,degree)
 dΓ = Measure(Γ,degree)
 
-model = DiscreteModel(cutgeo)
-
-Vstd = FESpace(model,FiniteElements(PhysicalDomain(),model,lagrangian,Float64,order))
+model = get_active_model(Ω_act)
+Vstd = FESpace(Ω_act,FiniteElements(PhysicalDomain(),model,lagrangian,Float64,order))
 
 V = AgFEMSpace(Vstd,aggregates)
 U = TrialFESpace(V)

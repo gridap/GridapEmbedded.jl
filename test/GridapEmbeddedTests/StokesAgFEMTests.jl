@@ -1,6 +1,7 @@
 module StokesAgFEMTests
 
 using Gridap
+using Gridap.Geometry: get_active_model # perhaps not needed anymore
 using GridapEmbedded
 using Test
 
@@ -24,16 +25,15 @@ dp = pmax - pmin
 const h = dp[1]/n
 
 cutgeo = cut(bgmodel,geo2)
-model = DiscreteModel(cutgeo)
+Ω_act = Triangulation(cutgeo,ACTIVE)
 
 strategy = AggregateAllCutCells()
 aggregates = aggregate(strategy,cutgeo)
 
 Ω_bg = Triangulation(bgmodel)
-Ω = Triangulation(cutgeo)
+Ω = Triangulation(cutgeo,PHYSICAL)
 Γd = EmbeddedBoundary(cutgeo)
-Γn = BoundaryTriangulation(model,tags="boundary")
-
+Γn = BoundaryTriangulation(Ω_act,tags="boundary")
 order = 2
 degree = 2*order
 dΩ = Measure(Ω,degree)
@@ -43,12 +43,17 @@ dΓn = Measure(Γn,degree)
 n_Γd = get_normal_vector(Γd)
 n_Γn = get_normal_vector(Γn)
 
+#writevtk(Γn,"Γn",cellfields=["n"=>n_Γn])
+#writevtk(Ω,"Ω")
+#writevtk(Ω_act,"Ω_act")
+
+model = get_active_model(Ω_act)
 V_cell_fe_std = FiniteElements(PhysicalDomain(),
                                model,
                                lagrangian,
                                VectorValue{2,Float64},
                                order)
-Vstd = FESpace(model,V_cell_fe_std)
+Vstd = FESpace(Ω_act,V_cell_fe_std)
 
 V_cell_fe_ser = FiniteElements(PhysicalDomain(),
                                model,
@@ -59,7 +64,7 @@ V_cell_fe_ser = FiniteElements(PhysicalDomain(),
                                conformity=:L2)
 # RMK: we don't neet to impose continuity since
 # we only use the cell dof basis / shapefuns
-Vser = FESpace(model,V_cell_fe_ser)
+Vser = FESpace(Ω_act,V_cell_fe_ser)
 
 Q_cell_fe_std = FiniteElements(PhysicalDomain(),
                                model,
@@ -68,7 +73,7 @@ Q_cell_fe_std = FiniteElements(PhysicalDomain(),
                                order-1,
                                space=:P,
                                conformity=:L2)
-Qstd = FESpace(model,Q_cell_fe_std)
+Qstd = FESpace(Ω_act,Q_cell_fe_std)
 
 V = AgFEMSpace(Vstd,aggregates,Vser)
 Q = AgFEMSpace(Qstd,aggregates)

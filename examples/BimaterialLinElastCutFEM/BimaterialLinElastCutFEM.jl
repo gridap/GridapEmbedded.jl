@@ -54,13 +54,13 @@ function main(;n,outputfile=nothing)
   # Cut the background model
   cutgeo = cut(bgmodel,union(geo3,geo4))
 
-  # Setup models
-  model1 = DiscreteModel(cutgeo,"steel")
-  model2 = DiscreteModel(cutgeo,"concrete")
+  # Setup interpolation mesh
+  Ω1_act = Triangulation(cutgeo,ACTIVE,"steel")
+  Ω2_act = Triangulation(cutgeo,ACTIVE,"concrete")
 
   # Setup integration meshes
-  Ω1 = Triangulation(cutgeo,"steel")
-  Ω2 = Triangulation(cutgeo,"concrete")
+  Ω1 = Triangulation(cutgeo,PHYSICAL,"steel")
+  Ω2 = Triangulation(cutgeo,PHYSICAL,"concrete")
   Γ = EmbeddedBoundary(cutgeo,"steel","concrete")
 
   # Setup normal vectors
@@ -75,11 +75,11 @@ function main(;n,outputfile=nothing)
 
   # Setup FESpace
 
-  V1 = TestFESpace(model1,
+  V1 = TestFESpace(Ω1_act,
                    ReferenceFE(lagrangian,VectorValue{3,Float64},order),
                    conformity=:H1,
                    dirichlet_tags=["support0","support1"])
-  V2 = TestFESpace(model2,
+  V2 = TestFESpace(Ω2_act,
                    ReferenceFE(lagrangian,VectorValue{3,Float64},order),
                    conformity=:H1,
                    dirichlet_tags=["support0","support1"])
