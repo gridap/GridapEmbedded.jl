@@ -74,9 +74,9 @@ U = MultiFieldFESpace([U1,U2])
 
 # Setup stabilization parameters
 
-meas_K1 = get_cell_measure(Ω1)
-meas_K2 = get_cell_measure(Ω2)
-meas_KΓ = get_cell_measure(Γ)
+meas_K1 = get_cell_measure(Ω1, Ω_bg)
+meas_K2 = get_cell_measure(Ω2, Ω_bg)
+meas_KΓ = get_cell_measure(Γ, Ω_bg)
 
 # meas_K1_Γ = lazy_map(Reindex(meas_K1),get_cell_to_bgcell(Γ))
 # meas_K2_Γ = lazy_map(Reindex(meas_K2),get_cell_to_bgcell(Γ))

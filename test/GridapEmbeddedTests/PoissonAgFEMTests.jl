@@ -1,7 +1,6 @@
 module PoissonAgFEMTests
 
 using Gridap
-using Gridap.Geometry: get_active_model # perhaps not needed anymore
 using GridapEmbedded
 using Test
 

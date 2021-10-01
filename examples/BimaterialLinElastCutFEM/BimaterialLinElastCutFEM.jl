@@ -92,14 +92,14 @@ function main(;n,outputfile=nothing)
 
   # Setup stabilization parameters
 
-  meas_K1 = get_cell_measure(Ω1)
-  meas_K2 = get_cell_measure(Ω2)
-  meas_KΓ = get_cell_measure(Γ)
+  meas_K1 = get_cell_measure(Ω1, Ω_bg)
+  meas_K2 = get_cell_measure(Ω2, Ω_bg)
+  meas_KΓ = get_cell_measure(Γ, Ω_bg)
 
   γ_hat = 2
-  κ1 = (E2*meas_K1) ./ (E2*meas_K1 .+ E1*meas_K2)
-  κ2 = (E1*meas_K2) ./ (E2*meas_K1 .+ E1*meas_K2)
-  β = (γ_hat*meas_KΓ) ./ ( meas_K1/E1 .+ meas_K2/E2 )
+  κ1 = CellField( (E2*meas_K1) ./ (E2*meas_K1 .+ E1*meas_K2), Ω_bg)
+  κ2 = CellField( (E1*meas_K2) ./ (E2*meas_K1 .+ E1*meas_K2), Ω_bg)
+  β  = CellField( (γ_hat*meas_KΓ) ./ ( meas_K1/E1 .+ meas_K2/E2 ), Ω_bg)
 
   # Jump and mean operators for this formulation
 

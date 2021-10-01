@@ -65,9 +65,9 @@ U = MultiFieldFESpace([U1,U2])
 
 # Setup stabilization parameters
 
-meas_K1 = get_cell_measure(Ω1)
-meas_K2 = get_cell_measure(Ω2)
-meas_KΓ = get_cell_measure(Γ)
+meas_K1 = get_cell_measure(Ω1, Ω_bg)
+meas_K2 = get_cell_measure(Ω2, Ω_bg)
+meas_KΓ = get_cell_measure(Γ, Ω_bg)
 
 γ_hat = 2
 κ1 = CellField( (α2*meas_K1) ./ (α2*meas_K1 .+ α1*meas_K2), Ω_bg)
