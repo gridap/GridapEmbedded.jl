@@ -55,6 +55,17 @@ function get_glue(a::SubCellTriangulation{Dc},::Val{D}) where {Dc,D}
   FaceToFaceGlue(tface_to_mface,tface_to_mface_map,nothing)
 end
 
+function move_contributions(scell_to_val::AbstractArray,strian::SubCellTriangulation)
+  model = get_background_model(strian)
+  ncells = num_cells(model)
+  cell_to_touched = fill(false,ncells)
+  scell_to_cell = strian.subcells.cell_to_bgcell
+  cell_to_touched[scell_to_cell] .= true
+  Ωa = Triangulation(model,cell_to_touched)
+  acell_to_val = move_contributions(scell_to_val,strian,Ωa)
+  acell_to_val, Ωa 
+end
+
 function _setup_cell_ref_map(st,grid)
   cell_to_points = st.cell_to_points
   point_to_rcoords = st.point_to_rcoords
@@ -83,9 +94,10 @@ end
 function Visualization.visualization_data(st::SubCellData,filename::String;celldata=Dict())
   ug = UnstructuredGrid(st)
   degree = 0
-  #quad = CellQuadrature(ug,degree)
-  #dV = integrate(1,quad)
-  newcelldata = ["bgcell"=>st.cell_to_bgcell]#, "dV"=>dV]
+  trian = GenericTriangulation(ug)
+  quad = CellQuadrature(trian,degree)
+  dV = integrate(1,quad)
+  newcelldata = ["bgcell"=>st.cell_to_bgcell, "dV"=>dV]
   _celldata = Dict()
   for (k,v) in celldata
     _celldata[k] = v

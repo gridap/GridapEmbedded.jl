@@ -24,6 +24,8 @@ import Gridap.Geometry: get_glue
 import Gridap.Geometry: get_grid
 import Gridap.Geometry: FaceToFaceGlue
 import Gridap.Geometry: get_facet_normal
+import Gridap.Geometry: move_contributions
+using Gridap.Geometry: GenericTriangulation
 
 using GridapEmbedded.CSG
 

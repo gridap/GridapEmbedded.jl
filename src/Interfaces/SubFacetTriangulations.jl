@@ -77,6 +77,17 @@ function get_facet_normal(a::SubFacetTriangulation)
   lazy_map(constant_field,a.subfacets.facet_to_normal)
 end
 
+function move_contributions(scell_to_val::AbstractArray,strian::SubFacetTriangulation)
+  model = get_background_model(strian)
+  ncells = num_cells(model)
+  cell_to_touched = fill(false,ncells)
+  scell_to_cell = strian.subfacets.facet_to_bgcell
+  cell_to_touched[scell_to_cell] .= true
+  Ωa = Triangulation(model,cell_to_touched)
+  acell_to_val = move_contributions(scell_to_val,strian,Ωa)
+  acell_to_val, Ωa 
+end
+
 # API
 
 function UnstructuredGrid(st::SubFacetData{Dp}) where Dp
@@ -93,10 +104,10 @@ end
 function Visualization.visualization_data(st::SubFacetData,filename::String;celldata=Dict())
   ug = UnstructuredGrid(st)
   degree = 0
-  #quad = CellQuadrature(ug,degree)
-  #dS = integrate(1,quad)
-  #newcelldata = ["bgcell"=>st.facet_to_bgcell,"dS"=>dS,"normal"=>st.facet_to_normal]
-  newcelldata = ["bgcell"=>st.facet_to_bgcell,"normal"=>st.facet_to_normal]
+  trian = GenericTriangulation(ug)
+  quad = CellQuadrature(trian,degree)
+  dS = integrate(1,quad)
+  newcelldata = ["bgcell"=>st.facet_to_bgcell,"dS"=>dS,"normal"=>st.facet_to_normal]
   _celldata = Dict()
   for (k,v) in celldata
     _celldata[k] = v
