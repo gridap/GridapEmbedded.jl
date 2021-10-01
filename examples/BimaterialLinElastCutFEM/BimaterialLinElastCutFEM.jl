@@ -18,6 +18,7 @@ function main(;n,outputfile=nothing)
   pmin = Point(0.,0.,0.)
   pmax = pmin + L
   bgmodel = CartesianDiscreteModel(pmin,pmax,partition)
+  Ω_bg = Triangulation(bgmodel)
 
   # Identify Dirichlet boundaries
   labeling = get_face_labeling(bgmodel)
