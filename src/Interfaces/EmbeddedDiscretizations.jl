@@ -373,7 +373,7 @@ end
 
 function GhostSkeleton(cut::EmbeddedDiscretization,geo::CSG.Geometry,in_or_out)
 
-  @assert in_or_out in (IN,OUT)
+  @assert in_or_out in (IN,OUT,CUT)
   cell_to_inoutcut = compute_bgcell_to_inoutcut(cut,geo)
   model = cut.bgmodel
   topo = get_grid_topology(model)
