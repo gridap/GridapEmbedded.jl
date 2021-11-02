@@ -10,7 +10,7 @@ const R = 0.7
 geom = disk(R)
 n = 10
 partition = (n,n)
-ud(x) = x[1] - x[2] 
+ud(x) = x[1] - x[2]
 f(x) = ud(x)
 
 # Setup background model
@@ -22,13 +22,18 @@ bgmodel = simplexify(CartesianDiscreteModel(box.pmin,box.pmax,partition))
 
 # Cut Geometry
 cutgeom = cut(bgmodel,geom)
-model_cut = DiscreteModel(cutgeom,geom,(CUT))
+# model_cut = DiscreteModel(cutgeom,geom,(CUT))
+# model_cut = Triangulation(cutgeom,ACTIVE_IN,geom)
+Ωc = Triangulation(cutgeom,ACTIVE,geom)
+# Ωc = Triangulation(cutgeom,geom,(CUT))
+Γ = EmbeddedBoundary(cutgeom,geom)
+# Γ = EmbeddedBoundary(cutgeom)
+Γg = GhostSkeleton(cutgeom,geom)
+# Γg = GhostSkeleton(cutgeom,geom,(CUT))
+
 order=1
-V = TestFESpace(model_cut,ReferenceFE(lagrangian,Float64,order),conformity=:H1)
+V = TestFESpace(Ωc,ReferenceFE(lagrangian,Float64,order),conformity=:H1)
 U = TrialFESpace(V)
-Ωc = Triangulation(cutgeom,geom,(CUT))
-Γ = EmbeddedBoundary(cutgeom)
-Γg = GhostSkeleton(cutgeom,geom,(CUT))
 
 #writevtk(Ωc,"Ωc")
 #writevtk(Γ,"Γ")
@@ -47,7 +52,7 @@ dΓg = Measure(Γg,2)
 a(u,v)= ∫( (γd/h)*v*u   ) * dΓ +
         ∫( (γg*h)*jump(n_Γg⋅∇(v))*jump(n_Γg⋅∇(u))) * dΓg
 
-b(v) =  ∫( (γd/h)*v*ud  ) * dΓ 
+b(v) =  ∫( (γd/h)*v*ud  ) * dΓ
 
 op = AffineFEOperator(a,b,U,V)
 
@@ -61,4 +66,4 @@ tol = 1.0e-10
 
 #writevtk(Γ,"u_Γ",cellfields=["uh"=>uh])
 
-end 
+end
