@@ -473,4 +473,3 @@ function _fill_ghost_skeleton_mask!(facet_to_mask,facet_to_cells::Table,cell_to_
   end
 
 end
-
