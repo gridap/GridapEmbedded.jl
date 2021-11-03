@@ -22,22 +22,15 @@ bgmodel = simplexify(CartesianDiscreteModel(box.pmin,box.pmax,partition))
 
 # Cut Geometry
 cutgeom = cut(bgmodel,geom)
-# model_cut = DiscreteModel(cutgeom,geom,(CUT))
-# model_cut = Triangulation(cutgeom,ACTIVE_IN,geom)
-Ωc = Triangulation(cutgeom,ACTIVE,geom)
-# Ωc = Triangulation(cutgeom,geom,(CUT))
+Ωc = Triangulation(cutgeom,CUT,geom)
 Γ = EmbeddedBoundary(cutgeom,geom)
-# Γ = EmbeddedBoundary(cutgeom)
-Γg = GhostSkeleton(cutgeom,geom)
-# Γg = GhostSkeleton(cutgeom,geom,(CUT))
+Γg = GhostSkeleton(cutgeom,CUT,geom)
+
+writevtk(Γg,"Γg")
 
 order=1
 V = TestFESpace(Ωc,ReferenceFE(lagrangian,Float64,order),conformity=:H1)
 U = TrialFESpace(V)
-
-#writevtk(Ωc,"Ωc")
-#writevtk(Γ,"Γ")
-#writevtk(Γg,"Γg")
 
 n_Γ = get_normal_vector(Γ)
 n_Γg = get_normal_vector(Γg)

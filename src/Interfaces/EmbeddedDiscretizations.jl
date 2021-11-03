@@ -433,10 +433,12 @@ function GhostSkeleton(cut::EmbeddedDiscretization,in_or_out,name::String)
   GhostSkeleton(cut,in_or_out,geo)
 end
 
+GhostSkeleton(cut::EmbeddedDiscretization,in_or_out::Integer,geo::CSG.Geometry) = GhostSkeleton(cut,ActiveInOrOut(in_or_out),geo)
+
 function GhostSkeleton(cut::EmbeddedDiscretization,in_or_out,geo::CSG.Geometry)
 
   @notimplementedif in_or_out in (PHYSICAL_IN,PHYSICAL_OUT) "Not implemented but not needed in practice. Ghost stabilization can be integrated in full facets."
-  @assert in_or_out in (ACTIVE_IN,ACTIVE_OUT)
+  @assert in_or_out in (ACTIVE_IN,ACTIVE_OUT) || in_or_out.in_or_out in (IN,OUT,CUT)
   cell_to_inoutcut = compute_bgcell_to_inoutcut(cut,geo)
   model = cut.bgmodel
   topo = get_grid_topology(model)
