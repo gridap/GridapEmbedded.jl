@@ -18,52 +18,66 @@ end
 
 # Implementation of Triangulation interface
 
-struct SubCellTriangulation{Dp,T} <: Grid{Dp,Dp}
-  subcells::SubCellData{Dp,Dp,T}
-  bgtrian::Triangulation
-  cell_types::Vector{Int8}
-  reffes::Vector{LagrangianRefFE{Dp}}
-  cell_ref_map::AbstractArray{<:Field}
-
-  function SubCellTriangulation(st::SubCellData{Dp,Dp,T},bgtrian::Triangulation) where {Dp,T}
-    reffe = LagrangianRefFE(Float64,Simplex(Val{Dp}()),1)
-    cell_types = fill(Int8(1),length(st.cell_to_points))
-    reffes = [reffe]
-    cell_to_ref_map = _setup_cell_ref_map(st,reffe,cell_types)
-    new{Dp,T}(st,bgtrian,cell_types,reffes,cell_to_ref_map)
+struct SubCellTriangulation{Dc,Dp,T,A} <: Triangulation{Dc,Dp}
+  subcells::SubCellData{Dc,Dp,T}
+  bgmodel::A
+  subgrid::UnstructuredGrid{Dc,Dp,T,NonOriented,Nothing}
+  function SubCellTriangulation(
+    subcells::SubCellData{Dc,Dp,T},bgmodel::DiscreteModel) where {Dc,Dp,T}
+    subgrid = UnstructuredGrid(subcells)
+    A = typeof(bgmodel)
+    new{Dc,Dp,T,A}(subcells,bgmodel,subgrid)
   end
 end
 
-function _setup_cell_ref_map(st,reffe,cell_types)
+function get_background_model(a::SubCellTriangulation)
+  a.bgmodel
+end
+
+function get_active_model(a::SubCellTriangulation)
+  msg = """
+  This is not implemented, but also not needed in practice.
+  Embedded Grids implemented for integration, not interpolation.
+  """
+  @notimplemented  msg
+end
+
+function get_grid(a::SubCellTriangulation)
+  a.subgrid
+end
+
+function get_glue(a::SubCellTriangulation{Dc},::Val{D}) where {Dc,D}
+  if D != Dc
+    return nothing
+  end
+  tface_to_mface = a.subcells.cell_to_bgcell
+  tface_to_mface_map = _setup_cell_ref_map(a.subcells,a.subgrid)
+  FaceToFaceGlue(tface_to_mface,tface_to_mface_map,nothing)
+end
+
+function move_contributions(scell_to_val::AbstractArray,strian::SubCellTriangulation)
+  model = get_background_model(strian)
+  ncells = num_cells(model)
+  cell_to_touched = fill(false,ncells)
+  scell_to_cell = strian.subcells.cell_to_bgcell
+  cell_to_touched[scell_to_cell] .= true
+  Ωa = Triangulation(model,cell_to_touched)
+  acell_to_val = move_contributions(scell_to_val,strian,Ωa)
+  acell_to_val, Ωa 
+end
+
+function _setup_cell_ref_map(st,grid)
   cell_to_points = st.cell_to_points
   point_to_rcoords = st.point_to_rcoords
   cell_to_rcoords = lazy_map(Broadcasting(Reindex(point_to_rcoords)),cell_to_points)
-  cell_to_shapefuns = expand_cell_data([get_shapefuns(reffe)],cell_types)
+  ctype_to_reffe = get_reffes(grid)
+  cell_to_ctype = get_cell_type(grid)
+  @notimplementedif length(ctype_to_reffe) != 1
+  reffe = first(ctype_to_reffe)
+  cell_to_shapefuns = expand_cell_data([get_shapefuns(reffe)],cell_to_ctype)
   cell_to_ref_map = lazy_map(linear_combination,cell_to_rcoords,cell_to_shapefuns)
   cell_to_ref_map
 end
-
-function compress_contributions(cell_mat,trian::SubCellTriangulation)
-  cell_to_bgcell = get_cell_to_bgcell(trian)
-  ccell_mat = compress_contributions(cell_mat,cell_to_bgcell)
-  ccell_mat
-end
-
-function compress_ids(cell_ids,trian::SubCellTriangulation)
-  cell_to_bgcell = get_cell_to_bgcell(trian)
-  compress_ids(cell_ids,cell_to_bgcell)
-end
-
-# Triangulation API
-
-get_node_coordinates(trian::SubCellTriangulation) = trian.subcells.point_to_coords
-get_cell_node_ids(trian::SubCellTriangulation) = trian.subcells.cell_to_points
-get_reffes(trian::SubCellTriangulation) = trian.reffes
-get_cell_type(trian::SubCellTriangulation) = trian.cell_types
-TriangulationStyle(::Type{<:SubCellTriangulation}) = SubTriangulation()
-get_background_triangulation(trian::SubCellTriangulation) = trian.bgtrian
-get_cell_to_bgcell(trian::SubCellTriangulation) = trian.subcells.cell_to_bgcell
-get_cell_ref_map(trian::SubCellTriangulation) = trian.cell_ref_map
 
 # API
 
@@ -80,7 +94,8 @@ end
 function Visualization.visualization_data(st::SubCellData,filename::String;celldata=Dict())
   ug = UnstructuredGrid(st)
   degree = 0
-  quad = CellQuadrature(ug,degree)
+  trian = GenericTriangulation(ug)
+  quad = CellQuadrature(trian,degree)
   dV = integrate(1,quad)
   newcelldata = ["bgcell"=>st.cell_to_bgcell, "dV"=>dV]
   _celldata = Dict()

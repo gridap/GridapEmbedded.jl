@@ -18,13 +18,14 @@ import Gridap.Geometry: get_cell_node_ids
 import Gridap.Geometry: get_cell_coordinates
 import Gridap.Geometry: get_reffes
 import Gridap.Geometry: get_cell_type
-import Gridap.Geometry: get_cell_to_bgcell
-import Gridap.Geometry: TriangulationStyle
-import Gridap.Geometry: get_background_triangulation
-import Gridap.Geometry: get_cell_ref_map
+import Gridap.Geometry: get_background_model
+import Gridap.Geometry: get_active_model
+import Gridap.Geometry: get_glue
+import Gridap.Geometry: get_grid
+import Gridap.Geometry: FaceToFaceGlue
 import Gridap.Geometry: get_facet_normal
-import Gridap.Geometry: compress_contributions
-import Gridap.Geometry: compress_ids
+import Gridap.Geometry: move_contributions
+using Gridap.Geometry: GenericTriangulation
 
 using GridapEmbedded.CSG
 
@@ -32,8 +33,14 @@ export IN
 export OUT
 export INTERFACE
 export CUT
-export CUTIN
-export CUTOUT
+export CUT_IN
+export CUT_OUT
+export ACTIVE
+export ACTIVE_IN
+export ACTIVE_OUT
+export PHYSICAL
+export PHYSICAL_IN
+export PHYSICAL_OUT
 export EmbeddedDiscretization
 export EmbeddedFacetDiscretization
 export SubCellData
@@ -55,8 +62,18 @@ const CUT = 0
 struct CutInOrOut
   in_or_out::Int
 end
-const CUTIN = CutInOrOut(IN)
-const CUTOUT = CutInOrOut(OUT)
+const CUT_IN = CutInOrOut(IN)
+const CUT_OUT = CutInOrOut(OUT)
+const PHYSICAL_IN = (CUT_IN,IN)
+const PHYSICAL_OUT = (CUT_OUT,OUT)
+const PHYSICAL = PHYSICAL_IN
+
+struct ActiveInOrOut
+  in_or_out::Int
+end
+const ACTIVE_IN = ActiveInOrOut(IN)
+const ACTIVE_OUT = ActiveInOrOut(OUT)
+const ACTIVE = ACTIVE_IN
 
 include("SubCellTriangulations.jl")
 

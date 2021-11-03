@@ -18,6 +18,7 @@ function main(;n,outputfile=nothing)
   pmin = Point(0.,0.,0.)
   pmax = pmin + L
   bgmodel = CartesianDiscreteModel(pmin,pmax,partition)
+  Ω_bg = Triangulation(bgmodel)
 
   # Identify Dirichlet boundaries
   labeling = get_face_labeling(bgmodel)
@@ -54,13 +55,13 @@ function main(;n,outputfile=nothing)
   # Cut the background model
   cutgeo = cut(bgmodel,union(geo3,geo4))
 
-  # Setup models
-  model1 = DiscreteModel(cutgeo,"steel")
-  model2 = DiscreteModel(cutgeo,"concrete")
+  # Setup interpolation mesh
+  Ω1_act = Triangulation(cutgeo,ACTIVE,"steel")
+  Ω2_act = Triangulation(cutgeo,ACTIVE,"concrete")
 
   # Setup integration meshes
-  Ω1 = Triangulation(cutgeo,"steel")
-  Ω2 = Triangulation(cutgeo,"concrete")
+  Ω1 = Triangulation(cutgeo,PHYSICAL,"steel")
+  Ω2 = Triangulation(cutgeo,PHYSICAL,"concrete")
   Γ = EmbeddedBoundary(cutgeo,"steel","concrete")
 
   # Setup normal vectors
@@ -75,11 +76,11 @@ function main(;n,outputfile=nothing)
 
   # Setup FESpace
 
-  V1 = TestFESpace(model1,
+  V1 = TestFESpace(Ω1_act,
                    ReferenceFE(lagrangian,VectorValue{3,Float64},order),
                    conformity=:H1,
                    dirichlet_tags=["support0","support1"])
-  V2 = TestFESpace(model2,
+  V2 = TestFESpace(Ω2_act,
                    ReferenceFE(lagrangian,VectorValue{3,Float64},order),
                    conformity=:H1,
                    dirichlet_tags=["support0","support1"])
@@ -92,14 +93,14 @@ function main(;n,outputfile=nothing)
 
   # Setup stabilization parameters
 
-  meas_K1 = get_cell_measure(Ω1)
-  meas_K2 = get_cell_measure(Ω2)
-  meas_KΓ = get_cell_measure(Γ)
+  meas_K1 = get_cell_measure(Ω1, Ω_bg)
+  meas_K2 = get_cell_measure(Ω2, Ω_bg)
+  meas_KΓ = get_cell_measure(Γ, Ω_bg)
 
   γ_hat = 2
-  κ1 = (E2*meas_K1) ./ (E2*meas_K1 .+ E1*meas_K2)
-  κ2 = (E1*meas_K2) ./ (E2*meas_K1 .+ E1*meas_K2)
-  β = (γ_hat*meas_KΓ) ./ ( meas_K1/E1 .+ meas_K2/E2 )
+  κ1 = CellField( (E2*meas_K1) ./ (E2*meas_K1 .+ E1*meas_K2), Ω_bg)
+  κ2 = CellField( (E1*meas_K2) ./ (E2*meas_K1 .+ E1*meas_K2), Ω_bg)
+  β  = CellField( (γ_hat*meas_KΓ) ./ ( meas_K1/E1 .+ meas_K2/E2 ), Ω_bg)
 
   # Jump and mean operators for this formulation
 
