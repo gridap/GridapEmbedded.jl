@@ -45,7 +45,8 @@ const h = dp[1]/n
 cutdisc = cut(bgmodel,geom)
 
 # Setup integration meshes
-Ω = Triangulation(cutdisc)
+Ωact = Triangulation(cutdisc,ACTIVE)
+Ω = Triangulation(cutdisc,PHYSICAL)
 Γ = EmbeddedBoundary(cutdisc)
 Γg = GhostSkeleton(cutdisc)
 
@@ -61,8 +62,7 @@ dΓ = Measure(Γ,degree)
 dΓg = Measure(Γg,degree)
 
 # Setup FESpace
-model = DiscreteModel(cutdisc)
-V = TestFESpace(model,ReferenceFE(lagrangian,Float64,order),conformity=:H1)
+V = TestFESpace(Ωact,ReferenceFE(lagrangian,Float64,order),conformity=:H1)
 U = TrialFESpace(V)
 
 # Weak form Nitsche + ghost penalty (CutFEM paper Sect. 6.1)

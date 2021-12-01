@@ -50,11 +50,11 @@ function main(;n,outputfile=nothing)
   # Cut the background model
   cutgeo = cut(bgmodel,union(geo1,geo5))
 
-  # Generate the "active" model
-  model = DiscreteModel(cutgeo,"fluid")
+  # Generate the "active" mesh
+  Ω_act = Triangulation(cutgeo,ACTIVE,"fluid")
 
   # Setup integration meshes
-  Ω = Triangulation(cutgeo,"fluid")
+  Ω = Triangulation(cutgeo,PHYSICAL,"fluid")
   Γi = EmbeddedBoundary(cutgeo,"fluid","inlet")
   Γw = EmbeddedBoundary(cutgeo,"fluid","solid")
   Γg = GhostSkeleton(cutgeo,"fluid")
@@ -82,8 +82,8 @@ function main(;n,outputfile=nothing)
   reffe_u = ReferenceFE(lagrangian,VectorValue{D,Float64},order,space=:P)
   reffe_p = ReferenceFE(lagrangian,Float64,order,space=:P)
 
-  V = TestFESpace(model,reffe_u,conformity=:H1)
-  Q = TestFESpace(model,reffe_p,conformity=:H1)
+  V = TestFESpace(Ω_act,reffe_u,conformity=:H1)
+  Q = TestFESpace(Ω_act,reffe_p,conformity=:H1)
 
   U = TrialFESpace(V)
   P = TrialFESpace(Q)

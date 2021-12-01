@@ -11,23 +11,39 @@ struct EmbeddedDiscretization{Dp,T} <: GridapType
 end
 
 function DiscreteModel(cut::EmbeddedDiscretization)
-  DiscreteModel(cut,cut.geo)
+  @unreachable """
+  The signature DiscreteModel(cutgeo) has been removed.
+  Use Triangulation(cutgeo,ACTIVE) instead.
+  """
+  #DiscreteModel(cut,cut.geo)
 end
 
 function DiscreteModel(cut::EmbeddedDiscretization,geo)
-  DiscreteModel(cut,geo,(IN,CUT))
+  @unreachable """
+  The signature DiscreteModel(cutgeo,geo) has been removed.
+  Use Triangulation(cutgeo,ACTIVE,geo) instead.
+  """
+  #DiscreteModel(cut,geo,(IN,CUT))
 end
 
 function DiscreteModel(cut::EmbeddedDiscretization,name::String,in_or_out)
-  geo = get_geometry(cut.geo,name)
-  DiscreteModel(cut,geo,in_or_out)
+  @unreachable """
+  The signature DiscreteModel(cutgeo,name,in_or_out) has been removed.
+  Use Triangulation(cutgeo,ACTIVE_IN,name) or Triangulation(cutgeo,ACTIVE_OUT,name)  instead.
+  """
+  #geo = get_geometry(cut.geo,name)
+  #DiscreteModel(cut,geo,in_or_out)
 end
 
 function DiscreteModel(cut::EmbeddedDiscretization,geo::CSG.Geometry,in_or_out)
-  pred = i-> i in in_or_out
-  bgcell_to_inoutcut = compute_bgcell_to_inoutcut(cut,geo)
-  cell_list = findall(pred, bgcell_to_inoutcut)
-  DiscreteModel(cut.bgmodel,cell_list)
+  @unreachable """
+  The signature DiscreteModel(cutgeo,geo,in_or_out) has been removed.
+  Use Triangulation(cutgeo,ACTIVE_IN,geo) or Triangulation(cutgeo,ACTIVE_OUT,geo)  instead.
+  """
+  #pred = i-> i in in_or_out
+  #bgcell_to_inoutcut = compute_bgcell_to_inoutcut(cut,geo)
+  #cell_list = findall(pred, bgcell_to_inoutcut)
+  #DiscreteModel(cut.bgmodel,cell_list)
 end
 
 function compute_bgcell_to_inoutcut(cut::EmbeddedDiscretization,geo::CSG.Geometry)
@@ -186,40 +202,70 @@ function _compute_orientation_complementary(iob1,d1)
   end
 end
 
+#function Triangulation(cut::EmbeddedDiscretization)
+#  Triangulation(cut,cut.geo)
+#end
+#
+#function Triangulation(cut::EmbeddedDiscretization,geo)
+#  Triangulation(cut,geo,(CUT_IN,IN))
+#end
+
 function Triangulation(cut::EmbeddedDiscretization)
-  Triangulation(cut,cut.geo)
+  Triangulation(cut,PHYSICAL_IN,cut.geo)
 end
 
-function Triangulation(cut::EmbeddedDiscretization,geo)
-  Triangulation(cut,geo,(CUTIN,IN))
+function Triangulation(cut::EmbeddedDiscretization,in_or_out)
+  Triangulation(cut,in_or_out,cut.geo)
 end
 
-function Triangulation(cut::EmbeddedDiscretization,name::String,in_or_out)
+function Triangulation(cut::EmbeddedDiscretization,name::String)
   geo = get_geometry(cut.geo,name)
-  Triangulation(cut,geo,in_or_out)
+  Triangulation(cut,PHYSICAL_IN,geo)
 end
 
-function Triangulation(cut::EmbeddedDiscretization,geo::CSG.Geometry,in_or_out::Tuple)
-  trian1 = Triangulation(cut,geo,in_or_out[1])
-  trian2 = Triangulation(cut,geo,in_or_out[2])
+function Triangulation(cut::EmbeddedDiscretization,geo::CSG.Geometry)
+  Triangulation(cut,PHYSICAL_IN,geo)
+end
+
+#function Triangulation(cut::EmbeddedDiscretization,name::String,in_or_out)
+#  Triangulation(cut,in_or_out,name)
+#end
+#
+#function Triangulation(cut::EmbeddedDiscretization,geo::CSG.Geometry,in_or_out)
+#  Triangulation(cut,in_or_out,geo)
+#end
+
+function Triangulation(cut::EmbeddedDiscretization,in_or_out,name::String)
+  geo = get_geometry(cut.geo,name)
+  Triangulation(cut,in_or_out,geo)
+end
+
+function Triangulation(cut::EmbeddedDiscretization,in_or_out::Tuple,geo::CSG.Geometry)
+  trian1 = Triangulation(cut,in_or_out[1],geo)
+  trian2 = Triangulation(cut,in_or_out[2],geo)
   lazy_append(trian1,trian2)
 end
 
-function Triangulation(cut::EmbeddedDiscretization,geo::CSG.Geometry,in_or_out::CutInOrOut)
+function Triangulation(cut::EmbeddedDiscretization,in_or_out::CutInOrOut,geo::CSG.Geometry)
   bgcell_to_inoutcut = compute_bgcell_to_inoutcut(cut,geo)
   subcell_to_inoutcut = lazy_map(Reindex(bgcell_to_inoutcut),cut.subcells.cell_to_bgcell)
   subcell_to_inout = compute_subcell_to_inout(cut,geo)
   mask = lazy_map( (a,b) -> a==CUT && b==in_or_out.in_or_out, subcell_to_inoutcut, subcell_to_inout   )
   newsubcells = findall(mask)
   st = SubCellData(cut.subcells,newsubcells)
-  SubCellTriangulation(st,Triangulation(cut.bgmodel))
+  SubCellTriangulation(st,cut.bgmodel)
 end
 
-function Triangulation(cut::EmbeddedDiscretization,geo::CSG.Geometry,in_or_out::Integer)
+function Triangulation(cut::EmbeddedDiscretization,in_or_out::Integer,geo::CSG.Geometry)
   bgcell_to_inoutcut = compute_bgcell_to_inoutcut(cut,geo)
   cell_to_mask = collect(Bool,bgcell_to_inoutcut .== in_or_out)
-  trian = Triangulation(cut.bgmodel)
-  RestrictedTriangulation(trian,cell_to_mask)
+  Triangulation(cut.bgmodel,cell_to_mask)
+end
+
+function Triangulation(cut::EmbeddedDiscretization,in_or_out::ActiveInOrOut,geo::CSG.Geometry)
+  cell_to_inoutcut = compute_bgcell_to_inoutcut(cut,geo)
+  cell_to_mask = lazy_map(i-> i==CUT || i==in_or_out.in_or_out,cell_to_inoutcut)
+  Triangulation(cut.bgmodel,cell_to_mask)
 end
 
 function compute_subcell_to_inout(cut::EmbeddedDiscretization,geo::CSG.Geometry)
@@ -324,7 +370,7 @@ function EmbeddedBoundary(cut::EmbeddedDiscretization,geo::CSG.Geometry)
   newsubfacets = findall(subfacet_to_inoutcut .== INTERFACE)
   neworientation = orientation[newsubfacets]
   fst = SubFacetData(cut.subfacets,newsubfacets,neworientation)
-  SubFacetTriangulation(fst,Triangulation(cut.bgmodel))
+  SubFacetTriangulation(fst,cut.bgmodel)
 
 end
 
@@ -354,33 +400,52 @@ function EmbeddedBoundary(cut::EmbeddedDiscretization,geo1::CSG.Geometry,geo2::C
   newsubfacets = findall( mask )
   neworientation = orientation[newsubfacets]
   fst = SubFacetData(cut.subfacets,newsubfacets,neworientation)
-  SubFacetTriangulation(fst,Triangulation(cut.bgmodel))
+  SubFacetTriangulation(fst,cut.bgmodel)
 
 end
 
 function GhostSkeleton(cut::EmbeddedDiscretization)
-  GhostSkeleton(cut,cut.geo)
+  GhostSkeleton(cut,ACTIVE_IN)
 end
 
-function GhostSkeleton(cut::EmbeddedDiscretization,geo)
-  GhostSkeleton(cut,geo,IN)
+function GhostSkeleton(cut::EmbeddedDiscretization,in_or_out)
+  GhostSkeleton(cut,in_or_out,cut.geo)
 end
 
-function GhostSkeleton(cut::EmbeddedDiscretization,name::String,in_or_out)
+function GhostSkeleton(cut::EmbeddedDiscretization,name::String)
+  GhostSkeleton(cut,ACTIVE_IN,name)
+end
+
+function GhostSkeleton(cut::EmbeddedDiscretization,geo::CSG.Geometry)
+  GhostSkeleton(cut,ACTIVE_IN,geo)
+end
+
+#function GhostSkeleton(cut::EmbeddedDiscretization,name::String,in_or_out)
+#  GhostSkeleton(cut,in_or_out,name)
+#end
+#
+#function GhostSkeleton(cut::EmbeddedDiscretization,geo::CSG.Geometry,in_or_out)
+#  GhostSkeleton(cut,in_or_out,geo)
+#end
+
+function GhostSkeleton(cut::EmbeddedDiscretization,in_or_out,name::String)
   geo = get_geometry(cut.geo,name)
-  GhostSkeleton(cut,geo,in_or_out)
+  GhostSkeleton(cut,in_or_out,geo)
 end
 
-function GhostSkeleton(cut::EmbeddedDiscretization,geo::CSG.Geometry,in_or_out)
+GhostSkeleton(cut::EmbeddedDiscretization,in_or_out::Integer,geo::CSG.Geometry) = GhostSkeleton(cut,ActiveInOrOut(in_or_out),geo)
 
-  @assert in_or_out in (IN,OUT)
+function GhostSkeleton(cut::EmbeddedDiscretization,in_or_out,geo::CSG.Geometry)
+
+  @notimplementedif in_or_out in (PHYSICAL_IN,PHYSICAL_OUT) "Not implemented but not needed in practice. Ghost stabilization can be integrated in full facets."
+  @assert in_or_out in (ACTIVE_IN,ACTIVE_OUT) || in_or_out.in_or_out in (IN,OUT,CUT)
   cell_to_inoutcut = compute_bgcell_to_inoutcut(cut,geo)
   model = cut.bgmodel
   topo = get_grid_topology(model)
   D = num_cell_dims(model)
   facet_to_cells = Table(get_faces(topo,D-1,D))
   facet_to_mask = fill(false,length(facet_to_cells))
-  _fill_ghost_skeleton_mask!(facet_to_mask,facet_to_cells,cell_to_inoutcut,in_or_out)
+  _fill_ghost_skeleton_mask!(facet_to_mask,facet_to_cells,cell_to_inoutcut,in_or_out.in_or_out)
 
   SkeletonTriangulation(model,facet_to_mask)
 end
@@ -410,4 +475,3 @@ function _fill_ghost_skeleton_mask!(facet_to_mask,facet_to_cells::Table,cell_to_
   end
 
 end
-

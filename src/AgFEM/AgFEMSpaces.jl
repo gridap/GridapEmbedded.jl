@@ -1,60 +1,44 @@
 
-function AgFEMSpace(f::SingleFieldFESpace,cell_to_cellin::AbstractVector,g::SingleFieldFESpace=f)
-  AgFEMSpace(f,cell_to_cellin,get_fe_basis(g),get_fe_dof_basis(g))
+function AgFEMSpace(f::SingleFieldFESpace,bgcell_to_bgcellin::AbstractVector,g::SingleFieldFESpace=f)
+  @assert get_triangulation(f) === get_triangulation(g)
+  AgFEMSpace(f,bgcell_to_bgcellin,get_fe_basis(g),get_fe_dof_basis(g))
 end
 
 # Note: cell is in fact bgcell in this function since f will usually be an ExtendedFESpace
 function AgFEMSpace(
   f::SingleFieldFESpace,
-  cell_to_cellin::AbstractVector,
-  cell_shapefuns_g::CellField,
-  cell_dof_basis_g::CellDof)
-
-  # Prepare maps between different cell ids
-  cell_to_isactive = lazy_map(i->(i>0),cell_to_cellin)
-  acell_to_cell = findall( cell_to_isactive  )
-  acell_to_cellin = cell_to_cellin[acell_to_cell]
-  cell_to_acell = zeros(Int32,length(cell_to_cellin))
-  cell_to_acell[cell_to_isactive] .= 1:length(acell_to_cell)
+  bgcell_to_bgcellin::AbstractVector,
+  shfns_g::CellField,
+  dofs_g::CellDof)
 
   # Triangulation made of active cells
-  trian = get_triangulation(f)
-  trian_a = Triangulation(trian,acell_to_cell)
+  trian_a = get_triangulation(f)
 
-  # Celldata Defined on trian
+  # Build root cell map (i.e. aggregates) in terms of active cell ids
+  D = num_cell_dims(trian_a)
+  glue = get_glue(trian_a,Val(D))
+  acell_to_bgcell = glue.tface_to_mface
+  bgcell_to_acell = glue.mface_to_tface
+  acell_to_bgcellin = lazy_map(Reindex(bgcell_to_bgcellin),acell_to_bgcell)
+  acell_to_acellin = collect(lazy_map(Reindex(bgcell_to_acell),acell_to_bgcellin))
+
+  # Build shape funs of g by replacing local funs in cut cells by the ones at the root
+  # This needs to be done with shape functions in the physical domain
+  # otherwise shape funs in cut and root cells are the same
+  acell_phys_shapefuns_g = get_array(change_domain(shfns_g,PhysicalDomain()))
+  acell_phys_root_shapefuns_g = lazy_map(Reindex(acell_phys_shapefuns_g),acell_to_acellin)
+  root_shfns_g = GenericCellField(acell_phys_root_shapefuns_g,trian_a,PhysicalDomain())
+
+  # Compute data needed to compute the constraints
   dofs_f = get_fe_dof_basis(f)
   shfns_f = get_fe_basis(f)
-  dofs_g = cell_dof_basis_g
-  shfns_g = cell_shapefuns_g
-
-  # Celldata Defined on trian_a
-  dofs_f_a = change_domain(dofs_f,trian_a,DomainStyle(dofs_f))
-  cell_phys_shapefuns_g = get_array(change_domain(shfns_g,PhysicalDomain()))
-  acell_phys_shapefuns_g = lazy_map(Reindex(cell_phys_shapefuns_g),acell_to_cellin)
-  shfns_g_a = GenericCellField(acell_phys_shapefuns_g,trian_a,PhysicalDomain())
-
-  acell_to_coeffs = dofs_f_a(shfns_g_a)
-  cell_to_proj = dofs_g(shfns_f)
-  acell_to_proj = lazy_map(Reindex(cell_to_proj),acell_to_cellin)
-  acell_to_dof_ids = lazy_map(Reindex(get_cell_dof_ids(f)),acell_to_cell)
-
-  #acell_to_dofs = reindex(get_cell_dofs(f),acell_to_cell)
-  #n_fdofs =
-  #acell_to_fbasis = reindex(get_cell_basis(f),acell_to_cellin)
-  #acell_to_gbasis = reindex(cell_shapefuns_g,acell_to_cellin)
-  #acell_to_dof_fbasis = reindex(get_fe_dof_basis(f),acell_to_cell)
-  #acell_to_dof_gbasis = reindex(cell_dof_basis_g,acell_to_cellin)
-  #@notimplementedif is_in_ref_space(acell_to_dof_fbasis)
-  #@notimplementedif is_in_ref_space(acell_to_gbasis)
-  #@assert RefStyle(acell_to_fbasis) == RefStyle(acell_to_dof_gbasis)
-  #acell_to_coeffs = evaluate(acell_to_dof_fbasis,acell_to_gbasis)
-  #acell_to_proj = evaluate(acell_to_dof_gbasis,acell_to_fbasis)
+  acell_to_coeffs = dofs_f(root_shfns_g)
+  acell_to_proj = dofs_g(shfns_f)
+  acell_to_dof_ids = get_cell_dof_ids(f)
 
   aggdof_to_fdof, aggdof_to_dofs, aggdof_to_coeffs = _setup_agfem_constraints(
     num_free_dofs(f),
-    acell_to_cellin,
-    acell_to_cell,
-    cell_to_acell,
+    acell_to_acellin,
     acell_to_dof_ids,
     acell_to_coeffs,
     acell_to_proj)
@@ -64,22 +48,20 @@ end
 
 function _setup_agfem_constraints(
   n_fdofs,
-  acell_to_cellin,
-  acell_to_cell,
-  cell_to_acell,
+  acell_to_acellin,
   acell_to_dof_ids,
   acell_to_coeffs,
   acell_to_proj)
 
-  n_acells = length(acell_to_cell)
+  n_acells = length(acell_to_acellin)
   fdof_to_isagg = fill(true,n_fdofs)
   fdof_to_acell = zeros(Int32,n_fdofs)
   fdof_to_ldof = zeros(Int8,n_fdofs)
   cache = array_cache(acell_to_dof_ids)
   for acell in 1:n_acells
-    iscut = acell_to_cell[acell] != acell_to_cellin[acell]
+    acellin = acell_to_acellin[acell]
+    iscut = acell != acellin
     dofs = getindex!(cache,acell_to_dof_ids,acell)
-    cellin = acell_to_cellin[acell]
     for (ldof,dof) in enumerate(dofs)
       if dof > 0
         fdof = dof
@@ -98,9 +80,8 @@ function _setup_agfem_constraints(
   for aggdof in 1:n_aggdofs
     fdof = aggdof_to_fdof[aggdof]
     acell = fdof_to_acell[fdof]
-    cellin = acell_to_cellin[acell]
-    acell = cell_to_acell[cellin]
-    dofs = getindex!(cache,acell_to_dof_ids,acell)
+    acellin = acell_to_acellin[acell]
+    dofs = getindex!(cache,acell_to_dof_ids,acellin)
     aggdof_to_dofs_ptrs[aggdof+1] = length(dofs)
   end
 
@@ -111,9 +92,8 @@ function _setup_agfem_constraints(
   for aggdof in 1:n_aggdofs
     fdof = aggdof_to_fdof[aggdof]
     acell = fdof_to_acell[fdof]
-    cellin = acell_to_cellin[acell]
-    acell = cell_to_acell[cellin]
-    dofs = getindex!(cache,acell_to_dof_ids,acell)
+    acellin = acell_to_acellin[acell]
+    dofs = getindex!(cache,acell_to_dof_ids,acellin)
     p = aggdof_to_dofs_ptrs[aggdof]-1
     for (i,dof) in enumerate(dofs)
       aggdof_to_dofs_data[p+i] = dof

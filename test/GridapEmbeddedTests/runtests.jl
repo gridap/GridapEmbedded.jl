@@ -14,4 +14,6 @@ using Test
 
 @time @testset "StokesAgFEM" begin include("StokesAgFEMTests.jl") end
 
+@time @testset "TraceFEM" begin include("TraceFEMTests.jl") end
+
 end

@@ -9,88 +9,125 @@ struct EmbeddedFacetDiscretization{Dc,Dp,T} <: GridapType
 end
 
 function SkeletonTriangulation(cut::EmbeddedFacetDiscretization)
+  SkeletonTriangulation(cut,PHYSICAL_IN)
+end
+
+function SkeletonTriangulation(
+  cut::EmbeddedFacetDiscretization,
+  in_or_out)
+
   facets = SkeletonTriangulation(cut.bgmodel)
-  SkeletonTriangulation(cut,facets,cut.geo,(CUTIN,IN))
+  geo = cut.geo
+  SkeletonTriangulation(facets,cut,in_or_out,geo)
 end
 
-function SkeletonTriangulation(cut::EmbeddedFacetDiscretization,tags)
-  SkeletonTriangulation(cut,tags,cut.geo,(CUTIN,IN))
+function SkeletonTriangulation(cut::EmbeddedFacetDiscretization,name::String)
+  SkeletonTriangulation(cut,PHYSICAL_IN,name)
 end
 
-function SkeletonTriangulation(cut::EmbeddedFacetDiscretization,tags,name::String)
+function SkeletonTriangulation(cut::EmbeddedFacetDiscretization,geo::CSG.Geometry)
+  SkeletonTriangulation(cut,PHYSICAL_IN,geo)
+end
+
+function SkeletonTriangulation(
+  cut::EmbeddedFacetDiscretization,
+  in_or_out,
+  name::String)
+
+  facets = SkeletonTriangulation(cut.bgmodel)
   geo = get_geometry(cut.geo,name)
-  SkeletonTriangulation(cut,tags,geo)
+  SkeletonTriangulation(facets,cut,in_or_out,geo)
 end
 
 function SkeletonTriangulation(
-  cut::EmbeddedFacetDiscretization,tags,geo::CSG.Geometry)
-  SkeletonTriangulation(cut,tags,geo,(CUTIN,IN))
-end
+  cut::EmbeddedFacetDiscretization,
+  in_or_out,
+  geo::CSG.Geometry)
 
-function SkeletonTriangulation(cut::EmbeddedFacetDiscretization,tags,name::String,in_or_out)
-  geo = get_geometry(cut.geo,name)
-  SkeletonTriangulation(cut,tags,geo,in_or_out)
-end
-
-function SkeletonTriangulation(
-  cut::EmbeddedFacetDiscretization,tags,geo::CSG.Geometry,in_or_out)
-  facets = SkeletonTriangulation(cut.bgmodel,tags)
-  SkeletonTriangulation(cut,facets,geo,in_or_out)
+  facets = SkeletonTriangulation(cut.bgmodel)
+  SkeletonTriangulation(facets,cut,in_or_out,geo)
 end
 
 function SkeletonTriangulation(
-  cut::EmbeddedFacetDiscretization,facets::SkeletonTriangulation,geo::CSG.Geometry,in_or_out)
+  facets::SkeletonTriangulation,
+  cut::EmbeddedFacetDiscretization,
+  in_or_out,
+  geo::CSG.Geometry)
+
   facets1 = facets.⁺
   facets2 = facets.⁻
-  trian1 = BoundaryTriangulation(cut,facets1,geo,in_or_out)
-  trian2 = BoundaryTriangulation(cut,facets2,geo,in_or_out)
+  trian1 = BoundaryTriangulation(facets1,cut,in_or_out,geo)
+  trian2 = BoundaryTriangulation(facets2,cut,in_or_out,geo)
   SkeletonTriangulation(trian1,trian2)
 end
 
-function BoundaryTriangulation(cut::EmbeddedFacetDiscretization)
-  facets = BoundaryTriangulation(cut.bgmodel)
-  BoundaryTriangulation(cut,facets,cut.geo,(CUTIN,IN))
-end
-
-function BoundaryTriangulation(cut::EmbeddedFacetDiscretization,tags)
-  BoundaryTriangulation(cut,tags,cut.geo,(CUTIN,IN))
-end
-
-function BoundaryTriangulation(cut::EmbeddedFacetDiscretization,tags,name::String)
-  geo = get_geometry(cut.geo,name)
-  BoundaryTriangulation(cut,tags,geo)
-end
-
-function BoundaryTriangulation(cut::EmbeddedFacetDiscretization,tags,geo::CSG.Geometry)
-  BoundaryTriangulation(cut,tags,geo,(CUTIN,IN))
-end
-
-function BoundaryTriangulation(cut::EmbeddedFacetDiscretization,tags,name::String,in_or_out)
-  geo = get_geometry(cut.geo,name)
-  BoundaryTriangulation(cut,tags,geo,in_or_out)
-end
-
-function BoundaryTriangulation(cut::EmbeddedFacetDiscretization,tags,geo::CSG.Geometry,in_or_out)
-  facets = BoundaryTriangulation(cut.bgmodel,tags=tags)
-  BoundaryTriangulation(cut,facets,geo,in_or_out)
+function BoundaryTriangulation(
+  cut::EmbeddedFacetDiscretization;
+  tags=nothing)
+  BoundaryTriangulation(cut,PHYSICAL_IN;tags=tags)
 end
 
 function BoundaryTriangulation(
   cut::EmbeddedFacetDiscretization,
-  facets::BoundaryTriangulation,
-  geo::CSG.Geometry,
-  in_or_out::Tuple)
+  in_or_out;
+  tags=nothing)
 
-  trian1 = BoundaryTriangulation(cut,facets,geo,in_or_out[1])
-  trian2 = BoundaryTriangulation(cut,facets,geo,in_or_out[2])
+  facets = BoundaryTriangulation(cut.bgmodel;tags=tags)
+  geo = cut.geo
+  BoundaryTriangulation(facets,cut,in_or_out,geo)
+end
+
+function BoundaryTriangulation(
+  cut::EmbeddedFacetDiscretization,
+  name::String;
+  tags=nothing)
+  BoundaryTriangulation(cut,PHYSICAL_IN,name;tags=tags)
+end
+
+function BoundaryTriangulation(
+  cut::EmbeddedFacetDiscretization,
+  geo::CSG.Geometry;
+  tags=nothing)
+  BoundaryTriangulation(cut,PHYSICAL_IN,geo;tags=tags)
+end
+
+function BoundaryTriangulation(
+  cut::EmbeddedFacetDiscretization,
+  in_or_out,
+  name::String;
+  tags=nothing)
+
+  facets = BoundaryTriangulation(cut.bgmodel;tags=tags)
+  geo = get_geometry(cut.geo,name)
+  BoundaryTriangulation(facets,cut,in_or_out,geo)
+end
+
+function BoundaryTriangulation(
+  cut::EmbeddedFacetDiscretization,
+  in_or_out,
+  geo::CSG.Geometry;
+  tags=nothing)
+
+  facets = BoundaryTriangulation(cut.bgmodel;tags=tags)
+  BoundaryTriangulation(facets,cut,in_or_out,geo)
+end
+
+function BoundaryTriangulation(
+  facets::BoundaryTriangulation,
+  cut::EmbeddedFacetDiscretization,
+  in_or_out::Tuple,
+  geo::CSG.Geometry)
+
+  trian1 = BoundaryTriangulation(facets,cut,in_or_out[1],geo)
+  trian2 = BoundaryTriangulation(facets,cut,in_or_out[2],geo)
   lazy_append(trian1,trian2)
 end
 
 function BoundaryTriangulation(
-  cut::EmbeddedFacetDiscretization,
   facets::BoundaryTriangulation,
-  geo::CSG.Geometry,
-  in_or_out::Integer)
+  cut::EmbeddedFacetDiscretization,
+  in_or_out::Integer,
+  geo::CSG.Geometry)
 
   bgfacet_to_inoutcut = compute_bgfacet_to_inoutcut(cut,geo)
   bgfacet_to_mask = lazy_map( a->a==in_or_out, bgfacet_to_inoutcut)
@@ -98,10 +135,21 @@ function BoundaryTriangulation(
 end
 
 function BoundaryTriangulation(
+  facets::BoundaryTriangulation,
   cut::EmbeddedFacetDiscretization,
+  in_or_out::ActiveInOrOut,
+  geo::CSG.Geometry)
+
+  bgfacet_to_inoutcut = compute_bgfacet_to_inoutcut(cut,geo)
+  bgfacet_to_mask = lazy_map( a->a==CUT || a==in_or_out.in_or_out, bgfacet_to_inoutcut)
+  _restrict_boundary_triangulation(cut.bgmodel,facets,bgfacet_to_mask)
+end
+
+function BoundaryTriangulation(
   _facets::BoundaryTriangulation,
-  geo::CSG.Geometry,
-  in_or_out::CutInOrOut)
+  cut::EmbeddedFacetDiscretization,
+  in_or_out::CutInOrOut,
+  geo::CSG.Geometry)
 
   bgfacet_to_inoutcut = compute_bgfacet_to_inoutcut(cut,geo)
   bgfacet_to_mask = lazy_map( a->a==CUT, bgfacet_to_inoutcut)
@@ -168,7 +216,7 @@ function compute_subfacet_to_inout(cut::EmbeddedFacetDiscretization,geo::CSG.Geo
   compute_inoutcut(newtree)
 end
 
-struct SubFacetBoundaryTriangulation{Dc,Dp,T} <: Grid{Dc,Dp}
+struct SubFacetBoundaryTriangulation{Dc,Dp,T} <: Triangulation{Dc,Dp}
   facets::BoundaryTriangulation{Dc,Dp}
   subfacets::SubCellData{Dc,Dp,T}
   subfacet_to_facet::AbstractArray
@@ -177,6 +225,7 @@ struct SubFacetBoundaryTriangulation{Dc,Dp,T} <: Grid{Dc,Dp}
   cell_ids
   cell_normals
   cell_ref_map
+  subgrid
 
   function SubFacetBoundaryTriangulation(
     facets::BoundaryTriangulation{Dc,Dp},
@@ -186,10 +235,13 @@ struct SubFacetBoundaryTriangulation{Dc,Dp,T} <: Grid{Dc,Dp}
     reffe = LagrangianRefFE(Float64,Simplex(Val{Dc}()),1)
     cell_types = fill(Int8(1),length(subfacets.cell_to_points))
     reffes = [reffe]
-    cell_ids = lazy_map(Reindex(get_cell_to_bgcell(facets)),subfacet_to_facet)
+    glue = get_glue(facets,Val(Dc+1))
+    subgrid = UnstructuredGrid(subfacets)
+
+    cell_ids = lazy_map(Reindex(glue.tface_to_mface),subfacet_to_facet)
     cell_normals = lazy_map(Reindex(get_facet_normal(facets)),subfacet_to_facet)
-    subfacet_to_facet_map = _setup_cell_ref_map(subfacets,reffe,cell_types)
-    face_ref_map = lazy_map(Reindex(get_cell_ref_map(facets)),subfacet_to_facet)
+    subfacet_to_facet_map = _setup_cell_ref_map(subfacets,subgrid)
+    face_ref_map = lazy_map(Reindex(glue.tface_to_mface_map),subfacet_to_facet)
     cell_ref_map = lazy_map(∘,face_ref_map,subfacet_to_facet_map)
     
     new{Dc,Dp,T}(
@@ -200,17 +252,42 @@ struct SubFacetBoundaryTriangulation{Dc,Dp,T} <: Grid{Dc,Dp}
       cell_types,
       cell_ids,
       cell_normals,
-      cell_ref_map)
+      cell_ref_map,
+      subgrid)
   end
 end
 
-get_node_coordinates(trian::SubFacetBoundaryTriangulation) = trian.subfacets.point_to_coords
-get_cell_node_ids(trian::SubFacetBoundaryTriangulation) = trian.subfacets.cell_to_points
-get_reffes(trian::SubFacetBoundaryTriangulation) = trian.reffes
-get_cell_type(trian::SubFacetBoundaryTriangulation) = trian.cell_types
-get_facet_normal(trian::SubFacetBoundaryTriangulation) = trian.cell_normals
-get_cell_to_bgcell(trian::SubFacetBoundaryTriangulation) = trian.cell_ids
-TriangulationStyle(::Type{<:SubFacetBoundaryTriangulation}) = SubTriangulation()
-get_background_triangulation(trian::SubFacetBoundaryTriangulation) = get_background_triangulation(trian.facets)
-get_cell_ref_map(trian::SubFacetBoundaryTriangulation) = trian.cell_ref_map
+function get_background_model(a::SubFacetBoundaryTriangulation)
+  get_background_model(a.facets)
+end
+
+function get_active_model(a::SubFacetBoundaryTriangulation)
+  msg = """
+  This is not implemented, but also not needed in practice.
+  Embedded Grids implemented for integration, not interpolation.
+  """
+  @notimplemented  msg
+end
+
+function get_grid(a::SubFacetBoundaryTriangulation)
+  a.subgrid
+end
+
+function get_glue(a::SubFacetBoundaryTriangulation{Dc},::Val{D}) where {Dc,D}
+  if D == Dc
+    tface_to_mface = a.subfacets.cell_to_bgcell
+    tface_to_mface_map = _setup_cell_ref_map(a.subfacets,a.subgrid)
+    FaceToFaceGlue(tface_to_mface,tface_to_mface_map,nothing)
+  elseif D-1 == Dc
+    tface_to_mface = a.cell_ids
+    tface_to_mface_map = a.cell_ref_map
+    FaceToFaceGlue(tface_to_mface,tface_to_mface_map,nothing)
+  else
+    nothing
+  end
+end
+
+function get_facet_normal(trian::SubFacetBoundaryTriangulation)
+  trian.cell_normals
+end
 

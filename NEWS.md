@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0] - 2021-11-03
+
+### Changed
+
+ - Switch to Gridap 0.17. This required some changes in the user API. In particular, one needs to specify now if you want to build a triangulation of the "physical" domain or of the "active" domain. E.g, `Triangulation(cutgeo,PHYSICAL)` or `Triangulation(cutgeo,ACTIVE)`. Taking advantage that one can define FE spaces on "body-fitted" triangulation in Gridap v0.17, the user builds the FE space in embedded simulation by using the "active" triangulation.
+
 ## [0.7.0] - 2021-06-29
 
 ### Changed

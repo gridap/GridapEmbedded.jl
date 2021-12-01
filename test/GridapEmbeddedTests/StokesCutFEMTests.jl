@@ -46,10 +46,10 @@ cutgeo = cut(bgmodel,geo1)
 cutgeo_facets = cut_facets(bgmodel,geo1)
 
 # Generate the "active" model
-model = DiscreteModel(cutgeo)
+Ω_act = Triangulation(cutgeo,ACTIVE)
 
 # Setup integration meshes
-Ω = Triangulation(cutgeo)
+Ω = Triangulation(cutgeo,PHYSICAL)
 Γ = EmbeddedBoundary(cutgeo)
 Γg = GhostSkeleton(cutgeo)
 Γi = SkeletonTriangulation(cutgeo_facets)
@@ -72,8 +72,8 @@ dΓi = Measure(Γi,degree)
 reffe_u = ReferenceFE(lagrangian,VectorValue{D,Float64},order,space=:P)
 reffe_p = ReferenceFE(lagrangian,Float64,order,space=:P)
 
-V = TestFESpace(model,reffe_u,conformity=:H1)
-Q = TestFESpace(model,reffe_p,conformity=:H1,constraint=:zeromean)
+V = TestFESpace(Ω_act,reffe_u,conformity=:H1)
+Q = TestFESpace(Ω_act,reffe_p,conformity=:H1,constraint=:zeromean)
 
 U = TrialFESpace(V)
 P = TrialFESpace(Q)

@@ -23,17 +23,18 @@ partition = (n,n)
 
 # Setup background model
 bgmodel = simplexify(CartesianDiscreteModel(domain,partition))
+Ω_bg = Triangulation(bgmodel)
 
 # Cut the background model
 cutgeo = cut(bgmodel,union(geo1,geo2))
 
-# Setup models
-model1 = DiscreteModel(cutgeo,geo1)
-model2 = DiscreteModel(cutgeo,geo2)
+# Setup interpolation meshes
+Ω1_act = Triangulation(cutgeo,ACTIVE,geo1)
+Ω2_act = Triangulation(cutgeo,ACTIVE,geo2)
 
 # Setup integration meshes
-Ω1 = Triangulation(cutgeo,geo1)
-Ω2 = Triangulation(cutgeo,geo2)
+Ω1 = Triangulation(cutgeo,PHYSICAL,geo1)
+Ω2 = Triangulation(cutgeo,PHYSICAL,geo2)
 Γ = EmbeddedBoundary(cutgeo,geo1,geo2)
 Γd = EmbeddedBoundary(cutgeo,geo3)
 Γg = GhostSkeleton(cutgeo,geo3)
@@ -54,8 +55,8 @@ dΓg = Measure(Γg,degree)
 
 # Setup FESpace
 
-V1 = TestFESpace(model1,ReferenceFE(lagrangian,Float64,order),conformity=:H1)
-V2 = TestFESpace(model2,ReferenceFE(lagrangian,Float64,order),conformity=:H1)
+V1 = TestFESpace(Ω1_act,ReferenceFE(lagrangian,Float64,order),conformity=:H1)
+V2 = TestFESpace(Ω2_act,ReferenceFE(lagrangian,Float64,order),conformity=:H1)
 
 U1 = TrialFESpace(V1)
 U2 = TrialFESpace(V2)
@@ -64,14 +65,14 @@ U = MultiFieldFESpace([U1,U2])
 
 # Setup stabilization parameters
 
-meas_K1 = get_cell_measure(Ω1)
-meas_K2 = get_cell_measure(Ω2)
-meas_KΓ = get_cell_measure(Γ)
+meas_K1 = get_cell_measure(Ω1, Ω_bg)
+meas_K2 = get_cell_measure(Ω2, Ω_bg)
+meas_KΓ = get_cell_measure(Γ, Ω_bg)
 
 γ_hat = 2
-κ1 = (α2*meas_K1) ./ (α2*meas_K1 .+ α1*meas_K2)
-κ2 = (α1*meas_K2) ./ (α2*meas_K1 .+ α1*meas_K2)
-β = (γ_hat*meas_KΓ) ./ ( meas_K1/α1 .+ meas_K2/α2 )
+κ1 = CellField( (α2*meas_K1) ./ (α2*meas_K1 .+ α1*meas_K2), Ω_bg)
+κ2 = CellField( (α1*meas_K2) ./ (α2*meas_K1 .+ α1*meas_K2), Ω_bg)
+β = CellField( (γ_hat*meas_KΓ) ./ ( meas_K1/α1 .+ meas_K2/α2 ), Ω_bg)
 
 h = (domain[2]-domain[1])/n
 γd = 10.0
