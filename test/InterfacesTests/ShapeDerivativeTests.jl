@@ -1,51 +1,41 @@
-module ShapeDerivativeTests
+module ShapeDiff
 
-using ForwardDiff
+#using ForwardDiff
+using ReverseDiff
 using GridapEmbedded
 using GridapEmbedded.LevelSetCutters
 using Gridap
 using Gridap.ReferenceFEs
 using Gridap.Arrays
 
-L=1
-n = 5
-dimensions = 2; domain = (0,L,0,L); cells=(n,n)
+domain = (0,1,0,1); cells=(10,10)
 bgmodel = CartesianDiscreteModel(domain,cells)
+
 point_to_coords = collect1d(get_node_coordinates(bgmodel))
+geo1 = disk(0.3,x0=Point(0.5,0.5))
+geo1_d = discretize(geo1,bgmodel) 
+lvl_set = geo1_d.tree.data[1]
 
-geoc = disk(L/4,x0=Point(L/2,L/2)) 
-geoc = discretize(geoc,bgmodel)
-ϕ = geoc.tree.data[1] # signed distance function
+geo = DiscreteGeometry(lvl_set,point_to_coords,name="")
+order=1
 
-geo = DiscreteGeometry(ϕ,point_to_coords,name="")
-cutgeo = cut(bgmodel,geo)
-
-Ω = Triangulation(cutgeo)
-
-order = 1
-model = DiscreteModel(cutgeo)
-V = TestFESpace(model,ReferenceFE(lagrangian,Float64,order),conformity=:H1)
-u(x) = x[1]^2 - x[2]
-uₕ = interpolate(u,V) 
-
-function f(ϕ)
-  ϕ = collect1d(ϕ)
-  geo = DiscreteGeometry(ϕ,point_to_coords,name="")
+function residual(ϕₘ)
+  lvl_set = collect1d(ϕₘ)
+  geo = DiscreteGeometry(lvl_set,point_to_coords,name="")
   cutgeo = cut(bgmodel,geo)
-  Ω = Triangulation(cutgeo)
-  degree = 2*order
-  dΩ = Measure(Ω,degree)
-  sum(∫(uₕ)dΩ)
+  Ω = Triangulation(cutgeo,PHYSICAL)
+  Ω1_act = Triangulation(cutgeo,ACTIVE)
+  dΩ = Measure(Ω,2)
+  Vstd = FESpace(Ω1_act,ReferenceFE(lagrangian,Float64,order),conformity=:H1)  
+  u0=interpolate(1,Vstd)
+  sum(∫(u0)dΩ)
 end
 
-df(ϕ) = ForwardDiff.gradient(f,ϕ) # gradient of an integral wrt the signed distance function
+residual(lvl_set)
 
-df(ϕ)
-
-using FiniteDifferences
-using Test
-dfFD(ϕ) = grad(central_fdm(2, 1), f, ϕ)[1]
-tol=1e-8
-@test sum((df(ϕ)) - (dfFD(ϕ))) < tol
+ϕ = lvl_set
+ϕₘ =  reshape(ϕ,(length(ϕ),1))
+#dϕₘ = ForwardDiff.gradient(residual,ϕₘ)
+dϕₘ = ReverseDiff.gradient(residual,ϕₘ)
 
 end 
