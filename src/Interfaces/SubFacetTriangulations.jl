@@ -1,7 +1,7 @@
 
-struct SubFacetData{Dp,T} <: GridapType
+struct SubFacetData{Dp,T,Tn} <: GridapType
   facet_to_points::Table{Int32,Vector{Int32},Vector{Int32}}
-  facet_to_normal::Vector{Point{Dp,T}}
+  facet_to_normal::Vector{Point{Dp,Tn}}
   facet_to_bgcell::Vector{Int32}
   point_to_coords::Vector{Point{Dp,T}}
   point_to_rcoords::Vector{Point{Dp,T}}
@@ -131,10 +131,10 @@ function merge_sub_face_data(ls_to_subfacets,ls_to_ls_to_facet_to_inout)
   fst, ls_to_facet_to_inout
 end
 
-function Base.empty(st::SubFacetData{Dp,T}) where {Dp,T}
+function Base.empty(st::SubFacetData{Dp,T,Tn}) where {Dp,T,Tn}
 
   facet_to_points = Table(Int32[],Int32[1,])
-  facet_to_normal = Point{Dp,T}[]
+  facet_to_normal = Point{Dp,Tn}[]
   facet_to_bgcell = Int32[]
   point_to_coords = Point{Dp,T}[]
   point_to_rcoords = Point{Dp,T}[]

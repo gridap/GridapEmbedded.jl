@@ -1,9 +1,9 @@
 
-struct SubCellData{Dr,Dp,T} <: GridapType
+struct SubCellData{Dr,Dp,Tp,Tr} <: GridapType
   cell_to_points::Table{Int32,Vector{Int32},Vector{Int32}}
   cell_to_bgcell::Vector{Int32}
-  point_to_coords::Vector{Point{Dp,T}}
-  point_to_rcoords::Vector{Point{Dr,T}}
+  point_to_coords::Vector{Point{Dp,Tp}}
+  point_to_rcoords::Vector{Point{Dr,Tr}}
 end
 
 function SubCellData(st::SubCellData,newcells::AbstractVector{<:Integer})
