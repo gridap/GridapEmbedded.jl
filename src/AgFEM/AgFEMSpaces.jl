@@ -56,7 +56,7 @@ function _setup_agfem_constraints(
   n_acells = length(acell_to_acellin)
   fdof_to_isagg = fill(true,n_fdofs)
   fdof_to_acell = zeros(Int32,n_fdofs)
-  fdof_to_ldof = zeros(Int8,n_fdofs)
+  fdof_to_ldof = zeros(Int16,n_fdofs)
   cache = array_cache(acell_to_dof_ids)
   for acell in 1:n_acells
     acellin = acell_to_acellin[acell]
