@@ -46,3 +46,5 @@ end
 @publish AgFEM color_aggregates
 @publish AgFEM AggregateCutCellsByThreshold
 @publish AgFEM AggregateAllCutCells
+@publish AgFEM compute_cell_bboxes
+@publish AgFEM compute_cell_to_dface_bboxes
