@@ -68,7 +68,7 @@ jobs:
           PYTHON: ""
       - run: |
           julia --color=yes --project=. --check-bounds=yes --depwarn=error -e '
-            using Pkg; Pkg.instantiate()'
+            using Pkg; ENV["PYTHON"]=""; Pkg.instantiate()'
       - run: |
           julia --color=yes --project=. --check-bounds=yes --depwarn=error -e '
             (1,) .== 1; include("test/GridapEmbeddedTests/runtests.jl")'
