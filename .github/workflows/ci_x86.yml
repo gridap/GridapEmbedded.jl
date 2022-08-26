@@ -36,9 +36,6 @@ jobs:
             ${{ runner.os }}-test-
             ${{ runner.os }}-
       - uses: julia-actions/julia-buildpkg@v1
-<<<<<<< HEAD
         env:
           PYTHON: ""
-=======
->>>>>>> dd2cb69bc649fed0decd77f6185394f3989660af
       - uses: julia-actions/julia-runtest@v1
