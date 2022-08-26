@@ -14,5 +14,4 @@ using Delaunay
 
   include(joinpath(@__DIR__,"..","examples","runexamples.jl"))
 
-
 end # module
