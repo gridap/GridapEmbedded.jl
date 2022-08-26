@@ -83,6 +83,7 @@ jobs:
       - run: |
           julia --project=docs -e '
             using Pkg
+            ENV["PYTHON"]=""
             Pkg.develop(PackageSpec(path=pwd()))
             Pkg.instantiate()'
 #      - run: |
