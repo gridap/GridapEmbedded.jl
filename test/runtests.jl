@@ -2,9 +2,7 @@ module RunTests
 
 using Test
 
-using MiniQhull
-
-if MiniQhull.QHULL_WRAPPER_LOADED[]
+using Delaunay
 
   @time @testset "CSG" begin include("CSGTests/runtests.jl") end
 
@@ -15,10 +13,5 @@ if MiniQhull.QHULL_WRAPPER_LOADED[]
   @time @testset "AgFEM" begin include("AgFEMTests/runtests.jl") end
 
   include(joinpath(@__DIR__,"..","examples","runexamples.jl"))
-
-else
-  @warn "MiniQhull not properly installed. Tests are not executed."
-
-end
 
 end # module

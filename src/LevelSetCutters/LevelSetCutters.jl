@@ -17,7 +17,7 @@ using GridapEmbedded.Interfaces: merge_sub_face_data
 using GridapEmbedded.Interfaces: compute_inoutcut
 
 using LinearAlgebra
-using MiniQhull
+using Delaunay
 
 using Gridap.TensorValues
 using Gridap.ReferenceFEs

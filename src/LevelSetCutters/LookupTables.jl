@@ -8,7 +8,7 @@ struct LookupTable{D,T}
   case_to_subfacet_to_points::Vector{Vector{Vector{Int}}}
   case_to_subfacet_to_normal::Vector{Vector{VectorValue{D,T}}}
   case_to_subfacet_to_orientation::Vector{Vector{T}}
-  case_to_point_to_coordinates::Vector{Vector{VectorValue{D,T}}} 
+  case_to_point_to_coordinates::Vector{Vector{VectorValue{D,T}}}
   case_to_inoutcut::Vector{Int}
 end
 
@@ -155,14 +155,14 @@ end
 
 function _delaunay(points::Vector{Point{D,T}}) where {D,T}
   n = length(points)
-  m = zeros(T,D,n)
+  m = zeros(T,n,D)
   for (i,p) in enumerate(points)
     for (j,pj) in enumerate(p)
-      m[j,i] = pj
+      m[i,j] = pj
     end
   end
-  cells = delaunay(m)
-  [ Vector{Int}(cells[:,k]) for k in 1:size(cells,2)]
+  cells = delaunay(m).simplices
+  [ Vector{Int}(cells[k,:]) for k in 1:size(cells,1)]
 end
 
 function _ensure_positive_jacobians!(subcell_to_points,point_to_coords,p::Polytope)
@@ -370,4 +370,3 @@ function _orthogonal_vector(v1::VectorValue{4},v2::VectorValue{4},v3::VectorValu
     w4 = (v11*v23*v32 - v11*v22*v33 + v12*v21*v33 - v12*v23*v31 - v13*v21*v32 + v13*v22*v31)
   VectorValue(w1,w2,w3,w4)
 end
-

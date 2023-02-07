@@ -64,6 +64,8 @@ jobs:
             ${{ runner.os }}-test-
             ${{ runner.os }}-
       - uses: julia-actions/julia-buildpkg@v1
+        env:
+          PYTHON: ""
       - run: |
           julia --color=yes --project=. --check-bounds=yes --depwarn=error -e '
             using Pkg; Pkg.instantiate()'
