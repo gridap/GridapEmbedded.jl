@@ -217,10 +217,6 @@ function compute_monomial_domain_contribution(cut,
   compute_monomial_domain_contribution(cut,cut.geo,in_or_out,b,deg)
 end
 
-function cut_facets(cut::EmbeddedDiscretization,geo::CSG.Geometry)
-  cut_facets(cut.bgmodel,geo)
-end
-
 function compute_monomial_domain_contribution(cut,
                                               geo::CSG.Geometry,
                                               in_or_out::Integer,
