@@ -30,6 +30,9 @@ using GridapEmbedded.LevelSetCutters: _check_and_get_polytope
 import Gridap.Arrays: return_type
 import Gridap.Arrays: return_cache
 import Gridap.Arrays: evaluate!
+import Gridap.Polynomials: get_order
+import Gridap.Polynomials: get_orders
+import Gridap.Polynomials: get_exponents
 
 export MomentFittingMeasures
 export MomentFittingQuad

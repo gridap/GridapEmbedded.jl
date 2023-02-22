@@ -2,6 +2,8 @@ module MomentFittingTests
 
 using Test
 
-@testset "MomentFitting" begin include("MomentFittingTests.jl") end
+@testset "CutCellMoments" begin include("CutCellMomentsTests.jl") end
+
+@testset "JacobiPolynomialBases" begin include("JacobiPolynomialBasesTests.jl") end
 
 end # module

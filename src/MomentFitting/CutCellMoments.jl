@@ -18,45 +18,6 @@ function CutCellMoments(trian::Triangulation,
   CutCellMoments(data,bgcell_to_cut_cell)
 end
 
-function MomentFittingMeasures(cut,degree::Int)
-  MomentFittingMeasures(cut,cut.geo,degree)
-end
-
-function MomentFittingMeasures(cut,in_or_out,degree::Int)
-  MomentFittingMeasures(cut,cut.geo,in_or_out,degree)
-end
-
-function MomentFittingMeasures(cut,geo::CSG.Geometry,degree::Int)
-  MomentFittingMeasures(cut,cut.geo,IN,degree)
-end
-
-function MomentFittingMeasures(cut,
-                               geo::CSG.Geometry,
-                               in_or_out,
-                               degree::Int)
-
-  Ωᶜ = Triangulation(cut,CUT,geo)
-  Ωⁱ = Triangulation(cut,in_or_out,geo)
-
-  ccell_to_point_vals, ccell_to_weight_vals = #
-    compute_lag_moments_from_leg(cut,cut.geo,in_or_out,degree)
-  ccell_to_weight_vals = collect(get_array(ccell_to_weight_vals))
-
-  nq = num_cells(Ωᶜ)
-  ptrs = collect(1:nq)
-  ccell_to_point = Fill(ccell_to_point_vals,nq)
-  ccell_to_weight = CompressedArray(ccell_to_weight_vals,ptrs)
-  ccell_to_quad = map(1:nq) do i
-    GenericQuadrature(ccell_to_point[i],ccell_to_weight[i])
-  end
-
-  dΩᶜ = CellQuadrature( #
-    ccell_to_quad,ccell_to_point,ccell_to_weight,Ωᶜ,ReferenceDomain())
-  dΩⁱ = CellQuadrature(Ωⁱ,degree)
-  Measure(dΩᶜ), Measure(dΩⁱ), Measure(lazy_append(dΩᶜ,dΩⁱ))
-
-end
-
 function MomentFittingQuad(active_mesh::Triangulation,
                            cut,
                            degree::Int)
@@ -117,40 +78,6 @@ function MomentFittingQuad(active_mesh::Triangulation,
     acell_to_quad,acell_to_point,acell_to_weight,active_mesh,ReferenceDomain())
 end
 
-# function compute_lag_moments(cut::EmbeddedDiscretization{D,T},
-#                              deg::Int) where{D,T}
-#   t = Triangulation(cut,cut.geo,CUT_IN)
-#   b = JacobiPolynomialBasis{D}(T,deg)
-#   p = check_and_get_polytope(cut)
-#   orders = tfill(deg,Val{D}())
-#   nodes, _ = compute_nodes(p,orders)
-#   dofs = LagrangianDofBasis(T,nodes)
-#   change = evaluate(dofs,b)
-#   println(cond(change))
-#   rtol = sqrt(eps(real(float(one(eltype(change))))))
-#   change = pinv(change,rtol=rtol)
-#   l = linear_combination(change,b)
-#   v = Fill(l,num_cells(t))
-#   dt = CellQuadrature(t,deg*D)
-#   x_gp_ref_1d = dt.cell_point
-#   cell_map = get_cell_ref_map(t)
-#   x_gp_ref = lazy_map(evaluate,cell_map,x_gp_ref_1d)
-#   v_gp_ref = lazy_map(evaluate,v,x_gp_ref)
-#   cell_Jt = lazy_map(∇,cell_map)
-#   cell_Jtx = lazy_map(evaluate,cell_Jt,x_gp_ref_1d)
-#   I_v_in_t = lazy_map(IntegrationMap(),v_gp_ref,dt.cell_weight,cell_Jtx)
-#   cbgm = DiscreteModel(cut,cut.geo,CUT)
-#   moments = [ zero(first(I_v_in_t)) for i in 1:num_cells(cbgm) ]
-#   cell_to_bgcell = get_cell_to_bgcell(t)
-#   cell_to_parent_cell = get_cell_to_parent_cell(cbgm)
-#   bgcell_to_cell = zeros(Int32,num_cells(get_parent_model(cbgm)))
-#   bgcell_to_cell[cell_to_parent_cell] .= 1:length(cell_to_parent_cell)
-#   for i in 1:num_cells(t)
-#     moments[bgcell_to_cell[cell_to_bgcell[i]]] += I_v_in_t[i]
-#   end
-#   nodes, moments
-# end
-
 function Pᵢ(i::Int)
   P = []
   a = (-1)^i
@@ -197,18 +124,6 @@ function compute_lag_moments_from_leg(cut,
   lag_moments = lazy_map(*,lag_to_leg,leg_moments)
   lag_nodes, lag_moments
 end
-
-# function compute_cell_moments(cut::EmbeddedDiscretization{D,T},
-#                               degree::Int) where{D,T}
-#   bgtrian = Triangulation(cut.bgmodel)
-#   b = MonomialBasis{D}(T,degree)
-#   cut_bgmodel = DiscreteModel(cut,cut.geo,CUT)
-#   mon_contribs = compute_monomial_domain_contribution(cut,b,degree)
-#   mon_moments = compute_monomial_cut_cell_moments(cut_bgmodel,mon_contribs,b)
-#   lag_nodes, lag_to_mon = get_nodes_and_change_of_basis(cut_bgmodel,cut,b,degree)
-#   lag_moments = lazy_map(*,lag_to_mon,mon_moments)
-#   lag_nodes, lag_moments, mon_moments, lag_to_mon
-# end
 
 function compute_monomial_domain_contribution(cut,
                                               in_or_out,

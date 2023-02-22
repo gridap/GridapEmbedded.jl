@@ -1,4 +1,4 @@
-module MomentFittingTest
+module CutCellMomentsTests
 
   using Test
   using Gridap
