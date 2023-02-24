@@ -140,26 +140,26 @@ function compute_monomial_domain_contribution(cut,
 
   cut_io = CutInOrOut(in_or_out)
   dir_Γᵉ = (-1)^(in_or_out==OUT)
+  cutf = cut_facets(cut,geo)
   # Embedded facets
   Γᵉ = EmbeddedBoundary(cut,geo)
   # Interior fitted cut facets
-  Λ  = GhostSkeleton(cut)
-  cutf = cut_facets(cut,geo)
-  Γᶠ = SkeletonTriangulation(Λ,cutf,cut_io,geo)
+  Γᶠ = SkeletonTriangulation(cutf,cut_io,geo)
   # Boundary fitted cut facets
-  Γᵒ = BoundaryTriangulation(cutf,cut_io)
+  Γᵒ = BoundaryTriangulation(cutf,cut_io,geo)
   # Interior non-cut facets
-  Γᵇ = SkeletonTriangulation(Λ,cutf,in_or_out,geo)
+  Γᵇ = SkeletonTriangulation(cutf,in_or_out,geo)
   # Boundary non-cut facets
-  Λ  = BoundaryTriangulation(cut.bgmodel)
-  Γᵖ = BoundaryTriangulation(Λ,cutf,in_or_out,geo)
+  Γᵖ = BoundaryTriangulation(cutf,in_or_out,geo)
 
   D = num_dims(cut.bgmodel)
   @check num_cells(Γᵉ) > 0
   J = int_c_b(Γᵉ,b,deg*D)*dir_Γᵉ +
-      int_c_b(Γᶠ.⁺,b,deg*D) + int_c_b(Γᶠ.⁻,b,deg*D)
+      int_c_b(Γᶠ.⁺,b,deg*D) +
+      int_c_b(Γᶠ.⁻,b,deg*D)
   if num_cells(Γᵇ) > 0
-    J += int_c_b(Γᵇ.⁺,b,deg) + int_c_b(Γᵇ.⁻,b,deg)
+    J += int_c_b(Γᵇ.⁺,b,deg) +
+         int_c_b(Γᵇ.⁻,b,deg)
   end
   if num_cells(Γᵒ) > 0
     J += int_c_b(Γᵒ,b,deg*D)
@@ -327,4 +327,3 @@ function _get_terms_degrees(c::CartesianIndex)
   end
   d
 end
-
