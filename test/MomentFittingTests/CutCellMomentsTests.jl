@@ -5,12 +5,14 @@ module CutCellMomentsTests
   using GridapEmbedded
   using GridapEmbedded.MomentFitting
 
-  function run_test(domain,partition,geom,degree)
+  function run_test(domain,partition,geom,degree,in_or_out=IN)
+    physical = (in_or_out==IN) ? PHYSICAL_IN : PHYSICAL_OUT
+    active = (in_or_out==IN) ? ACTIVE_IN : ACTIVE_OUT
     bgmodel = CartesianDiscreteModel(domain,partition)
     cutgeo = cut(bgmodel,geom)
-    Ωᵃ = Triangulation(cutgeo,ACTIVE_IN,geom)
-    dΩᵃ = Measure(MomentFittingQuad(Ωᵃ,cutgeo,degree))
-    Ωᶜ = Triangulation(cutgeo)
+    Ωᵃ = Triangulation(cutgeo,active,geom)
+    dΩᵃ = Measure(MomentFittingQuad(Ωᵃ,cutgeo,in_or_out,degree))
+    Ωᶜ = Triangulation(cutgeo,physical)
     dΩᶜ = Measure(Ωᶜ,num_dims(bgmodel)*degree,degree)
     @test sum(∫(1)dΩᵃ) - sum(∫(1)dΩᶜ) + 1 ≈ 1
     if num_dims(bgmodel) == 2
@@ -55,6 +57,17 @@ module CutCellMomentsTests
   for deg in 1:10 # 19
     # println(deg)
     run_test(domain,partition,geom,deg)
+  end
+
+  # CASE 2D 4
+  n = 6
+  partition = (n,n)
+  domain = (0,1,0,1)
+  geom = disk(0.42,x0=Point(0.5,0.5))
+  # println("CASE 2D 4")
+  for deg in 1:10 # 19
+    # println(deg)
+    run_test(domain,partition,geom,deg,OUT)
   end
 
   # CASE 3D 1
