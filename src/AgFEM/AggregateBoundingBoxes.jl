@@ -1,25 +1,26 @@
 function init_bboxes(cell_to_coords)
   # RMK: Assuming first node is min and last node is max of BBox
-  [ map(x-> [ x[1], x[2] ], cell_to_coords ) ]
+  map(x-> [ x[1], x[end] ], vec(cell_to_coords) )
 end
 
-function init_bboxes(cell_to_coords,cut::EmbeddedDiscretization)
+function init_bboxes(cell_to_coords,cut::EmbeddedDiscretization,in_or_out)
   bgcell_to_cbboxes = init_bboxes(cell_to_coords)
   cut_bgtrian = Triangulation(cut,CUT,cut.geo)
   cut_bgmodel = get_active_model(cut_bgtrian)
   ccell_to_bgcell = get_cell_to_parent_cell(cut_bgmodel)
-  ccell_to_cbboxes = init_cut_bboxes(cut,ccell_to_bgcell)
+  ccell_to_cbboxes = init_cut_bboxes(cut,ccell_to_bgcell,in_or_out)
   for (cc,cbb) in enumerate(ccell_to_cbboxes)
     bgcell_to_cbboxes[ccell_to_bgcell[cc]] = cbb
   end
   bgcell_to_cbboxes
 end
 
-function init_cut_bboxes(cut,ccell_to_bgcell)
+function init_cut_bboxes(cut,ccell_to_bgcell,in_or_out)
   subcell_to_inout   = compute_subcell_to_inout(cut,cut.geo) # WARNING! This function has a bug
-  subcell_is_in      = lazy_map(i->i==IN,subcell_to_inout)
+  subcell_is_in      = lazy_map(i->i==in_or_out,subcell_to_inout)
+  subcell_to_bgcell  = cut.subcells.cell_to_bgcell
   inscell_to_subcell = findall(subcell_is_in)
-  inscell_to_bgcell  = lazy_map(Reindex(cut.subcells.cell_to_bgcell),inscell_to_subcell)
+  inscell_to_bgcell  = lazy_map(Reindex(subcell_to_bgcell),inscell_to_subcell)
   inscell_to_bboxes  = init_subcell_bboxes(cut,inscell_to_subcell)
   lazy_map(ccell_to_bgcell) do bg
     bg_to_scs = findall(map(x->x==bg,inscell_to_bgcell))
@@ -29,13 +30,12 @@ function init_cut_bboxes(cut,ccell_to_bgcell)
 end
 
 function init_subcell_bboxes(cut,inscell_to_subcell)
-  subcell_to_point   = cut.subcells.cell_to_points
-  point_to_coords    = cut.subcells.point_to_coords
+  subcell_to_points = cut.subcells.cell_to_points
+  point_to_coords   = cut.subcells.point_to_coords
   inscell_to_points = lazy_map(Reindex(subcell_to_points),inscell_to_subcell)
-  inscell_to_coords = lazy_map(inscell_to_points) do points
-    point_to_coords[points]
-  end
-  lazy_map(compute_subcell_bbox,insncell_to_coords)
+  inscell_to_coords = lazy_map( #
+    Broadcasting(Reindex(point_to_coords)),inscell_to_points)
+  lazy_map(compute_subcell_bbox,inscell_to_coords)
 end
 
 function compute_subcell_bbox(subcell_to_coords)
@@ -89,18 +89,27 @@ function compute_cell_bboxes(trian::Triangulation,cell_to_root)
   root_to_agg_bbox
 end
 
-function compute_cell_bboxes(model::DiscreteModelPortion,cut::EmbeddedDiscretization,cell_to_root)
-  compute_cell_bboxes(get_parent_model(model),cut,cell_to_root)
+function compute_cell_bboxes(model::DiscreteModelPortion,
+                             cut::EmbeddedDiscretization,
+                             cell_to_root,
+                             in_or_out)
+  compute_cell_bboxes(get_parent_model(model),cut,cell_to_root,in_or_out)
 end
 
-function compute_cell_bboxes(model::DiscreteModel,cut::EmbeddedDiscretization,cell_to_root)
+function compute_cell_bboxes(model::DiscreteModel,
+                             cut::EmbeddedDiscretization,
+                             cell_to_root,
+                             in_or_out)
   trian = Triangulation(model)
-  compute_cell_bboxes(trian,cut,cell_to_root)
+  compute_cell_bboxes(trian,cut,cell_to_root,in_or_out)
 end
 
-function compute_cell_bboxes(trian::Triangulation,cut::EmbeddedDiscretization,cell_to_root)
+function compute_cell_bboxes(trian::Triangulation,
+                             cut::EmbeddedDiscretization,
+                             cell_to_root,
+                             in_or_out)
   cell_to_coords = get_cell_coordinates(trian)
-  root_to_agg_bbox = init_bboxes(cell_to_coords,cut)
+  root_to_agg_bbox = init_bboxes(cell_to_coords,cut,in_or_out)
   compute_bboxes!(root_to_agg_bbox,cell_to_root)
   reset_bboxes_at_cut_cells!(root_to_agg_bbox,cell_to_root,cell_to_coords)
   root_to_agg_bbox
@@ -165,13 +174,26 @@ function compute_cell_to_dface_bboxes(model::DiscreteModelPortion,cell_to_root)
   bboxes[get_cell_to_parent_cell(model)]
 end
 
-function compute_cell_to_dface_bboxes(model::DiscreteModel,cut::EmbeddedDiscretization,cell_to_root)
-  cbboxes = compute_cell_bboxes(model,cut,cell_to_root)
+function compute_cell_to_dface_bboxes(model::DiscreteModel,
+                                      cut::EmbeddedDiscretization,
+                                      cell_to_root)
+  compute_cell_to_dface_bboxes(model,cut,cell_to_root,IN)
+end
+
+function compute_cell_to_dface_bboxes(model::DiscreteModel,
+                                      cut::EmbeddedDiscretization,
+                                      cell_to_root,
+                                      in_or_out)
+  cbboxes = compute_cell_bboxes(model,cut,cell_to_root,in_or_out)
   dbboxes = compute_bbox_dfaces(model,cbboxes)
   _compute_cell_to_dface_bboxes(model,dbboxes)
 end
 
-function compute_cell_to_dface_bboxes(model::DiscreteModelPortion,cut::EmbeddedDiscretization,cell_to_root)
-  bboxes = compute_cell_to_dface_bboxes(get_parent_model(model),cut,cell_to_root)
+function compute_cell_to_dface_bboxes(model::DiscreteModelPortion,
+                                      cut::EmbeddedDiscretization,
+                                      cell_to_root,
+                                      in_or_out)
+  pmodel = get_parent_model(model)
+  bboxes = compute_cell_to_dface_bboxes(pmodel,cut,cell_to_root,in_or_out)
   bboxes[get_cell_to_parent_cell(model)]
 end
