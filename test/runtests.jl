@@ -4,8 +4,13 @@ using Test
 
 using MiniQhull
 
-if MiniQhull.QHULL_WRAPPER_LOADED[]
+if hasproperty(MiniQhull,:QHULL_WRAPPER_LOADED)
+  QHULL_LOADED = MiniQhull.QHULL_WRAPPER_LOADED[]
+else
+  QHULL_LOADED = true
+end
 
+if QHULL_LOADED
   @time @testset "CSG" begin include("CSGTests/runtests.jl") end
 
   @time @testset "Interfaces" begin include("InterfacesTests/runtests.jl") end
