@@ -12,11 +12,6 @@ Embedded finite element methods, level set surface descriptions and constructive
 pkg> add GridapEmbedded 
 ```
 
-### Requirements
-
-This package has the same instalation requirements as [MiniQhull.jl](https://github.com/gridap/MiniQhull.jl).
-In particular, a recent version of the [Qhull library](http://www.qhull.org/) has to be installed in the system.
-
 ## Examples
 
 ### Constructive Solid Geometry (CSG)
