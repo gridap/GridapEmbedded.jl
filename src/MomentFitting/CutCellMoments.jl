@@ -19,20 +19,22 @@ function CutCellMoments(trian::Triangulation,
 end
 
 function MomentFittingQuad(active_mesh::Triangulation,
-                           cut,
+                           cut::AbstractEmbeddedDiscretization,
                            degree::Int)
-  MomentFittingQuad(active_mesh,cut,cut.geo,degree)
+  geo = get_geometry(cut)
+  MomentFittingQuad(active_mesh,cut,geo,degree)
 end
 
 function MomentFittingQuad(active_mesh::Triangulation,
-                           cut,
+                           cut::AbstractEmbeddedDiscretization,
                            in_or_out,
                            degree::Int)
-  MomentFittingQuad(active_mesh,cut,cut.geo,in_or_out,degree)
+  geo = get_geometry(cut)
+  MomentFittingQuad(active_mesh,cut,geo,in_or_out,degree)
 end
 
 function MomentFittingQuad(active_mesh::Triangulation,
-                           cut,
+                           cut::AbstractEmbeddedDiscretization,
                            geo::CSG.Geometry,
                            degree::Int)
 
@@ -40,7 +42,7 @@ function MomentFittingQuad(active_mesh::Triangulation,
 end
 
 function MomentFittingQuad(active_mesh::Triangulation,
-                           cut,
+                           cut::AbstractEmbeddedDiscretization,
                            geo::CSG.Geometry,
                            in_or_out,
                            degree::Int)
@@ -107,7 +109,7 @@ function legendreToMonomial(n::Int,d::Int)
   B
 end
 
-function compute_lag_moments_from_leg(cut,
+function compute_lag_moments_from_leg(cut::AbstractEmbeddedDiscretization,
                                       geo::CSG.Geometry,
                                       in_or_out,
                                       degree::Int)
@@ -125,14 +127,15 @@ function compute_lag_moments_from_leg(cut,
   lag_nodes, lag_moments
 end
 
-function compute_monomial_domain_contribution(cut,
+function compute_monomial_domain_contribution(cut::AbstractEmbeddedDiscretization,
                                               in_or_out,
                                               b::MonomialBasis,
                                               deg::Int)
-  compute_monomial_domain_contribution(cut,cut.geo,in_or_out,b,deg)
+  geo = get_geometry(cut)
+  compute_monomial_domain_contribution(cut,geo,in_or_out,b,deg)
 end
 
-function compute_monomial_domain_contribution(cut,
+function compute_monomial_domain_contribution(cut::AbstractEmbeddedDiscretization,
                                               geo::CSG.Geometry,
                                               in_or_out::Integer,
                                               b::MonomialBasis,
@@ -152,7 +155,7 @@ function compute_monomial_domain_contribution(cut,
   # Boundary non-cut facets
   Γᵖ = BoundaryTriangulation(cutf,in_or_out,geo)
 
-  D = num_dims(cut.bgmodel)
+  D = num_dims(get_background_model(cut))
   @check num_cells(Γᵉ) > 0
   J = int_c_b(Γᵉ,b,deg*D)*dir_Γᵉ +
       int_c_b(Γᶠ.⁺,b,deg*D) +
@@ -286,7 +289,7 @@ function add_facet_moments!(ccm::CutCellMoments,
 end
 
 function get_nodes_and_change_of_basis(model::Triangulation,
-                                       cut,
+                                       cut::AbstractEmbeddedDiscretization,
                                        b,
                                        degree::Int)
   D = num_dims(model)
@@ -312,8 +315,10 @@ function map_to_ref_space!(moments::AbstractArray,
   moments = lazy_map(Broadcasting(/),moments,detJt)
 end
 
-@inline function check_and_get_polytope(cut)
-  _check_and_get_polytope(cut.bgmodel.grid)
+@inline function check_and_get_polytope(cut::AbstractEmbeddedDiscretization)
+  bgmodel = get_background_model(cut)
+  grid = get_grid(bgmodel)
+  _check_and_get_polytope(grid)
 end
 
 @inline function get_terms_degrees(b::MonomialBasis)

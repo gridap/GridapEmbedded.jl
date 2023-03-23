@@ -25,6 +25,8 @@ using Gridap.Polynomials: _set_value!
 using GridapEmbedded.Interfaces: SubFacetTriangulation
 using GridapEmbedded.Interfaces: SubFacetBoundaryTriangulation
 using GridapEmbedded.Interfaces: CutInOrOut
+using GridapEmbedded.Interfaces: AbstractEmbeddedDiscretization
+using GridapEmbedded.Interfaces: get_geometry
 using GridapEmbedded.LevelSetCutters: _check_and_get_polytope
 
 import Gridap.Arrays: return_type
