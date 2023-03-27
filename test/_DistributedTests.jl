@@ -20,6 +20,10 @@ import GridapEmbedded.Interfaces: EmbeddedBoundary
 import GridapEmbedded.AgFEM: aggregate
 import GridapEmbedded.AgFEM: AgFEMSpace
 import GridapDistributed: local_views
+import GridapDistributed: remove_ghost_cells
+using GridapEmbedded.Interfaces: SubFacetTriangulation
+using Gridap.Geometry: AppendedTriangulation
+using Gridap.Arrays
 
 struct DistributedEmbeddedDiscretization{Dp,T,A,B} <: DistributedGridapType
   discretizations::A
@@ -36,10 +40,6 @@ end
 local_views(a::DistributedEmbeddedDiscretization) = a.discretizations
 
 get_background_model(a::DistributedEmbeddedDiscretization) = a.model
-
-
-# TODO: do not compute ghost cells
-#  map_parts(remove_ghost_cells,local_views(Ω),local_views(gids))
 
 function cut(cutter::Cutter,bgmodel::DistributedDiscreteModel,args...)
   discretizations = map_parts(local_views(bgmodel)) do lmodel
@@ -95,13 +95,27 @@ function global_aggregates(bgmodel::DistributedDiscreteModel,aggregates)
   end
 end
 
+function remove_ghost_cells(trian::DistributedTriangulation)
+  model = get_background_model(trian)
+  gids = get_cell_gids(model)
+  trians = map_parts(local_views(trian),local_views(gids)) do trian,gids
+    remove_ghost_cells(trian,gids)
+  end
+  DistributedTriangulation(trians,model)
+end
 
-#gids = map_parts(get_lid_to_gid,local_views(get_cell_gids(bgmodel)))
-#aggregates_gid = map_parts(aggregates,gids) do agg,gid
-#  map(Reindex(gid),agg)
-#end
-#_aggregates = PVector(aggregates_gid,get_cell_gids(bgmodel))
-#exchange(aggregates_gid,...)
+function remove_ghost_cells(trian::AppendedTriangulation,gids)
+  a = remove_ghost_cells(trian.a,gids)
+  b = remove_ghost_cells(trian.b,gids)
+  lazy_append(a,b)
+end
+
+function remove_ghost_cells(trian::SubFacetTriangulation,gids)
+  model = get_background_model(trian)
+  D     = num_cell_dims(model)
+  glue  = get_glue(trian,Val{D}())
+  remove_ghost_cells(glue,trian,gids)
+end
 
 partition = (2,2)
 
@@ -139,6 +153,12 @@ aggregates = aggregate(strategy,cutgeo)
 Ω_act = Triangulation(cutgeo,ACTIVE)
 Ω = Triangulation(cutgeo,PHYSICAL)
 Γ = EmbeddedBoundary(cutgeo)
+
+Γ = remove_ghost_cells(Γ)
+Ω = remove_ghost_cells(Ω)
+
+t1 = get_part(local_views(Ω),1)
+writevtk(t1,"t1")
 
 writevtk(Ω,"trian")
 writevtk(Ω_act,"trian_act")
@@ -181,20 +201,33 @@ eh1 = h1(e)
 ul2 = l2(uh)
 uh1 = h1(uh)
 
-# TODO: include ghost/owner information into aggregates and colors
 #
 colors = map_parts(color_aggregates,aggregates,local_views(bgmodel))
-gids = get_cell_gids(bgmodel)
-ohids = map_parts(get_lid_to_ohid,local_views(gids))
+cell_gids = get_cell_gids(bgmodel)
+ohids = map_parts(get_lid_to_ohid,local_views(cell_gids))
+gids = map_parts(get_lid_to_gid,local_views(cell_gids))
 oids = map_parts(i->findall(>(0),i),ohids)
-_aggregates = map_parts(aggregates,oids) do agg,oid
+
+_aggregates = map_parts(aggregates,gids) do agg,gid
+  map(i-> i==0 ? 0 : gid[i],agg)
+end
+_aggregates = map_parts(_aggregates,oids) do agg,oid
   map(Reindex(agg),oid)
 end
 _colors = map_parts(colors,oids) do col,oid
   map(Reindex(col),oid)
 end
+_gids = map_parts(gids,oids) do gid,oid
+  map(Reindex(gid),oid)
+end
 
-writevtk(Ω_bg,"trian",celldata=["aggregate"=>_aggregates,"color"=>_colors],cellfields=["uh"=>uh])
+writevtk(Ω_bg,"trian",
+  celldata=[
+    "aggregate"=>_aggregates,
+    "color"=>_colors,
+    "gid"=>_gids],
+  cellfields=["uh"=>uh])
+
 writevtk(Ω,"trian_O",cellfields=["uh"=>uh])
 writevtk(Γ,"trian_G")
 @test el2/ul2 < 1.e-8
