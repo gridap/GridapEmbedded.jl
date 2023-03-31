@@ -51,7 +51,8 @@ function _setup_agfem_constraints(
   acell_to_acellin,
   acell_to_dof_ids,
   acell_to_coeffs,
-  acell_to_proj)
+  acell_to_proj)#,
+#  acell_to_gcell)
 
   n_acells = length(acell_to_acellin)
   fdof_to_isagg = fill(true,n_fdofs)
@@ -62,12 +63,16 @@ function _setup_agfem_constraints(
     acellin = acell_to_acellin[acell]
     iscut = acell != acellin
     dofs = getindex!(cache,acell_to_dof_ids,acell)
+    # gcell = acell_to_gcell[acell]
     for (ldof,dof) in enumerate(dofs)
       if dof > 0
         fdof = dof
-        fdof_to_isagg[fdof] = iscut && fdof_to_isagg[fdof]
-        fdof_to_acell[fdof] = acell
-        fdof_to_ldof[fdof] = ldof
+        # gcell_dof = acell_to_gcell[fdof_to_acell[fdof]]
+        # if gcell > gcell_dof
+          fdof_to_acell[fdof] = acell
+          fdof_to_isagg[fdof] = iscut && fdof_to_isagg[fdof]
+          fdof_to_ldof[fdof] = ldof
+        # end
       end
     end
   end

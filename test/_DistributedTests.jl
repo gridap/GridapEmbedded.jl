@@ -1,4 +1,4 @@
-module DistributedPoissonTests
+#module DistributedPoissonTests
 
 using Gridap
 using GridapEmbedded
@@ -11,6 +11,7 @@ using GridapDistributed: DistributedGridapType
 using GridapDistributed: DistributedTriangulation
 using GridapDistributed: DistributedFESpace
 using GridapDistributed: generate_gids
+using GridapDistributed: generate_cell_gids
 
 import Gridap.Geometry: Triangulation
 import Gridap.Geometry: get_background_model
@@ -21,8 +22,14 @@ import GridapEmbedded.AgFEM: aggregate
 import GridapEmbedded.AgFEM: AgFEMSpace
 import GridapDistributed: local_views
 import GridapDistributed: remove_ghost_cells
+import GridapDistributed: dof_wise_to_cell_wise!
+import GridapDistributed: dof_wise_to_cell_wise
+import GridapDistributed: generate_gids
+import GridapDistributed: add_ghost_cells
 using GridapEmbedded.Interfaces: SubFacetTriangulation
 using Gridap.Geometry: AppendedTriangulation
+using Gridap.Geometry: FaceToFaceGlue
+using Gridap.FESpaces: SingleFieldFESpace
 using Gridap.Arrays
 
 struct DistributedEmbeddedDiscretization{Dp,T,A,B} <: DistributedGridapType
@@ -42,6 +49,10 @@ local_views(a::DistributedEmbeddedDiscretization) = a.discretizations
 get_background_model(a::DistributedEmbeddedDiscretization) = a.model
 
 function cut(cutter::Cutter,bgmodel::DistributedDiscreteModel,args...)
+  # TODO: do not compute ghost cells
+  #  - cut own_bgmodels
+  #  - set (local) bgmodels
+  #  - reindex bgcell/facet data
   discretizations = map_parts(local_views(bgmodel)) do lmodel
     cut(cutter,lmodel,args...)
   end
@@ -76,23 +87,35 @@ function aggregate(stragegy,cutgeo::DistributedEmbeddedDiscretization)
   # TODO: parallel aggregation here
 end
 
+#function AgFEMSpace(
+#    bgmodel::DistributedDiscreteModel,
+#    f::DistributedFESpace,
+#    bgcell_to_bgcellin::SequentialData{<:AbstractVector},
+#    g::DistributedFESpace=f)
+#
+#  fagg = map_parts(AgFEMSpace,local_views(f),bgcell_to_bgcellin,local_views(g))
+#  gids = generate_gids(bgmodel,fagg)
+#  vector_type = get_vector_type(f)
+#  DistributedSingleFieldFESpace(fagg,gids,vector_type)
+#end
+
+
 function AgFEMSpace(
     bgmodel::DistributedDiscreteModel,
     f::DistributedFESpace,
     bgcell_to_bgcellin::SequentialData{<:AbstractVector},
     g::DistributedFESpace=f)
 
-  fagg = map_parts(AgFEMSpace,local_views(f),bgcell_to_bgcellin,local_views(g))
-  gids = generate_gids(bgmodel,fagg)
-  vector_type = get_vector_type(f)
-  DistributedSingleFieldFESpace(fagg,gids,vector_type)
-end
-
-function global_aggregates(bgmodel::DistributedDiscreteModel,aggregates)
-  gids = map_parts(get_lid_to_gid,local_views(get_cell_gids(bgmodel)))
-  map_parts(gids,aggregates) do gid,agg
-    map( i ->i == 0 ? 0 : gid[i], agg)
-  end
+  spaces = map_parts(AgFEMSpace,local_views(f),bgcell_to_bgcellin,local_views(g))
+  trians = map_parts(get_triangulation,local_views(f))
+  trian = DistributedTriangulation(trians,bgmodel)
+  trian = add_ghost_cells(trian)
+  trian_gids = generate_cell_gids(trian)
+  cell_to_ldofs = map_parts(get_cell_dof_ids,spaces)
+  nldofs = map_parts(num_free_dofs,spaces)
+  gids = generate_gids(trian_gids,cell_to_ldofs,nldofs)
+  vector_type = _find_vector_type(spaces,gids)
+  DistributedSingleFieldFESpace(spaces,gids,vector_type)
 end
 
 function remove_ghost_cells(trian::DistributedTriangulation)
@@ -117,6 +140,9 @@ function remove_ghost_cells(trian::SubFacetTriangulation,gids)
   remove_ghost_cells(glue,trian,gids)
 end
 
+
+# Driver
+
 partition = (2,2)
 
 parts = get_part_ids(SequentialBackend(),partition)
@@ -125,15 +151,20 @@ u(x) = x[1] - x[2]
 f(x) = -Δ(u)(x)
 ud(x) = u(x)
 
-R = 0.5
-L = 0.8*(2*R)
+L = 1
 p0 = Point(0.0,0.0)
+pmin = p0-L/2
+pmax = p0+L/2
 
+
+R = 0.35
 geo = disk(R,x0=p0)
 
-t = 1.1
-pmin = p0-t*R
-pmax = p0+t*R
+R = 0.15
+d = L/4
+geo1 = disk(R,x0=p0-d)
+geo2 = disk(R,x0=p0+d)
+#geo = !union(geo1,geo2)
 
 n = 10
 mesh_partition = (n,n)
@@ -147,6 +178,7 @@ h = dp[1]/n
 cutgeo = cut(bgmodel,geo)
 
 strategy = AggregateAllCutCells()
+strategy = AggregateCutCellsByThreshold(0)
 aggregates = aggregate(strategy,cutgeo)
 
 Ω_bg = Triangulation(bgmodel)
@@ -154,14 +186,15 @@ aggregates = aggregate(strategy,cutgeo)
 Ω = Triangulation(cutgeo,PHYSICAL)
 Γ = EmbeddedBoundary(cutgeo)
 
+
+writevtk(Ω_bg,"trian")
+
+writevtk(Ω,"trian_O")
+writevtk(Γ,"trian_G")
+
 Γ = remove_ghost_cells(Γ)
 Ω = remove_ghost_cells(Ω)
 
-t1 = get_part(local_views(Ω),1)
-writevtk(t1,"t1")
-
-writevtk(Ω,"trian")
-writevtk(Ω_act,"trian_act")
 n_Γ = get_normal_vector(Γ)
 
 order = 1
@@ -225,12 +258,12 @@ writevtk(Ω_bg,"trian",
   celldata=[
     "aggregate"=>_aggregates,
     "color"=>_colors,
-    "gid"=>_gids],
-  cellfields=["uh"=>uh])
+    "gid"=>_gids])#,
+#  cellfields=["uh"=>uh])
 
 writevtk(Ω,"trian_O",cellfields=["uh"=>uh])
 writevtk(Γ,"trian_G")
 @test el2/ul2 < 1.e-8
 @test eh1/uh1 < 1.e-7
 
-end # module
+# end # module
