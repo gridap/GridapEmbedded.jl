@@ -48,3 +48,5 @@ end
 @publish AgFEM AggregateAllCutCells
 @publish AgFEM compute_cell_bboxes
 @publish AgFEM compute_cell_to_dface_bboxes
+
+@publish MomentFitting momentfitted

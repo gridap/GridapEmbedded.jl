@@ -8,6 +8,7 @@ using Gridap.Geometry
 using Gridap.Helpers
 using Gridap.Polynomials
 using Gridap.ReferenceFEs
+import Gridap.ReferenceFEs: Quadrature
 
 using GridapEmbedded.Interfaces
 using GridapEmbedded.CSG
@@ -36,8 +37,7 @@ import Gridap.Polynomials: get_order
 import Gridap.Polynomials: get_orders
 import Gridap.Polynomials: get_exponents
 
-export MomentFittingMeasures
-export MomentFittingQuad
+export momentfitted
 
 include("JacobiPolynomialBases.jl")
 

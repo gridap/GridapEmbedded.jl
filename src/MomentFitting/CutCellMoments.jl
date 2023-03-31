@@ -1,51 +1,25 @@
+struct MomentFitted <: QuadratureName end
+const momentfitted = MomentFitted()
 
-struct CutCellMoments
-  data::Vector{Vector{Float64}}
-  bgcell_to_cut_cell::Vector{Int32}
+function Quadrature(trian::Grid,::MomentFitted,args...;kwargs...)
+  @abstractmethod
 end
 
-function CutCellMoments(trian::Triangulation,
-                        facet_moments::DomainContribution)
-  fi = [ testitem(array) for (trian,array) in facet_moments.dict ]
-  li = map(length,fi)
-  @assert all(li .== first(li))
-  bgmodel = get_background_model(trian)
-  Dm = num_dims(bgmodel)
-  cell_to_parent_cell = get_glue(trian,Val{Dm}()).tface_to_mface
-  data = [ zero(first(fi)) for i in 1:length(cell_to_parent_cell) ]
-  bgcell_to_cut_cell = zeros(Int32,num_cells(bgmodel))
-  bgcell_to_cut_cell[cell_to_parent_cell] .= 1:length(cell_to_parent_cell)
-  CutCellMoments(data,bgcell_to_cut_cell)
-end
-
-function MomentFittingQuad(active_mesh::Triangulation,
-                           cut::AbstractEmbeddedDiscretization,
-                           degree::Int)
+function Quadrature(trian::Grid,
+                    ::MomentFitted,
+                    cut::AbstractEmbeddedDiscretization,
+                    degree::Int;
+                    in_or_out=IN)
   geo = get_geometry(cut)
-  MomentFittingQuad(active_mesh,cut,geo,degree)
+  Quadrature(trian,momentfitted,cut,geo,degree;in_or_out=in_or_out)
 end
 
-function MomentFittingQuad(active_mesh::Triangulation,
-                           cut::AbstractEmbeddedDiscretization,
-                           in_or_out,
-                           degree::Int)
-  geo = get_geometry(cut)
-  MomentFittingQuad(active_mesh,cut,geo,in_or_out,degree)
-end
-
-function MomentFittingQuad(active_mesh::Triangulation,
-                           cut::AbstractEmbeddedDiscretization,
-                           geo::CSG.Geometry,
-                           degree::Int)
-
-  MomentFittingQuad(active_mesh,cut,geo,IN,degree)
-end
-
-function MomentFittingQuad(active_mesh::Triangulation,
-                           cut::AbstractEmbeddedDiscretization,
-                           geo::CSG.Geometry,
-                           in_or_out,
-                           degree::Int)
+function Quadrature(active_mesh::Grid,
+                    ::MomentFitted,
+                    cut::AbstractEmbeddedDiscretization,
+                    geo::CSG.Geometry,
+                    degree::Int;
+                    in_or_out=IN)
 
   acell_to_point_vals, acell_to_weight_vals = #
     compute_lag_moments_from_leg(cut,geo,in_or_out,degree)
@@ -73,11 +47,29 @@ function MomentFittingQuad(active_mesh::Triangulation,
   acell_to_point = CompressedArray(acell_to_point_vals,acell_to_point_ptrs)
   acell_to_weight = CompressedArray(acell_to_weight_vals,acell_to_weight_ptrs)
   acell_to_quad = map(1:length(acell_to_point)) do i
-    GenericQuadrature(acell_to_point[i],acell_to_weight[i])
+    GenericQuadrature(acell_to_point[i],acell_to_weight[i],"Moment-fitted quadrature of degree $degree")
   end
+  acell_to_quad = CompressedArray(acell_to_quad,1:length(acell_to_quad))
 
-  CellQuadrature( #
-    acell_to_quad,acell_to_point,acell_to_weight,active_mesh,ReferenceDomain())
+end
+
+struct CutCellMoments
+  data::Vector{Vector{Float64}}
+  bgcell_to_cut_cell::Vector{Int32}
+end
+
+function CutCellMoments(trian::Triangulation,
+                        facet_moments::DomainContribution)
+  fi = [ testitem(array) for (trian,array) in facet_moments.dict ]
+  li = map(length,fi)
+  @assert all(li .== first(li))
+  bgmodel = get_background_model(trian)
+  Dm = num_dims(bgmodel)
+  cell_to_parent_cell = get_glue(trian,Val{Dm}()).tface_to_mface
+  data = [ zero(first(fi)) for i in 1:length(cell_to_parent_cell) ]
+  bgcell_to_cut_cell = zeros(Int32,num_cells(bgmodel))
+  bgcell_to_cut_cell[cell_to_parent_cell] .= 1:length(cell_to_parent_cell)
+  CutCellMoments(data,bgcell_to_cut_cell)
 end
 
 function Pᵢ(i::Int)

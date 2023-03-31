@@ -2,8 +2,8 @@ module CutCellMomentsTests
 
   using Test
   using Gridap
+  using Gridap.ReferenceFEs
   using GridapEmbedded
-  using GridapEmbedded.MomentFitting
 
   function run_test(domain,partition,geom,degree,in_or_out=IN)
     physical = (in_or_out==IN) ? PHYSICAL_IN : PHYSICAL_OUT
@@ -11,7 +11,8 @@ module CutCellMomentsTests
     bgmodel = CartesianDiscreteModel(domain,partition)
     cutgeo = cut(bgmodel,geom)
     Ωᵃ = Triangulation(cutgeo,active,geom)
-    dΩᵃ = Measure(MomentFittingQuad(Ωᵃ,cutgeo,in_or_out,degree))
+    quad = Quadrature(momentfitted,cutgeo,degree,in_or_out=in_or_out)
+    dΩᵃ = Measure(Ωᵃ,quad)
     Ωᶜ = Triangulation(cutgeo,physical)
     dΩᶜ = Measure(Ωᶜ,num_dims(bgmodel)*degree,degree)
     @test sum(∫(1)dΩᵃ) - sum(∫(1)dΩᶜ) + 1 ≈ 1
