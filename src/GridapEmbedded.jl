@@ -8,7 +8,7 @@ include("LevelSetCutters/LevelSetCutters.jl")
 
 include("AgFEM/AgFEM.jl")
 
-include("MomentFitting/MomentFitting.jl")
+include("MomentFittedQuadratures/MomentFittedQuadratures.jl")
 
 include("Exports.jl")
 

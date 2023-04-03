@@ -49,4 +49,4 @@ end
 @publish AgFEM compute_cell_bboxes
 @publish AgFEM compute_cell_to_dface_bboxes
 
-@publish MomentFitting momentfitted
+@publish MomentFittedQuadratures momentfitted

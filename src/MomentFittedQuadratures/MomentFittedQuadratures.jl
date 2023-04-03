@@ -1,3 +1,32 @@
+module MomentFittedQuadratures
+
+using Gridap
+using Gridap.Arrays
+using Gridap.CellData
+using Gridap.Fields
+using Gridap.Geometry
+using Gridap.Helpers
+using Gridap.Polynomials
+using Gridap.ReferenceFEs
+import Gridap.ReferenceFEs: Quadrature
+
+using GridapEmbedded.Interfaces
+using GridapEmbedded.CSG
+
+using FillArrays
+
+using Gridap.Geometry: FaceToCellGlue
+using Gridap.Geometry: push_normal
+
+using GridapEmbedded.Interfaces: SubFacetTriangulation
+using GridapEmbedded.Interfaces: SubFacetBoundaryTriangulation
+using GridapEmbedded.Interfaces: CutInOrOut
+using GridapEmbedded.Interfaces: AbstractEmbeddedDiscretization
+using GridapEmbedded.Interfaces: get_geometry
+using GridapEmbedded.LevelSetCutters: _check_and_get_polytope
+
+export momentfitted
+
 struct MomentFitted <: QuadratureName end
 const momentfitted = MomentFitted()
 
@@ -324,3 +353,6 @@ function _get_terms_degrees(c::CartesianIndex)
   end
   d
 end
+
+end #module
+
