@@ -177,56 +177,51 @@ function compute_monomial_domain_contribution(cut::AbstractEmbeddedDiscretizatio
   Γᵖ = BoundaryTriangulation(cutf,in_or_out,geo)
 
   D = num_dims(get_background_model(cut))
-  @check num_cells(Γᵉ) > 0
-  J = int_c_b(Γᵉ,b,deg*D)*dir_Γᵉ +
-      int_c_b(Γᶠ.⁺,b,deg*D) +
-      int_c_b(Γᶠ.⁻,b,deg*D)
-  if num_cells(Γᵇ) > 0
-    J += int_c_b(Γᵇ.⁺,b,deg) +
-         int_c_b(Γᵇ.⁻,b,deg)
-  end
-  if num_cells(Γᵒ) > 0
-    J += int_c_b(Γᵒ,b,deg*D)
-  end
-  if num_cells(Γᵖ) > 0
-    J += int_c_b(Γᵖ,b,deg)
-  end
-  J
 
+  int_c_b(Γᵉ,b,deg*D)*dir_Γᵉ + int_c_b(Γᶠ,b,deg*D) + int_c_b(Γᵒ,b,deg*D) +
+  int_c_b(Γᵇ,b,deg) + int_c_b(Γᵖ,b,deg)
+end
+
+function int_c_b(t::SkeletonTriangulation,b::MonomialBasis,deg::Int)
+  int_c_b(t.plus,b,deg) + int_c_b(t.minus,b,deg)
+end
+
+function int_c_b(t::AppendedTriangulation,b::MonomialBasis,deg::Int)
+  int_c_b(t.a,b,deg) + int_c_b(t.b,b,deg)
 end
 
 function int_c_b(t::Triangulation,b::MonomialBasis,deg::Int)
-
-  Dm = num_dims(get_background_model(t))
-  dt = CellQuadrature(t,deg)
-  x_gp_ref_1d = dt.cell_point
-  facet_map = get_glue(t,Val{Dm}()).tface_to_mface_map
-  x_gp_ref = lazy_map(evaluate,facet_map,x_gp_ref_1d)
-
-  cell_map = get_cell_map(get_background_model(t))
-  facet_cell = get_glue(t,Val{Dm}()).tface_to_mface
-  facet_cell_map = lazy_map(Reindex(cell_map),facet_cell)
-  facet_cell_Jt = lazy_map(∇,facet_cell_map)
-  facet_cell_Jtx = lazy_map(evaluate,facet_cell_Jt,x_gp_ref)
-
-  facet_n = get_facet_normal(t)
-  facet_nx = lazy_map(evaluate,facet_n,x_gp_ref_1d)
-  facet_nx_r = lazy_map(Broadcasting(push_normal),facet_cell_Jtx,facet_nx)
-  c = lazy_map(Broadcasting(⋅),facet_nx_r,x_gp_ref)
-
-  v = Fill(b,num_cells(t))
-  v_gp_ref = lazy_map(evaluate,v,x_gp_ref)
-  c_v = map(Broadcasting(*),v_gp_ref,c)
-
-  facet_Jt = lazy_map(∇,facet_map)
-  facet_Jtx = lazy_map(evaluate,facet_Jt,x_gp_ref_1d)
-
-  I_c_v_in_t = lazy_map(IntegrationMap(),c_v,dt.cell_weight,facet_Jtx)
-
   cont = DomainContribution()
-  add_contribution!(cont,t,I_c_v_in_t)
-  cont
+  if num_cells(t) > 0
+    Dm = num_dims(get_background_model(t))
+    dt = CellQuadrature(t,deg)
+    x_gp_ref_1d = dt.cell_point
+    facet_map = get_glue(t,Val{Dm}()).tface_to_mface_map
+    x_gp_ref = lazy_map(evaluate,facet_map,x_gp_ref_1d)
 
+    cell_map = get_cell_map(get_background_model(t))
+    facet_cell = get_glue(t,Val{Dm}()).tface_to_mface
+    facet_cell_map = lazy_map(Reindex(cell_map),facet_cell)
+    facet_cell_Jt = lazy_map(∇,facet_cell_map)
+    facet_cell_Jtx = lazy_map(evaluate,facet_cell_Jt,x_gp_ref)
+
+    facet_n = get_facet_normal(t)
+    facet_nx = lazy_map(evaluate,facet_n,x_gp_ref_1d)
+    facet_nx_r = lazy_map(Broadcasting(push_normal),facet_cell_Jtx,facet_nx)
+    c = lazy_map(Broadcasting(⋅),facet_nx_r,x_gp_ref)
+
+    v = Fill(b,num_cells(t))
+    v_gp_ref = lazy_map(evaluate,v,x_gp_ref)
+    c_v = map(Broadcasting(*),v_gp_ref,c)
+
+    facet_Jt = lazy_map(∇,facet_map)
+    facet_Jtx = lazy_map(evaluate,facet_Jt,x_gp_ref_1d)
+
+    I_c_v_in_t = lazy_map(IntegrationMap(),c_v,dt.cell_weight,facet_Jtx)
+
+    add_contribution!(cont,t,I_c_v_in_t)
+  end
+  cont
 end
 
 function compute_monomial_cut_cell_moments(model::Triangulation,
