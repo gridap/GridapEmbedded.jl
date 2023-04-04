@@ -1,4 +1,4 @@
-#module DistributedPoissonTests
+# module DistributedPoissonTests
 
 using Gridap
 using GridapEmbedded
@@ -10,8 +10,10 @@ using GridapDistributed: DistributedDiscreteModel
 using GridapDistributed: DistributedGridapType
 using GridapDistributed: DistributedTriangulation
 using GridapDistributed: DistributedFESpace
+using GridapDistributed: DistributedSingleFieldFESpace
 using GridapDistributed: generate_gids
 using GridapDistributed: generate_cell_gids
+using GridapDistributed: _find_vector_type
 
 import Gridap.Geometry: Triangulation
 import Gridap.Geometry: get_background_model
@@ -87,31 +89,26 @@ function aggregate(stragegy,cutgeo::DistributedEmbeddedDiscretization)
   # TODO: parallel aggregation here
 end
 
-#function AgFEMSpace(
-#    bgmodel::DistributedDiscreteModel,
-#    f::DistributedFESpace,
-#    bgcell_to_bgcellin::SequentialData{<:AbstractVector},
-#    g::DistributedFESpace=f)
-#
-#  fagg = map_parts(AgFEMSpace,local_views(f),bgcell_to_bgcellin,local_views(g))
-#  gids = generate_gids(bgmodel,fagg)
-#  vector_type = get_vector_type(f)
-#  DistributedSingleFieldFESpace(fagg,gids,vector_type)
-#end
-
-
 function AgFEMSpace(
-    bgmodel::DistributedDiscreteModel,
-    f::DistributedFESpace,
-    bgcell_to_bgcellin::SequentialData{<:AbstractVector},
-    g::DistributedFESpace=f)
+  bgmodel::DistributedDiscreteModel,
+  f::DistributedFESpace,
+  bgcell_to_bgcellin::AbstractPData{<:AbstractVector},
+  g::DistributedFESpace=f)
 
-  spaces = map_parts(AgFEMSpace,local_views(f),bgcell_to_bgcellin,local_views(g))
+  bgmodel_gids = get_cell_gids(bgmodel)
+  spaces = map_parts(
+    local_views(f),
+    bgcell_to_bgcellin,
+    local_views(g),
+    local_views(bgmodel_gids)) do f,bgcell_to_bgcellin,g,gids
+    AgFEMSpace(f,bgcell_to_bgcellin,g,get_lid_to_gid(gids))
+  end
   trians = map_parts(get_triangulation,local_views(f))
   trian = DistributedTriangulation(trians,bgmodel)
   trian = add_ghost_cells(trian)
   trian_gids = generate_cell_gids(trian)
   cell_to_ldofs = map_parts(get_cell_dof_ids,spaces)
+  cell_to_ldofs = map_parts(i->map(sort,i),cell_to_ldofs)
   nldofs = map_parts(num_free_dofs,spaces)
   gids = generate_gids(trian_gids,cell_to_ldofs,nldofs)
   vector_type = _find_vector_type(spaces,gids)
@@ -166,7 +163,7 @@ geo1 = disk(R,x0=p0-d)
 geo2 = disk(R,x0=p0+d)
 #geo = !union(geo1,geo2)
 
-n = 10
+n = 8
 mesh_partition = (n,n)
 bgmodel = CartesianDiscreteModel(parts,pmin,pmax,mesh_partition)
 bgtrian = Triangulation(bgmodel)
@@ -178,7 +175,7 @@ h = dp[1]/n
 cutgeo = cut(bgmodel,geo)
 
 strategy = AggregateAllCutCells()
-strategy = AggregateCutCellsByThreshold(0)
+strategy = AggregateCutCellsByThreshold(0.5)
 aggregates = aggregate(strategy,cutgeo)
 
 Ω_bg = Triangulation(bgmodel)
@@ -206,8 +203,7 @@ reffe = ReferenceFE(lagrangian,Float64,order)
 
 Vstd = FESpace(Ω_act,reffe)
 
-#V = AgFEMSpace(bgmodel,Vstd,aggregates)
-V = Vstd
+V = AgFEMSpace(bgmodel,Vstd,aggregates)
 U = TrialFESpace(V)
 
 

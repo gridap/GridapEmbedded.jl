@@ -1,7 +1,12 @@
 
-function AgFEMSpace(f::SingleFieldFESpace,bgcell_to_bgcellin::AbstractVector,g::SingleFieldFESpace=f)
+function AgFEMSpace(
+  f::SingleFieldFESpace,
+  bgcell_to_bgcellin::AbstractVector,
+  g::SingleFieldFESpace=f,
+  args...)
+
   @assert get_triangulation(f) === get_triangulation(g)
-  AgFEMSpace(f,bgcell_to_bgcellin,get_fe_basis(g),get_fe_dof_basis(g))
+  AgFEMSpace(f,bgcell_to_bgcellin,get_fe_basis(g),get_fe_dof_basis(g),args...)
 end
 
 # Note: cell is in fact bgcell in this function since f will usually be an ExtendedFESpace
@@ -9,7 +14,8 @@ function AgFEMSpace(
   f::SingleFieldFESpace,
   bgcell_to_bgcellin::AbstractVector,
   shfns_g::CellField,
-  dofs_g::CellDof)
+  dofs_g::CellDof,
+  bgcell_to_gcell::AbstractVector=1:length(bgcell_to_bgcellin))
 
   # Triangulation made of active cells
   trian_a = get_triangulation(f)
@@ -21,6 +27,7 @@ function AgFEMSpace(
   bgcell_to_acell = glue.mface_to_tface
   acell_to_bgcellin = lazy_map(Reindex(bgcell_to_bgcellin),acell_to_bgcell)
   acell_to_acellin = collect(lazy_map(Reindex(bgcell_to_acell),acell_to_bgcellin))
+  acell_to_gcell = lazy_map(Reindex(bgcell_to_gcell),acell_to_bgcell)
 
   # Build shape funs of g by replacing local funs in cut cells by the ones at the root
   # This needs to be done with shape functions in the physical domain
@@ -41,7 +48,8 @@ function AgFEMSpace(
     acell_to_acellin,
     acell_to_dof_ids,
     acell_to_coeffs,
-    acell_to_proj)
+    acell_to_proj,
+    acell_to_gcell)
 
   FESpaceWithLinearConstraints(aggdof_to_fdof,aggdof_to_dofs,aggdof_to_coeffs,f)
 end
@@ -51,8 +59,8 @@ function _setup_agfem_constraints(
   acell_to_acellin,
   acell_to_dof_ids,
   acell_to_coeffs,
-  acell_to_proj)#,
-#  acell_to_gcell)
+  acell_to_proj,
+  acell_to_gcell)
 
   n_acells = length(acell_to_acellin)
   fdof_to_isagg = fill(true,n_fdofs)
@@ -63,16 +71,16 @@ function _setup_agfem_constraints(
     acellin = acell_to_acellin[acell]
     iscut = acell != acellin
     dofs = getindex!(cache,acell_to_dof_ids,acell)
-    # gcell = acell_to_gcell[acell]
+    gcell = acell_to_gcell[acell]
     for (ldof,dof) in enumerate(dofs)
       if dof > 0
         fdof = dof
-        # gcell_dof = acell_to_gcell[fdof_to_acell[fdof]]
-        # if gcell > gcell_dof
+        acell_dof = fdof_to_acell[fdof]
+        if acell_dof == 0 || gcell > acell_to_gcell[acell_dof]
           fdof_to_acell[fdof] = acell
           fdof_to_isagg[fdof] = iscut && fdof_to_isagg[fdof]
           fdof_to_ldof[fdof] = ldof
-        # end
+         end
       end
     end
   end
