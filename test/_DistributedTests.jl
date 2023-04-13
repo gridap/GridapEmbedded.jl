@@ -1,4 +1,4 @@
-# module DistributedPoissonTests
+module DistributedPoissonTests
 
 using Gridap
 using GridapEmbedded
@@ -14,6 +14,13 @@ using GridapDistributed: DistributedSingleFieldFESpace
 using GridapDistributed: generate_gids
 using GridapDistributed: generate_cell_gids
 using GridapDistributed: _find_vector_type
+using GridapEmbedded.Interfaces: SubFacetTriangulation
+using Gridap.Geometry: AppendedTriangulation
+using Gridap.Geometry: FaceToFaceGlue
+using Gridap.FESpaces: SingleFieldFESpace
+using Gridap.Arrays
+using Gridap.Helpers
+using PartitionedArrays: LinearGidToPart
 
 import Gridap.Geometry: Triangulation
 import Gridap.Geometry: get_background_model
@@ -28,11 +35,7 @@ import GridapDistributed: dof_wise_to_cell_wise!
 import GridapDistributed: dof_wise_to_cell_wise
 import GridapDistributed: generate_gids
 import GridapDistributed: add_ghost_cells
-using GridapEmbedded.Interfaces: SubFacetTriangulation
-using Gridap.Geometry: AppendedTriangulation
-using Gridap.Geometry: FaceToFaceGlue
-using Gridap.FESpaces: SingleFieldFESpace
-using Gridap.Arrays
+import PartitionedArrays: _part_to_firstgid
 
 struct DistributedEmbeddedDiscretization{Dp,T,A,B} <: DistributedGridapType
   discretizations::A
@@ -111,6 +114,7 @@ function AgFEMSpace(
   cell_to_ldofs = map_parts(i->map(sort,i),cell_to_ldofs)
   nldofs = map_parts(num_free_dofs,spaces)
   gids = generate_gids(trian_gids,cell_to_ldofs,nldofs)
+  gids = add_gid_to_part(gids)
   vector_type = _find_vector_type(spaces,gids)
   DistributedSingleFieldFESpace(spaces,gids,vector_type)
 end
@@ -137,6 +141,53 @@ function remove_ghost_cells(trian::SubFacetTriangulation,gids)
   remove_ghost_cells(glue,trian,gids)
 end
 
+## PartitionedArrays.jl
+
+function _part_to_firstgid(ngids::Vector,np::Integer)
+  @check length(ngids) == np
+  s = zeros(Int32,np)
+  s[2:np] = cumsum(ngids)[1:np-1]
+  s .+= 1
+end
+
+function _gid_to_part(gids::PRange)
+  if gids.gid_to_part !== nothing
+    gids.gid_to_part
+  else
+    np = num_parts(gids)
+    noids = map_parts(num_oids,local_views(gids))
+    ngids = gather_all(noids)
+    gid_to_part = map_parts(ngids) do ngids
+      part_to_firstgid = _part_to_firstgid(ngids,np)
+      LinearGidToPart(sum(ngids),part_to_firstgid)
+    end
+    map_parts(_test_gid_to_part,local_views(gids),gid_to_part)
+    gid_to_part
+  end
+end
+
+function _test_gid_to_part(i::IndexSet,gid_to_part::AbstractVector)
+  for (gid,part) in zip(i.lid_to_gid,i.lid_to_part)
+    @check gid_to_part[gid] == part
+  end
+end
+
+function add_gid_to_part(gids::PRange,gid_to_part=_gid_to_part(gids))
+  PRange(
+    gids.ngids,
+    gids.partition,
+    gids.exchanger,
+    gid_to_part,
+    gids.ghost)
+end
+
+function PartitionedArrays.touched_hids(
+  a::PRange,
+  gids::AbstractPData{<:AbstractVector{<:Integer}})
+
+  add_gids!(a,gids)
+  map_parts(touched_hids,a.partition,gids)
+end
 
 # Driver
 
@@ -262,4 +313,4 @@ writevtk(Γ,"trian_G")
 @test el2/ul2 < 1.e-8
 @test eh1/uh1 < 1.e-7
 
-# end # module
+end # module
