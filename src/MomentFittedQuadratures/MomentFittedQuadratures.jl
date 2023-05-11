@@ -212,7 +212,7 @@ function int_c_b(t::Triangulation,b::MonomialBasis,deg::Int)
 
     v = Fill(b,num_cells(t))
     v_gp_ref = lazy_map(evaluate,v,x_gp_ref)
-    c_v = map(Broadcasting(*),v_gp_ref,c)
+    c_v = lazy_map(Broadcasting(*),v_gp_ref,c)
 
     facet_Jt = lazy_map(∇,facet_map)
     facet_Jtx = lazy_map(evaluate,facet_Jt,x_gp_ref_1d)
@@ -250,8 +250,9 @@ function add_facet_moments!(ccm::CutCellMoments,
                             sfd::SubFacetData,
                             array::AbstractArray)
   facet_to_cut_cell = lazy_map(Reindex(ccm.bgcell_to_cut_cell),sfd.facet_to_bgcell)
+  c = array_cache(array)
   for i = 1:length(facet_to_cut_cell)
-    ccm.data[facet_to_cut_cell[i]] += array[i]
+    ccm.data[facet_to_cut_cell[i]] += getindex!(c,array,i)
   end
 end
 
@@ -262,8 +263,9 @@ function add_facet_moments!(ccm::CutCellMoments,
     subfacet_to_bgcell = lazy_map(Reindex(trian.facets.glue.face_to_cell),trian.subfacet_to_facet)
     subfacet_to_cut_cell = lazy_map(Reindex(ccm.bgcell_to_cut_cell),subfacet_to_bgcell)
     l = length(subfacet_to_cut_cell)
+    c = array_cache(array)
     for i = 1:l
-      ccm.data[subfacet_to_cut_cell[i]] += array[i]
+      ccm.data[subfacet_to_cut_cell[i]] += getindex!(c,array,i)
     end
   else
     add_facet_moments!(ccm,trian.facets,array)
@@ -283,8 +285,9 @@ function add_facet_moments!(ccm::CutCellMoments,
   cell_to_is_cut = findall(lazy_map(i->(i>0),facet_to_cut_cell))
   facet_to_cut_cell = lazy_map(Reindex(facet_to_cut_cell),cell_to_is_cut)
   l = length(facet_to_cut_cell)
+  c = array_cache(array)
   for i = 1:l
-    ccm.data[facet_to_cut_cell[i]] += array[cell_to_is_cut[i]]
+    ccm.data[facet_to_cut_cell[i]] += getindex!(c,array,cell_to_is_cut[i])
   end
 end
 
@@ -299,8 +302,9 @@ function add_facet_moments!(ccm::CutCellMoments,
   facet_to_bgcell = get_glue(trian,Val(Dp)).tface_to_mface
   facet_to_cut_cell = lazy_map(Reindex(ccm.bgcell_to_cut_cell),facet_to_bgcell)
   l = length(facet_to_cut_cell)
+  c = array_cache(array)
   for i = 1:l
-    ccm.data[facet_to_cut_cell[i]] += array[i]
+    ccm.data[facet_to_cut_cell[i]] += getindex!(c,array,i)
   end
 end
 
