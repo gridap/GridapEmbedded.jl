@@ -98,6 +98,14 @@ function cut_facets(background::DiscreteModel,geom::DiscreteGeometry)
   cut_facets(cutter,background,geom)
 end
 
+function cut_facets(cut::EmbeddedDiscretization,geo::CSG.Geometry)
+  cut_facets(cut.bgmodel,geo)
+end
+
+function cut_facets(cut::EmbeddedFacetDiscretization,args...)
+  cut
+end
+
 function _cut_ls_facets(model::DiscreteModel,geom)
   D = num_cell_dims(model)
   grid = Grid(ReferenceFE{D-1},model)

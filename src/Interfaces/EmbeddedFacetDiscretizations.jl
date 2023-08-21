@@ -1,11 +1,19 @@
 
-struct EmbeddedFacetDiscretization{Dc,Dp,T} <: GridapType
+struct EmbeddedFacetDiscretization{Dc,Dp,T} <: AbstractEmbeddedDiscretization
   bgmodel::DiscreteModel{Dp,Dp}
   ls_to_facet_to_inoutcut::Vector{Vector{Int8}}
   subfacets::SubCellData{Dc,Dp,T}
   ls_to_subfacet_to_inout::Vector{Vector{Int8}}
   oid_to_ls::Dict{UInt,Int}
   geo::CSG.Geometry
+end
+
+function get_background_model(cut::EmbeddedFacetDiscretization)
+  cut.bgmodel
+end
+
+function get_geometry(cut::EmbeddedFacetDiscretization)
+  cut.geo
 end
 
 function SkeletonTriangulation(cut::EmbeddedFacetDiscretization)
@@ -243,7 +251,7 @@ struct SubFacetBoundaryTriangulation{Dc,Dp,T} <: Triangulation{Dc,Dp}
     subfacet_to_facet_map = _setup_cell_ref_map(subfacets,subgrid)
     face_ref_map = lazy_map(Reindex(glue.tface_to_mface_map),subfacet_to_facet)
     cell_ref_map = lazy_map(∘,face_ref_map,subfacet_to_facet_map)
-    
+
     new{Dc,Dp,T}(
       facets,
       subfacets,
