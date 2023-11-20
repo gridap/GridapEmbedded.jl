@@ -15,7 +15,7 @@ Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [compat]
-AbstractTrees = "0.3.3"
+AbstractTrees = "0.3.3, 0.4"
 Combinatorics = "1"
 FillArrays = "0.10, 0.11, 0.12, 0.13"
 Gridap = "0.17.13"
