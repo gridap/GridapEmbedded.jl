@@ -49,4 +49,18 @@ end
 @publish AgFEM compute_cell_bboxes
 @publish AgFEM compute_cell_to_dface_bboxes
 
+@publish AlgoimUtils algoim
+@publish AlgoimUtils fill_quad_data
+@publish AlgoimUtils AlgoimCallLevelSetFunction
+@publish AlgoimUtils TriangulationAndMeasure
+@publish AlgoimUtils normal
+@publish AlgoimUtils init_bboxes
+@publish AlgoimUtils fill_cpp_data
+@publish AlgoimUtils fill_cpp_data_raw
+@publish AlgoimUtils compute_closest_point_projections
+@publish AlgoimUtils compute_normal_displacement
+@publish AlgoimUtils compute_distance_fe_function
+@publish AlgoimUtils delaunaytrian
+@publish AlgoimUtils convexhull
+
 @publish MomentFittedQuadratures momentfitted
