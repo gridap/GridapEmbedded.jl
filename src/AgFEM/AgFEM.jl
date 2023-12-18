@@ -18,6 +18,7 @@ using GridapEmbedded.Interfaces: compute_subcell_to_inout
 
 export aggregate
 export color_aggregates
+export aggregate_narrow_band
 export AggregateAllCutCells
 export compute_cell_bboxes
 export compute_cell_to_dface_bboxes

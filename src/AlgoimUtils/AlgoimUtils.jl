@@ -22,7 +22,6 @@ using Gridap.Geometry
 
 using GridapEmbedded.Interfaces
 using GridapEmbedded.Interfaces: Simplex
-using GridapEmbedded.AgFEM: _aggregate_by_threshold_barrier
 
 using MiniQhull
 using FillArrays
@@ -32,15 +31,12 @@ import Algoim: CachedLevelSetGradient
 import Algoim: AlgoimCallLevelSetFunction
 import Algoim: normal
 import Gridap.ReferenceFEs: Quadrature
-import GridapEmbedded.AgFEM: aggregate
 
 export TriangulationAndMeasure
 export algoim
 export Quadrature
 export is_cell_active
 export restrict_measure
-export aggregate_narrow_band
-export init_bboxes
 export fill_cpp_data
 export fill_cpp_data_raw
 export compute_closest_point_projections
@@ -177,77 +173,8 @@ function TriangulationAndMeasure(Ωbg::Triangulation,quad::Tuple)
   Ωᵃ,dΩᵃ,cell_to_is_active
 end
 
-function aggregate(bgtrian,cell_to_is_active,cell_to_is_cut,in_or_out)
-  n_cells = length(cell_to_is_active)
-  @assert n_cells == length(cell_to_is_cut)
-
-  cell_to_unit_cut_meas = lazy_map(cell_to_is_active,cell_to_is_cut) do isa, isc
-    !isa ? 0.0 : (isc ? 0.0 : 1.0)
-  end
-
-  cell_to_inoutcut = lazy_map(cell_to_is_active,cell_to_is_cut) do isa, isc
-    !isa ? OUT : (isc ? CUT : IN)
-  end
-
-  cell_to_coords = get_cell_coordinates(bgtrian)
-  model = get_background_model(bgtrian)
-  topo = get_grid_topology(model)
-  D = num_cell_dims(model)
-  cell_to_faces = get_faces(topo,D,D-1)
-  face_to_cells = get_faces(topo,D-1,D)
-  # A hack follows to avoid constructing the actual facet_to_inoutcut array
-  facet_to_inoutcut = fill(in_or_out,num_faces(model,D-1)) 
-
-  threshold = 1.0
-  _aggregate_by_threshold_barrier(
-    threshold,cell_to_unit_cut_meas,facet_to_inoutcut,cell_to_inoutcut,
-    in_or_out,cell_to_coords,cell_to_faces,face_to_cells)
-end
-
-function aggregate_narrow_band(bgtrian,cell_to_is_in_narrow,cell_to_is_active,cell_to_is_cut,in_or_out)
-  n_cells = length(cell_to_is_in_narrow)
-  @assert n_cells == length(cell_to_is_active)
-  @assert n_cells == length(cell_to_is_cut)
-
-  cell_to_unit_cut_meas = lazy_map(cell_to_is_active,cell_to_is_cut) do isa, isc
-    ( isa & !isc ) ? 1.0 : 0.0
-  end
-
-  cell_to_inoutcut = lazy_map(cell_to_is_in_narrow,cell_to_is_active,cell_to_is_cut) do isn, isa, isc
-    !isn ? OUT : ( ( isa & !isc ) ? IN : CUT )
-  end
-
-  cell_to_coords = get_cell_coordinates(bgtrian)
-  model = get_background_model(bgtrian)
-  topo = get_grid_topology(model)
-  D = num_cell_dims(model)
-  cell_to_faces = get_faces(topo,D,D-1)
-  face_to_cells = get_faces(topo,D-1,D)
-  # A hack follows to avoid constructing the actual facet_to_inoutcut array
-  facet_to_inoutcut = fill(in_or_out,num_faces(model,D-1)) 
-
-  threshold = 1.0
-  _aggregate_by_threshold_barrier(
-    threshold,cell_to_unit_cut_meas,facet_to_inoutcut,cell_to_inoutcut,
-    in_or_out,cell_to_coords,cell_to_faces,face_to_cells)
-end
-
 using Gridap.Geometry: get_cell_to_parent_cell
 using Gridap.CellData: get_cell_quadrature
-using GridapEmbedded.AgFEM: compute_subcell_bbox
-import GridapEmbedded.AgFEM: init_bboxes
-
-function init_bboxes(cell_to_coords,cut_measure::Measure)
-  bgcell_to_cbboxes = init_bboxes(cell_to_coords)
-  quad = get_cell_quadrature(cut_measure)
-  trian = get_triangulation(quad)
-  model = get_active_model(trian)
-  ccell_to_bgcell = get_cell_to_parent_cell(model)
-  for (cc,bc) in enumerate(ccell_to_bgcell)
-    bgcell_to_cbboxes[bc] = compute_subcell_bbox(quad.cell_point[cc])
-  end
-  bgcell_to_cbboxes
-end
 
 function compute_closest_point_projections(Ω::Triangulation,φ;
     cppdegree::Int=2,trim::Bool=false,limitstol::Float64=1.0e-8)

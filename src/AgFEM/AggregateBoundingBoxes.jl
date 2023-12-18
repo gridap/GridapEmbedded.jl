@@ -19,6 +19,18 @@ function init_bboxes(cell_to_coords,cut::EmbeddedDiscretization;in_or_out=IN)
   bgcell_to_cbboxes
 end
 
+function init_bboxes(cell_to_coords,cut_measure::Measure)
+  bgcell_to_cbboxes = init_bboxes(cell_to_coords)
+  quad = get_cell_quadrature(cut_measure)
+  trian = get_triangulation(quad)
+  model = get_active_model(trian)
+  ccell_to_bgcell = get_cell_to_parent_cell(model)
+  for (cc,bc) in enumerate(ccell_to_bgcell)
+    bgcell_to_cbboxes[bc] = compute_subcell_bbox(quad.cell_point[cc])
+  end
+  bgcell_to_cbboxes
+end
+
 function init_cut_bboxes(cut,ccell_to_bgcell,in_or_out)
   subcell_to_inout   = compute_subcell_to_inout(cut,cut.geo)
   subcell_is_in      = lazy_map(i->i==in_or_out,subcell_to_inout)

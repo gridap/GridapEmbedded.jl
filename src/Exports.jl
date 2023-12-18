@@ -44,6 +44,7 @@ end
 @publish AgFEM AgFEMSpace
 @publish AgFEM aggregate
 @publish AgFEM color_aggregates
+@publish AgFEM aggregate_narrow_band
 @publish AgFEM AggregateCutCellsByThreshold
 @publish AgFEM AggregateAllCutCells
 @publish AgFEM compute_cell_bboxes
@@ -54,7 +55,6 @@ end
 @publish AlgoimUtils AlgoimCallLevelSetFunction
 @publish AlgoimUtils TriangulationAndMeasure
 @publish AlgoimUtils normal
-@publish AlgoimUtils init_bboxes
 @publish AlgoimUtils fill_cpp_data
 @publish AlgoimUtils fill_cpp_data_raw
 @publish AlgoimUtils compute_closest_point_projections
