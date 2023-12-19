@@ -17,7 +17,7 @@ module VisualizationTests
       V([2.0*x[1]/(0.5*0.5),2.0*x[2]/(0.5*0.5)])
   end
 
-  n = 12
+  n = 14
   degree = 3
   cppdegree = -1
 
