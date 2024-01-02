@@ -1,7 +1,7 @@
 name = "GridapEmbedded"
 uuid = "8838a6a3-0006-4405-b874-385995508d5d"
 authors = ["Francesc Verdugo <fverdugo@cimne.upc.edu>"]
-version = "0.8.2"
+version = "0.8.3"
 
 [deps]
 AbstractTrees = "1520ce14-60c1-5f80-bbc7-55ef81b5835c"
@@ -20,7 +20,7 @@ algoimWrapper_jll = "3c43aa7b-5398-51f3-8d75-8f051e6faa4d"
 [compat]
 AbstractTrees = "0.3.3, 0.4"
 Combinatorics = "1"
-FillArrays = "0.10, 0.11, 0.12, 0.13"
+FillArrays = "0.10, 0.11, 0.12, 0.13, 1"
 Gridap = "0.17.13"
 LightGraphs = "1.3.3"
 MiniQhull = "0.1.0, 0.2, 0.3, 0.4"
