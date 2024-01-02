@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.3] - 2024-08-02
+
+### Added
+- Support for FillArrays v1. Since PR [#75](https://github.com/gridap/GridapEmbedded.jl/pull/75).
+- Support for AbstractTrees v0.4. Since PR [#73](https://github.com/gridap/GridapEmbedded.jl/pull/73).
+
 ## [0.8.2] - 2023-08-22
 
 ### Added
