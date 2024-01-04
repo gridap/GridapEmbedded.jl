@@ -4,7 +4,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.8.3] - 2024-08-02
+## Unreleased
+
+### Added
+- Interface to Algoim v0.2, which provides algoim's high-order quadrature algorithms for domains implicitly-defined by multivariate polynomials and high-order accurate algorithms for computing closest points on implicitly-defined surfaces. Since PR [#76](https://github.com/gridap/GridapEmbedded.jl/pull/76).
+
+## [0.8.3] - 2024-01-02
 
 ### Added
 - Support for FillArrays v1. Since PR [#75](https://github.com/gridap/GridapEmbedded.jl/pull/75).
