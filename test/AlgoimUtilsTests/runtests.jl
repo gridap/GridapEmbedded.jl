@@ -2,18 +2,18 @@ module AlgoimTests
 
 using Test
 
-@testset "AlgoimInterface" begin include("AlgoimInterfaceTests.jl") end
+@time @testset "AlgoimInterface" begin include("AlgoimInterfaceTests.jl") end
 
-@testset "QuadratureDegree" begin include("QuadratureDegreeTests.jl") end
+@time @testset "QuadratureDegree" begin include("QuadratureDegreeTests.jl") end
 
-@testset "DualQuadratures" begin include("DualQuadraturesTests.jl") end
+@time @testset "DualQuadratures" begin include("DualQuadraturesTests.jl") end
 
-@testset "PoissonAlgoim" begin include("PoissonAlgoimTests.jl") end
+@time @testset "PoissonAlgoim" begin include("PoissonAlgoimTests.jl") end
 
-@testset "ClosestPoint" begin include("ClosestPointTests.jl") end
+@time @testset "ClosestPoint" begin include("ClosestPointTests.jl") end
 
-@testset "VolumeConservation" begin include("VolumeConservationTests.jl") end
+@time @testset "VolumeConservation" begin include("VolumeConservationTests.jl") end
 
-@testset "Visualization" begin include("VisualizationTests.jl") end
+@time @testset "Visualization" begin include("VisualizationTests.jl") end
 
 end # module
