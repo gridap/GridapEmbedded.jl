@@ -379,7 +379,9 @@ function visualization_data(meas::Measure,filename;cellfields=Dict(),qhulltype=D
   grid = _to_grid(node_coordinates,qhulltype)
   ndata = Dict()
   for (k,v) in cellfields
-    ndata[k] = lazy_map(v,node_coordinates)
+    pts = get_cell_points(meas)
+    eval = evaluate(v,pts)
+    ndata[k] = collect(Iterators.flatten(eval))
   end
   visualization_data(grid,filename,nodaldata=ndata)
 end
@@ -389,7 +391,9 @@ function visualization_data(meas::Vector{<:Measure},filename;cellfields=Dict(),q
   grid = _to_grid(node_coordinates,qhulltype)
   ndata = Dict()
   for (k,v) in cellfields
-    ndata[k] = lazy_map(v,node_coordinates)
+    pts = map(m->get_cell_points(m),meas)
+    eval = map(p->evaluate(v,p),pts)
+    ndata[k] = vcat(map(e->collect(Iterators.flatten(e)),eval)...)
   end
   visualization_data(grid,filename,nodaldata=ndata)
 end
