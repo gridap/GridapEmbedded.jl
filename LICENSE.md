@@ -1,7 +1,7 @@
 GridapEmbedded.jl Copyright and License
 ==
 
-Copyright (c) 2020 by [Francesc Verdugo](mailto:fverdugo@cimne.upc.edu) and [Santiago Badia](mailto:santiago.badia@monash.edu).
+Copyright (c) 2020 by [Francesc Verdugo](mailto:f.verdugo.rojano@vu.nl), [Eric Neiva](mailto:eric.neiva@college-de-france.fr) and [Santiago Badia](mailto:santiago.badia@monash.edu).
 
 GridapEmbedded.jl is licensed under the MIT Expat License
 
@@ -28,19 +28,33 @@ SOFTWARE.
 Citing `Gridap`
 ==
 
-In order to give credit to the `Gridap` contributors, we simply ask you to cite the refence below in any publication in which you have made use of `Gridap` packages.
-
-F. Verdugo and S. Badia. *A user-guide to Gridap -- grid-based approximation of partial differential equations in Julia*, 2019. [arXiv:1910.01412](https://arxiv.org/abs/1910.01412)
+In order to give credit to the `Gridap` contributors, we simply ask you to cite the references below in any publication in which you have made use of `Gridap` packages.
 
 ```
-@article{gridap_guide_2019,
-    author={Francesc Verdugo and Santiago Badia},
-    journal = {{arXiv}},
-    title = {{A user-guide to Gridap -- grid-based approximation of partial differential equations in Julia}},
-    year = {2019},
-    eprint={1910.01412},
-    archivePrefix={arXiv},
-    primaryClass={cs.MS},
+@article{Badia2020,
+  doi = {10.21105/joss.02520},
+  url = {https://doi.org/10.21105/joss.02520},
+  year = {2020},
+  publisher = {The Open Journal},
+  volume = {5},
+  number = {52},
+  pages = {2520},
+  author = {Santiago Badia and Francesc Verdugo},
+  title = {Gridap: An extensible Finite Element toolbox in Julia},
+  journal = {Journal of Open Source Software}
+}
+
+@article{Verdugo2022,
+  doi = {10.1016/j.cpc.2022.108341},
+  url = {https://doi.org/10.1016/j.cpc.2022.108341},
+  year = {2022},
+  month = jul,
+  publisher = {Elsevier {BV}},
+  volume = {276},
+  pages = {108341},
+  author = {Francesc Verdugo and Santiago Badia},
+  title = {The software design of Gridap: A Finite Element package based on the Julia {JIT} compiler},
+  journal = {Computer Physics Communications}
 }
 ```
 
@@ -92,4 +106,4 @@ By making a contribution to this project, I certify that:
 Contact
 ==
 
-Please, contact the project administrators, [Santiago Badia](mailto:santiago.badia@monash.edu) and [Francesc Verdugo](mailto:fverdugo@cimne.upc.edu), for further questions about licenses and terms of use.
+Please, contact the project administrators, [Francesc Verdugo](mailto:f.verdugo.rojano@vu.nl), [Eric Neiva](mailto:eric.neiva@college-de-france.fr) and [Santiago Badia](mailto:santiago.badia@monash.edu), for further questions about licenses and terms of use.

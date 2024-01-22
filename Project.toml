@@ -1,11 +1,13 @@
 name = "GridapEmbedded"
 uuid = "8838a6a3-0006-4405-b874-385995508d5d"
-authors = ["Francesc Verdugo <fverdugo@cimne.upc.edu>"]
-version = "0.8.3"
+authors = ["Francesc Verdugo <f.verdugo.rojano@vu.nl>", "Eric Neiva <eric.neiva@college-de-france.fr>", "Santiago Badia <santiago.badia@monash.edu>"]
+version = "0.9.0"
 
 [deps]
 AbstractTrees = "1520ce14-60c1-5f80-bbc7-55ef81b5835c"
+Algoim = "0eb9048c-21de-4c7a-bfac-056de1940b74"
 Combinatorics = "861a8166-3701-5b0c-9a16-15d98fcdc6aa"
+CxxWrap = "1f15a43c-97ca-5a2a-ae31-89f07a497df4"
 FillArrays = "1a297f60-69ca-5386-bcde-b61e274b549b"
 Gridap = "56d4f2e9-7ea1-5844-9cf6-b9c51ca7ce8e"
 LightGraphs = "093fc24a-ae57-5d10-9952-331d41423f4d"
@@ -13,6 +15,7 @@ LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 MiniQhull = "978d7f02-9e05-4691-894f-ae31a51d76ca"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+algoimWrapper_jll = "3c43aa7b-5398-51f3-8d75-8f051e6faa4d"
 
 [compat]
 AbstractTrees = "0.3.3, 0.4"
