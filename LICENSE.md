@@ -30,8 +30,6 @@ Citing `Gridap`
 
 In order to give credit to the `Gridap` contributors, we simply ask you to cite the references below in any publication in which you have made use of `Gridap` packages.
 
-F. Verdugo and S. Badia. *A user-guide to Gridap -- grid-based approximation of partial differential equations in Julia*, 2019. [arXiv:1910.01412](https://arxiv.org/abs/1910.01412)
-
 ```
 @article{Badia2020,
   doi = {10.21105/joss.02520},
