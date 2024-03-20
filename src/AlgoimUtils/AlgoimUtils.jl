@@ -329,14 +329,14 @@ signed_distance(φ::T,x,y) where {T<:Number} = sign(φ)*norm(x-y)
 
 function _compute_signed_distance(
     φ::AlgoimCallLevelSetFunction{<:Function,<:Function},
-    cps::Vector{<:Point},cos::Matrix{<:Point})
+    cps::Vector{<:Point{N,T}},cos::Array{<:Point{N,T},N}) where {N,T}
   _dist(x,y) = signed_distance(φ.φ,x,y)
   lazy_map(_dist,cps,cos)
 end
 
 function _compute_signed_distance(
     φ::AlgoimCallLevelSetFunction{<:CellField,<:CellField},
-    cps::Vector{<:Point},cos::Matrix{<:Point})
+    cps::Vector{<:Point{N,T}},cos::Array{<:Point{N,T},N}) where {N,T}
   φs = get_free_dof_values(φ.φ)
   lazy_map(signed_distance,φs,cps,cos)
 end
