@@ -6,9 +6,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Changed
+
+- Optimise computation of normal displacement in dynamic simulations. Since PR [#78](https://github.com/gridap/GridapEmbedded.jl/pull/78).
+
 ### Fixed
 
-- Compute signed distance FE function in 3D [#77](https://github.com/gridap/GridapEmbedded.jl/pull/77).
+- Compute signed distance FE function in 3D. Since PR [#77](https://github.com/gridap/GridapEmbedded.jl/pull/77).
 
 ## [0.9.0] - 2024-01-22
 
