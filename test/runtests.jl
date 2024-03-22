@@ -19,9 +19,12 @@ if QHULL_LOADED
 
   @time @testset "AgFEM" begin include("AgFEMTests/runtests.jl") end
 
+  @time @testset "MomentFittedQuadratures" begin include("MomentFittedQuadraturesTests/runtests.jl") end
+
   include(joinpath(@__DIR__,"..","examples","runexamples.jl"))
 
 else
+
   @warn "MiniQhull not properly installed. Tests are not executed."
 
 end

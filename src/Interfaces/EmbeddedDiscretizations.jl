@@ -1,5 +1,7 @@
 
-struct EmbeddedDiscretization{Dp,T} <: GridapType
+abstract type AbstractEmbeddedDiscretization <: GridapType end
+
+struct EmbeddedDiscretization{Dp,T} <: AbstractEmbeddedDiscretization
   bgmodel::DiscreteModel
   ls_to_bgcell_to_inoutcut::Vector{Vector{Int8}}
   subcells::SubCellData{Dp,Dp,T}
@@ -44,6 +46,14 @@ function DiscreteModel(cut::EmbeddedDiscretization,geo::CSG.Geometry,in_or_out)
   #bgcell_to_inoutcut = compute_bgcell_to_inoutcut(cut,geo)
   #cell_list = findall(pred, bgcell_to_inoutcut)
   #DiscreteModel(cut.bgmodel,cell_list)
+end
+
+function get_background_model(cut::EmbeddedDiscretization)
+  cut.bgmodel
+end
+
+function get_geometry(cut::EmbeddedDiscretization)
+  cut.geo
 end
 
 function compute_bgcell_to_inoutcut(cut::EmbeddedDiscretization,geo::CSG.Geometry)

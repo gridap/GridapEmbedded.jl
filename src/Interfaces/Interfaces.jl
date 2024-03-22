@@ -8,6 +8,7 @@ using Gridap.Geometry
 using Gridap.CellData
 using Gridap.Visualization
 
+import GridapEmbedded.CSG: get_geometry
 import Gridap.Geometry: UnstructuredGrid
 import Gridap.Geometry: BoundaryTriangulation
 import Gridap.Geometry: SkeletonTriangulation

@@ -28,7 +28,11 @@ module PoissonModalC0AgFEMTests
 
   strategy = AggregateAllCutCells()
   aggregates = aggregate(strategy,cutgeo,geom)
-  bboxes = compute_cell_to_dface_bboxes(model,cutgeo,aggregates)
+
+  # Only for testing purposes
+  bboxes = compute_cell_to_dface_bboxes(model,aggregates)
+  bboxes = compute_cell_to_dface_bboxes(model,aggregates,cutgeo)
+  bboxes = compute_cell_to_dface_bboxes(model,aggregates,cutgeo;in_or_out=IN)
 
   Ω_bg = Triangulation(bgmodel)
   Ω = Triangulation(cutgeo,PHYSICAL)
