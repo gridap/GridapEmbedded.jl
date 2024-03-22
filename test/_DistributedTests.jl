@@ -7,7 +7,6 @@ using PartitionedArrays
 using Test
 
 using GridapDistributed: DistributedDiscreteModel
-using GridapDistributed: DistributedGridapType
 using GridapDistributed: DistributedTriangulation
 using GridapDistributed: DistributedFESpace
 using GridapDistributed: DistributedSingleFieldFESpace
@@ -21,8 +20,6 @@ using Gridap.Geometry: FaceToFaceGlue
 using Gridap.FESpaces: SingleFieldFESpace
 using Gridap.Arrays
 using Gridap.Helpers
-using PartitionedArrays: LinearGidToPart
-using PartitionedArrays: get_part_ids
 using GridapEmbedded.Interfaces: SubCellData
 using GridapEmbedded.Interfaces: SubFacetData
 using GridapEmbedded.CSG
@@ -32,6 +29,7 @@ import Gridap.Geometry: get_background_model
 import GridapEmbedded.Interfaces: cut
 import GridapEmbedded.Interfaces: Cutter
 import GridapEmbedded.Interfaces: EmbeddedBoundary
+import GridapEmbedded.Interfaces: ActiveInOrOut
 import GridapEmbedded.AgFEM: aggregate
 import GridapEmbedded.AgFEM: AgFEMSpace
 import GridapDistributed: local_views
@@ -40,14 +38,14 @@ import GridapDistributed: dof_wise_to_cell_wise!
 import GridapDistributed: dof_wise_to_cell_wise
 import GridapDistributed: generate_gids
 import GridapDistributed: add_ghost_cells
-import PartitionedArrays: _part_to_firstgid
+# import PartitionedArrays: _part_to_firstgid
 import GridapEmbedded.Interfaces: compute_bgfacet_to_inoutcut
 
-struct DistributedEmbeddedDiscretization{Dp,T,A,B} <: DistributedGridapType
+struct DistributedEmbeddedDiscretization{Dp,T,A,B} <: GridapType
   discretizations::A
   model::B
   function DistributedEmbeddedDiscretization(
-    d::AbstractPData{<:EmbeddedDiscretization{Dp,T}},
+    d::AbstractArray{<:EmbeddedDiscretization{Dp,T}},
     model::DistributedDiscreteModel) where {Dp,T}
     A = typeof(d)
     B = typeof(model)
@@ -64,7 +62,7 @@ function cut(cutter::Cutter,bgmodel::DistributedDiscreteModel,args...)
   #  - cut own_bgmodels
   #  - set (local) bgmodels
   #  - reindex bgcell/facet data
-  discretizations = map_parts(local_views(bgmodel)) do lmodel
+  discretizations = map(local_views(bgmodel)) do lmodel
     cut(cutter,lmodel,args...)
   end
   DistributedEmbeddedDiscretization(discretizations,bgmodel)
@@ -75,24 +73,39 @@ function cut(bgmodel::DistributedDiscreteModel,args...)
   cut(cutter,bgmodel,args...)
 end
 
+function Triangulation(
+  cutgeo::DistributedEmbeddedDiscretization,
+  in_or_out::ActiveInOrOut,
+  args...)
+
+  distributed_embedded_triangulation(Triangulation,cutgeo,in_or_out,args...)
+end
+
 function Triangulation(cutgeo::DistributedEmbeddedDiscretization,args...)
-  trians = map_parts(local_views(cutgeo)) do lcutgeo
-    Triangulation(lcutgeo,args...)
-  end
-  bgmodel = get_background_model(cutgeo)
-  DistributedTriangulation(trians,bgmodel)
+  trian = distributed_embedded_triangulation(Triangulation,cutgeo,args...)
+  remove_ghost_cells(trian)
 end
 
 function EmbeddedBoundary(cutgeo::DistributedEmbeddedDiscretization,args...)
-  trians = map_parts(local_views(cutgeo)) do lcutgeo
-    EmbeddedBoundary(lcutgeo,args...)
+  trian = distributed_embedded_triangulation(EmbeddedBoundary,cutgeo,args...)
+  remove_ghost_cells(trian)
+end
+
+function distributed_embedded_triangulation(
+  T,
+  cutgeo::DistributedEmbeddedDiscretization,
+  args...)
+
+  trians = map(local_views(cutgeo)) do lcutgeo
+    T(lcutgeo,args...)
   end
   bgmodel = get_background_model(cutgeo)
   DistributedTriangulation(trians,bgmodel)
 end
 
+
 function aggregate(stragegy,cutgeo::DistributedEmbeddedDiscretization)
-  map_parts(local_views(cutgeo)) do lcutgeo
+  map(local_views(cutgeo)) do lcutgeo
     aggregate(stragegy,lcutgeo)
   end
   # TODO: parallel aggregation here
@@ -101,26 +114,26 @@ end
 function AgFEMSpace(
   bgmodel::DistributedDiscreteModel,
   f::DistributedFESpace,
-  bgcell_to_bgcellin::AbstractPData{<:AbstractVector},
+  bgcell_to_bgcellin::AbstractArray{<:AbstractVector},
   g::DistributedFESpace=f)
 
   bgmodel_gids = get_cell_gids(bgmodel)
-  spaces = map_parts(
+  spaces = map(
     local_views(f),
     bgcell_to_bgcellin,
     local_views(g),
     local_views(bgmodel_gids)) do f,bgcell_to_bgcellin,g,gids
-    AgFEMSpace(f,bgcell_to_bgcellin,g,get_lid_to_gid(gids))
+      AgFEMSpace(f,bgcell_to_bgcellin,g,local_to_global(gids))
   end
-  trians = map_parts(get_triangulation,local_views(f))
+  trians = map(get_triangulation,local_views(f))
   trian = DistributedTriangulation(trians,bgmodel)
   trian = add_ghost_cells(trian)
   trian_gids = generate_cell_gids(trian)
-  cell_to_ldofs = map_parts(get_cell_dof_ids,spaces)
-  cell_to_ldofs = map_parts(i->map(sort,i),cell_to_ldofs)
-  nldofs = map_parts(num_free_dofs,spaces)
+  cell_to_ldofs = map(get_cell_dof_ids,spaces)
+  cell_to_ldofs = map(i->map(sort,i),cell_to_ldofs)
+  nldofs = map(num_free_dofs,spaces)
   gids = generate_gids(trian_gids,cell_to_ldofs,nldofs)
-  gids = add_gid_to_part(gids)
+  # gids = add_gid_to_part(gids)
   vector_type = _find_vector_type(spaces,gids)
   DistributedSingleFieldFESpace(spaces,gids,vector_type)
 end
@@ -128,7 +141,7 @@ end
 function remove_ghost_cells(trian::DistributedTriangulation)
   model = get_background_model(trian)
   gids = get_cell_gids(model)
-  trians = map_parts(local_views(trian),local_views(gids)) do trian,gids
+  trians = map(local_views(trian),local_views(gids)) do trian,gids
     remove_ghost_cells(trian,gids)
   end
   DistributedTriangulation(trians,model)
@@ -149,69 +162,66 @@ end
 
 ## PartitionedArrays.jl
 
-function _part_to_firstgid(ngids::Vector,np::Integer)
-  @check length(ngids) == np
-  s = zeros(Int32,np)
-  s[2:np] = cumsum(ngids)[1:np-1]
-  s .+= 1
-end
+# function _part_to_firstgid(ngids::Vector,np::Integer)
+#   @check length(ngids) == np
+#   s = zeros(Int32,np)
+#   s[2:np] = cumsum(ngids)[1:np-1]
+#   s .+= 1
+# end
 
-function _gid_to_part(gids::PRange)
-  if gids.gid_to_part !== nothing
-    gids.gid_to_part
-  else
-    np = num_parts(gids)
-    noids = map_parts(num_oids,local_views(gids))
-    ngids = gather_all(noids)
-    gid_to_part = map_parts(ngids) do ngids
-      part_to_firstgid = _part_to_firstgid(ngids,np)
-      LinearGidToPart(sum(ngids),part_to_firstgid)
-    end
-    map_parts(_test_gid_to_part,local_views(gids),gid_to_part)
-    gid_to_part
-  end
-end
+# function _gid_to_part(gids::PRange)
+#   if gids.gid_to_part !== nothing
+#     gids.gid_to_part
+#   else
+#     np = num_parts(gids)
+#     noids = map(num_oids,local_views(gids))
+#     ngids = gather_all(noids)
+#     gid_to_part = map(ngids) do ngids
+#       part_to_firstgid = _part_to_firstgid(ngids,np)
+#       LinearGidToPart(sum(ngids),part_to_firstgid)
+#     end
+#     map(_test_gid_to_part,local_views(gids),gid_to_part)
+#     gid_to_part
+#   end
+# end
 
-function _test_gid_to_part(i::IndexSet,gid_to_part::AbstractVector)
-  for (gid,part) in zip(i.lid_to_gid,i.lid_to_part)
-    @check gid_to_part[gid] == part
-  end
-end
+# function _test_gid_to_part(i::AbstractLocalIndices,gid_to_part::AbstractVector)
+#   for (gid,part) in zip(i.lid_to_gid,i.lid_to_part)
+#     @check gid_to_part[gid] == part
+#   end
+# end
 
-function add_gid_to_part(gids::PRange,gid_to_part=_gid_to_part(gids))
-  PRange(
-    gids.ngids,
-    gids.partition,
-    gids.exchanger,
-    gid_to_part,
-    gids.ghost)
-end
+# function add_gid_to_part(gids::PRange,gid_to_part=_gid_to_part(gids))
+#   PRange(
+#     gids.ngids,
+#     gids.partition,
+#     gids.exchanger,
+#     gid_to_part,
+#     gids.ghost)
+# end
 
-function PartitionedArrays.touched_hids(
-  a::PRange,
-  gids::AbstractPData{<:AbstractVector{<:Integer}})
+# function PartitionedArrays.touched_hids(
+#   a::PRange,
+#   gids::AbstractArray{<:AbstractVector{<:Integer}})
 
-  if a.gid_to_part !== nothing
-    add_gids!(a,gids)
-  end
-  map_parts(touched_hids,a.partition,gids)
-end
+#   if a.gid_to_part !== nothing
+#     add_gids!(a,gids)
+#   end
+#   map(touched_hids,a.partition,gids)
+# end
 
-function remove_ghost_cells(model::DiscreteModel,gids::IndexSet)
-  DiscreteModelPortion(model,gids.oid_to_lid)
+function remove_ghost_cells(model::DiscreteModel,gids::AbstractLocalIndices)
+  DiscreteModelPortion(model,own_to_local(gids))
 end
 
 function _exchange!(
-  i_to_a::AbstractPData{<:Vector{<:Vector}},
-  exchanger::Exchanger)
+  p_to_i_to_a::AbstractArray{<:Vector{<:Vector}},
+  graph::ExchangeGraph)
 
-  n = length(get_part(i_to_a))
-  for i in 1:n
-    a = map_parts(i_to_a) do i_to_a
-      i_to_a[i]
-    end
-    exchange!(a,exchanger)
-  end
+  tables = map(Table,p_to_i_to_a)
+  data = map(t->t.data,tables)
+  exchange!(data,data,graph)
+  map(copyto!,p_to_i_to_a,tables)
 end
 
 function _cut(bgmodel::DistributedDiscreteModel,args...)
@@ -220,13 +230,14 @@ end
 
 function _cut(cutter::Cutter,bgmodel::DistributedDiscreteModel,args...)
   gids = get_cell_gids(bgmodel)
-  cuts = map_parts(local_views(bgmodel),local_views(gids)) do bgmodel,gids
+  cuts = map(local_views(bgmodel),local_views(gids)) do bgmodel,gids
     ownmodel = remove_ghost_cells(bgmodel,gids)
     cutgeo = cut(cutter,ownmodel,args...)
-    change_bgmodel(cutgeo,bgmodel,gids.oid_to_lid)
+    change_bgmodel(cutgeo,bgmodel,own_to_local(gids))
   end
-  ls_to_bgcell_to_inoutcut = map_parts(c->c.ls_to_bgcell_to_inoutcut,cuts)
-  _exchange!(ls_to_bgcell_to_inoutcut,gids.exchanger)
+  ls_to_bgcell_to_inoutcut = map(c->c.ls_to_bgcell_to_inoutcut,cuts)
+  graph = assembly_graph(partition(gids))
+  _exchange!(ls_to_bgcell_to_inoutcut,graph)
   DistributedEmbeddedDiscretization(cuts,bgmodel)
 end
 
@@ -235,8 +246,9 @@ function _aggregate(
   cutgeo::DistributedEmbeddedDiscretization,
   in_or_out::Integer=IN)
 
-  geo = get_part(map_parts(c->c.geo,local_views(cutgeo)))
-  _aggregate(stragegy,cutgeo,geo,in_or_out)
+  map(local_views(cutgeo)) do cutgeo
+    aggregate(stragegy,cutgeo,cutgeo.geo,in_or_out)
+  end
 end
 
 function _aggregate(
@@ -254,9 +266,9 @@ function _aggregate(
   cutgeo::DistributedEmbeddedDiscretization,
   geo::CSG.Geometry,
   in_or_out::Integer,
-  bgf_to_ioc::AbstractPData{<:AbstractVector})
+  bgf_to_ioc::AbstractArray{<:AbstractVector})
 
-  map_parts(local_views(cutgeo),bgf_to_ioc) do cutgeo,bgf_to_ioc
+  map(local_views(cutgeo),bgf_to_ioc) do cutgeo,bgf_to_ioc
     aggregate(stragegy,cutgeo,geo,in_or_out,bgf_to_ioc)
   end
   # TODO: parallel aggregation here
@@ -306,11 +318,11 @@ end
 
 function compute_bgfacet_to_inoutcut(
   bgmodel::DistributedDiscreteModel,
-  bgf_to_ioc::AbstractPData{<:AbstractVector})
+  bgf_to_ioc::AbstractArray{<:AbstractVector})
 
-  D = num_dims(get_part(local_views(bgmodel)))
+  D = num_dims(eltype(local_views(bgmodel)))
   gids = get_cell_gids(bgmodel)
-  bgf_to_ioc = map_parts(
+  bgf_to_ioc = map(
     local_views(bgmodel),
     local_views(gids),
     bgf_to_ioc) do bgmodel,gids,bgf_to_ioc
@@ -322,7 +334,8 @@ function compute_bgfacet_to_inoutcut(
     _bgf_to_ioc
   end
   facet_gids = get_face_gids(bgmodel,D-1)
-  exchange!(bgf_to_ioc,facet_gids.exchanger)
+  graph = assembly_graph(partition(facet_gids))
+  exchange!(bgf_to_ioc,bgf_to_ioc,graph)
   bgf_to_ioc
 end
 
@@ -333,7 +346,7 @@ function compute_bgfacet_to_inoutcut(
   geo)
 
   gids = get_cell_gids(bgmodel)
-  bgf_to_ioc = map_parts(local_views(bgmodel),local_views(gids)) do model,gids
+  bgf_to_ioc = map(local_views(bgmodel),local_views(gids)) do model,gids
     ownmodel = remove_ghost_cells(model,gids)
     compute_bgfacet_to_inoutcut(cutter,ownmodel,geo)
   end
@@ -349,9 +362,11 @@ end
 
 # Driver
 
-partition = (2,2)
+distribute = identity
 
-parts = get_part_ids(SequentialBackend(),partition)
+np = (2,2)
+
+ranks = distribute(LinearIndices((prod(np),)))
 
 u(x) = x[1] - x[2]
 f(x) = -Δ(u)(x)
@@ -374,7 +389,7 @@ geo2 = disk(R,x0=p0+d)
 
 n = 8
 mesh_partition = (n,n)
-bgmodel = CartesianDiscreteModel(parts,pmin,pmax,mesh_partition)
+bgmodel = CartesianDiscreteModel(ranks,np,pmin,pmax,mesh_partition)
 bgtrian = Triangulation(bgmodel)
 writevtk(bgtrian,"bgtrian")
 
@@ -398,9 +413,6 @@ writevtk(Ω_act,"trian_act")
 writevtk(Ω,"trian_O")
 writevtk(Γ,"trian_G")
 
-Γ = remove_ghost_cells(Γ)
-Ω = remove_ghost_cells(Ω)
-
 n_Γ = get_normal_vector(Γ)
 
 order = 1
@@ -412,7 +424,9 @@ reffe = ReferenceFE(lagrangian,Float64,order)
 
 Vstd = FESpace(Ω_act,reffe)
 
+
 V = AgFEMSpace(bgmodel,Vstd,aggregates)
+V = Vstd
 U = TrialFESpace(V)
 
 
@@ -440,22 +454,22 @@ ul2 = l2(uh)
 uh1 = h1(uh)
 
 #
-colors = map_parts(color_aggregates,aggregates,local_views(bgmodel))
+colors = map(color_aggregates,aggregates,local_views(bgmodel))
 cell_gids = get_cell_gids(bgmodel)
-ohids = map_parts(get_lid_to_ohid,local_views(cell_gids))
-gids = map_parts(get_lid_to_gid,local_views(cell_gids))
-oids = map_parts(i->findall(>(0),i),ohids)
+ohids = map(local_to_own,local_views(cell_gids))
+gids = map(local_to_global,local_views(cell_gids))
+oids = map(i->findall(>(0),i),ohids)
 
-_aggregates = map_parts(aggregates,gids) do agg,gid
+_aggregates = map(aggregates,gids) do agg,gid
   map(i-> i==0 ? 0 : gid[i],agg)
 end
-_aggregates = map_parts(_aggregates,oids) do agg,oid
+_aggregates = map(_aggregates,oids) do agg,oid
   map(Reindex(agg),oid)
 end
-_colors = map_parts(colors,oids) do col,oid
+_colors = map(colors,oids) do col,oid
   map(Reindex(col),oid)
 end
-_gids = map_parts(gids,oids) do gid,oid
+_gids = map(gids,oids) do gid,oid
   map(Reindex(gid),oid)
 end
 
@@ -471,12 +485,13 @@ writevtk(Γ,"trian_G")
 @test el2/ul2 < 1.e-8
 @test eh1/uh1 < 1.e-7
 
-
 ##
 
-partition = (2,2)
+distribute = identity
 
-parts = get_part_ids(SequentialBackend(),partition)
+np = (2,2)
+
+ranks = distribute(LinearIndices((prod(np),)))
 
 L = 1
 p0 = Point(0.0,0.0)
@@ -489,7 +504,7 @@ geo = disk(R,x0=p0)
 
 n = 8
 mesh_partition = (n,n)
-bgmodel = CartesianDiscreteModel(parts,pmin,pmax,mesh_partition)
+bgmodel = CartesianDiscreteModel(ranks,np,pmin,pmax,mesh_partition)
 
 cutgeo = _cut(bgmodel,geo)
 
@@ -497,7 +512,7 @@ bgf_to_ioc = compute_bgfacet_to_inoutcut(bgmodel,geo)
 
 # BUG: aggregates do not have information of ghost cut cells
 # TODO: exchange measures and aggregates
-_aggregate(strategy,cutgeo)
+# _aggregate(strategy,cutgeo)
 
 
 # TODO: parallel aggregation (parallel aggfem article)
