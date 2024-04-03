@@ -12,6 +12,8 @@ include("MomentFittedQuadratures/MomentFittedQuadratures.jl")
 
 include("AlgoimUtils/AlgoimUtils.jl")
 
+include("Distributed/Distributed.jl")
+
 include("Exports.jl")
 
 end # module
