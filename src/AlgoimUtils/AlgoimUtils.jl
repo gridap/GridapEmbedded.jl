@@ -325,20 +325,20 @@ function compute_normal_displacement(
 end
 
 function compute_normal_displacement!(
-    cell_to_points,
+    cache,
     cps::AbstractVector{<:Point},
     phi::AlgoimCallLevelSetFunction,
     fun,
     dt::Float64,
     Ω::Triangulation)
   # Note that cps must be (scalar) DoF-numbered, not lexicographic-numbered
-  if isnothing(cell_to_points)
+  if isnothing(cache)
     searchmethod = KDTreeSearch()
-    cache1 = _point_to_cell_cache(searchmethod,Ω)
-    x_to_cell(x) = _point_to_cell!(cache1, x)
-    point_to_cell = lazy_map(x_to_cell, cps)
-    cell_to_points, _ = make_inverse_table(point_to_cell, num_cells(Ω))
+    cache = _point_to_cell_cache(searchmethod,Ω)
   end
+  x_to_cell(x) = _point_to_cell!(cache, x)
+  point_to_cell = lazy_map(x_to_cell, cps)
+  cell_to_points, _ = make_inverse_table(point_to_cell, num_cells(Ω))
   cell_to_xs = lazy_map(Broadcasting(Reindex(cps)), cell_to_points)
   cell_point_xs = CellPoint(cell_to_xs, Ω, PhysicalDomain())
   fun_xs = evaluate(fun,cell_point_xs)
@@ -355,7 +355,7 @@ function compute_normal_displacement!(
       disps[pt] = dt * val
     end
   end
-  disps, cell_to_points
+  disps, cache
 end
 
 signed_distance(φ::Function,x,y) = sign(φ(y))*norm(x-y)
