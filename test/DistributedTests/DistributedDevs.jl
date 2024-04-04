@@ -7,6 +7,87 @@ using PartitionedArrays
 using Test
 
 using GridapEmbedded.CSG
+using GridapEmbedded.Interfaces: CUT
+using Gridap.Geometry
+using Gridap.ReferenceFEs
+
+using GridapEmbedded.AgFEM: _touch_aggregated_cells!
+
+function _aggregate_one_step!(
+  c1,c2,own_cells,
+  cell_to_inoutcut,
+  cell_to_touched,
+  cell_to_neig,
+  cell_to_cellin,
+  cell_to_root_centroid,
+  cell_to_root_part,
+  cell_to_faces,
+  face_to_cells,
+  facet_to_inoutcut,
+  loc)
+
+  all_aggregated = true
+  for cell in own_cells
+    if ! cell_to_touched[cell] && cell_to_inoutcut[cell] == CUT
+      neigh_cell = _find_best_neighbor_from_centroid_distance(
+        c1,c2,cell,
+        cell_to_faces,
+        face_to_cells,
+        cell_to_touched,
+        cell_to_root_centroid,
+        facet_to_inoutcut,
+        loc)
+      if neigh_cell > 0
+        cellin = cell_to_cellin[neigh_cell]
+        centroid = cell_to_root_centroid[neigh_cell]
+        part = cell_to_root_part[neigh_cell]
+
+        cell_to_neig[cell] = neigh_cell
+        cell_to_cellin[cell] = cellin
+        cell_to_root_centroid[cell] = centroid
+        cell_to_root_part[cell] = part
+      else
+        all_aggregated = false
+      end
+    end
+  end
+  _touch_aggregated_cells!(cell_to_touched,cell_to_cellin)
+  all_aggregated
+end
+
+function _find_best_neighbor_from_centroid_distance(
+  c1,c2,cell,
+  cell_to_faces,
+  face_to_cells,
+  cell_to_touched,
+  cell_to_root_centroid,
+  facet_to_inoutcut,
+  loc)
+
+  faces = getindex!(c1,cell_to_faces,cell)
+  dmin = Inf
+  T = eltype(eltype(face_to_cells))
+  best_neigh_cell = zero(T)
+  for face in faces
+    inoutcut = facet_to_inoutcut[face]
+    if  inoutcut != CUT && inoutcut != loc
+      continue
+    end
+    neigh_cells = getindex!(c2,face_to_cells,face)
+    for neigh_cell in neigh_cells
+      if neigh_cell != cell && cell_to_touched[neigh_cell]
+        p = cell_to_root_centroid[neigh_cell]
+        q = cell_to_root_centroid[cell]
+        d = norm(p-q)
+        if (1.0+1.0e-9)*d < dmin
+          dmin = d
+          best_neigh_cell = neigh_cell
+        end
+      end
+    end
+  end
+  best_neigh_cell
+end
 
 ## Parallel aggregation
 
@@ -53,138 +134,6 @@ np = (2,2)
 
 ranks = distribute(LinearIndices((prod(np),)))
 
-u(x) = x[1] - x[2]
-f(x) = -Δ(u)(x)
-ud(x) = u(x)
-
-L = 1
-p0 = Point(0.0,0.0)
-pmin = p0-L/2
-pmax = p0+L/2
-
-
-R = 0.35
-geo = disk(R,x0=p0)
-
-R = 0.15
-d = L/4
-geo1 = disk(R,x0=p0-d)
-geo2 = disk(R,x0=p0+d)
-#geo = !union(geo1,geo2)
-
-n = 8
-mesh_partition = (n,n)
-bgmodel = CartesianDiscreteModel(ranks,np,pmin,pmax,mesh_partition)
-bgtrian = Triangulation(bgmodel)
-writevtk(bgtrian,"bgtrian")
-
-dp = pmax - pmin
-h = dp[1]/n
-
-cutgeo = cut(bgmodel,geo)
-
-strategy = AggregateAllCutCells()
-strategy = AggregateCutCellsByThreshold(0.5)
-aggregates = aggregate(strategy,cutgeo)
-
-
-Ω_bg = Triangulation(bgmodel)
-Ω_act = Triangulation(cutgeo,ACTIVE)
-Ω = Triangulation(cutgeo,PHYSICAL)
-Γ = EmbeddedBoundary(cutgeo)
-
-using GridapEmbedded.Interfaces: CUT
-Ω_in = Triangulation(cutgeo,IN)
-Ω_out = Triangulation(cutgeo,OUT)
-Ω_cut = Triangulation(cutgeo,CUT)
-
-writevtk(Ω_in,"trian_in")
-writevtk(Ω_out,"trian_out")
-writevtk(Ω_cut,"trian_cut")
-
-
-
-writevtk(Ω_bg,"trian")
-writevtk(Ω_act,"trian_act")
-writevtk(Ω,"trian_O")
-writevtk(Γ,"trian_G")
-
-n_Γ = get_normal_vector(Γ)
-
-order = 1
-degree = 2*order
-dΩ = Measure(Ω,degree)
-dΓ = Measure(Γ,degree)
-
-reffe = ReferenceFE(lagrangian,Float64,order)
-
-Vstd = FESpace(Ω_act,reffe)
-
-
-V = AgFEMSpace(bgmodel,Vstd,aggregates)
-# V = Vstd
-U = TrialFESpace(V)
-
-
-const γd = 10.0
-
-a(u,v) =
-  ∫( ∇(v)⋅∇(u) ) * dΩ +
-  ∫( (γd/h)*v*u  - v*(n_Γ⋅∇(u)) - (n_Γ⋅∇(v))*u ) * dΓ
-
-l(v) =
-  ∫( v*f ) * dΩ +
-  ∫( (γd/h)*v*ud - (n_Γ⋅∇(v))*ud ) * dΓ
-
-op = AffineFEOperator(a,l,U,V)
-uh = solve(op)
-
-e = u - uh
-
-l2(u) = sqrt(sum( ∫( u*u )*dΩ ))
-h1(u) = sqrt(sum( ∫( u*u + ∇(u)⋅∇(u) )*dΩ ))
-
-el2 = l2(e)
-eh1 = h1(e)
-ul2 = l2(uh)
-uh1 = h1(uh)
-
-#
-colors = map(color_aggregates,aggregates,local_views(bgmodel))
-gids = get_cell_gids(bgmodel)
-
-
-global_aggregates = map(aggregates,local_to_global(gids)) do agg,gid
-  map(i-> i==0 ? 0 : gid[i],agg)
-end
-own_aggregates = map(global_aggregates,own_to_local(gids)) do agg,oid
-  map(Reindex(agg),oid)
-end
-own_colors = map(colors,own_to_local(gids)) do col,oid
-  map(Reindex(col),oid)
-end
-
-
-writevtk(Ω_bg,"trian",
-  celldata=[
-    "aggregate"=>own_aggregates,
-    "color"=>own_colors,
-    "gid"=>own_to_global(gids)])#,
-#  cellfields=["uh"=>uh])
-
-writevtk(Ω,"trian_O",cellfields=["uh"=>uh])
-writevtk(Γ,"trian_G")
-@test el2/ul2 < 1.e-8
-@test eh1/uh1 < 1.e-7
-
-##
-
-distribute = identity
-
-np = (2,2)
-
-ranks = distribute(LinearIndices((prod(np),)))
-
 L = 1
 p0 = Point(0.0,0.0)
 pmin = p0-L/2
@@ -201,6 +150,152 @@ bgmodel = CartesianDiscreteModel(ranks,np,pmin,pmax,mesh_partition)
 cutgeo = cut(bgmodel,geo)
 
 bgf_to_ioc = compute_bgfacet_to_inoutcut(bgmodel,geo)
+
+Ω = Triangulation(cutgeo)
+
+
+
+writevtk(Ω,"trian")
+
+
+
+
+
+threshold = 0.8
+loc = IN
+facet_to_inoutcut = compute_bgfacet_to_inoutcut(model,geo)
+
+
+cutinorout = loc == IN ? (CUT_IN,IN) : (CUT_OUT,OUT)
+
+trian = Triangulation(cutgeo,cutinorout,geo)
+
+model = get_background_model(cutgeo)
+
+bgtrian = get_triangulation(model)
+cell_to_cut_meas = map(get_cell_measure,local_views(trian),local_views(bgtrian))
+cell_to_meas = map(get_cell_measure,local_views(bgtrian))
+cell_to_unit_cut_meas = map(cell_to_cut_meas,cell_to_meas) do c_to_cm,c_to_m
+  lazy_map(/,c_to_cm,c_to_m)
+end
+
+
+cell_to_inoutcut = compute_bgcell_to_inoutcut(cutgeo,geo)
+
+
+
+cell_to_coords = map(get_cell_coordinates,local_views(model))
+topo = get_grid_topology(model)
+D = num_cell_dims(model)
+cell_to_faces = map(t->get_faces(t,D,D-1),local_views(topo))
+face_to_cells = map(t->get_faces(t,D-1,D),local_views(topo))
+
+ocell_to_threshold = map(cell_to_unit_cut_meas) do c_to_m
+  n_cells = length(c_to_m)
+  c_to_t = falses(n_cells)
+  c = array_cache(c_to_m)
+  for cell in 1:n_cells
+    if getindex!(c,c_to_m,cell) ≥ threshold
+      c_to_t[cell] = true
+    end
+  end
+  c_to_t
+end
+
+cell_to_root_centroid = map(cell_to_coords) do cell_to_coords
+  map(i->sum(i)/length(i),cell_to_coords)
+end
+PVector(cell_to_root_centroid,partition(gids)) |> consistent! |> wait
+
+
+gids = get_cell_gids(model)
+
+cell_to_threshold = map(ocell_to_threshold,local_to_own(gids)) do o_to_t,l_to_o
+  T = eltype(o_to_t)
+  map(o-> iszero(o) ? zero(T) : o_to_t[o],l_to_o)
+end
+PVector(cell_to_threshold,partition(gids)) |> consistent! |> wait
+cell_to_threshold
+
+n_cells = map(length,cell_to_threshold)
+cell_to_cellin = map(n->zeros(Int32,n),n_cells)
+cell_to_touched = map(falses,n_cells)
+cells_threshold = map(findall,cell_to_threshold)
+cell_to_cellin = map(cells_threshold,cell_to_cellin) do cells,c_to_ci
+  c_to_ci[cells] = cells # TODO: gid here
+  c_to_ci
+end
+cell_to_neig = map(copy,cell_to_cellin)
+cell_to_touched = cell_to_threshold
+
+
+c1 = map(array_cache,cell_to_faces)
+c2 = map(array_cache,face_to_cells)
+
+max_iters = 1
+all_aggregated = false
+
+# for iter in 1:max_iters
+own_cells = own_to_local(gids)[1]
+
+cell_to_root_part = map(collect,local_to_owner(gids))
+# communicate
+
+# end # for
+
+
+# init variables
+
+
+# for iter in 1:max_iters
+
+all_aggregated = map(c1,c2,own_to_local(gids),
+  cell_to_inoutcut,
+  cell_to_touched,
+  cell_to_neig,
+  cell_to_cellin,
+  cell_to_root_centroid,
+  cell_to_root_part,
+  cell_to_faces,
+  face_to_cells,
+  facet_to_inoutcut) do c1,c2,own_cells,
+      cell_to_inoutcut,
+      cell_to_touched,
+      cell_to_neig,
+      cell_to_cellin,
+      cell_to_root_centroid,
+      cell_to_root_part,
+      cell_to_faces,
+      face_to_cells,
+      facet_to_inoutcut
+
+  _aggregate_one_step!(
+    c1,c2,own_cells,
+    cell_to_inoutcut,
+    cell_to_touched,
+    cell_to_neig,
+    cell_to_cellin,
+    cell_to_root_centroid,
+    cell_to_root_part,
+    cell_to_faces,
+    face_to_cells,
+    facet_to_inoutcut,
+    loc)
+
+end
+
+
+# consistent! (communicate ghost)
+(cell_to_touched,
+cell_to_neig, # neig_lid (if lid not consistent, ignore ghost)
+cell_to_cellin, # root_gid
+cell_to_root_centroid,
+cell_to_root_part)
+
+# reduce all_aggregated and break if all(all_aggregated)
+
+
+# return cell_to_rood_gid, cell_to_root_part, cell_to_neig
 
 # BUG: aggregates do not have information of ghost cut cells
 # TODO: exchange measures and aggregates

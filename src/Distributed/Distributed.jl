@@ -31,6 +31,7 @@ import GridapEmbedded.AgFEM: AgFEMSpace
 import GridapEmbedded.Interfaces: cut
 import GridapEmbedded.Interfaces: EmbeddedBoundary
 import GridapEmbedded.Interfaces: compute_bgfacet_to_inoutcut
+import GridapEmbedded.Interfaces: compute_bgcell_to_inoutcut
 import Gridap.Geometry: Triangulation
 import Gridap.Geometry: get_background_model
 import GridapDistributed: local_views
@@ -228,6 +229,12 @@ end
 function compute_bgfacet_to_inoutcut(bgmodel::DistributedDiscreteModel,args...)
   cutter = LevelSetCutter()
   compute_bgfacet_to_inoutcut(cutter,bgmodel,args...)
+end
+
+function compute_bgcell_to_inoutcut(cutgeo::DistributedEmbeddedDiscretization,args...)
+  map(local_views(cutgeo)) do cutgeo
+    compute_bgcell_to_inoutcut(cutgeo,args...)
+  end
 end
 
 function change_bgmodel(
