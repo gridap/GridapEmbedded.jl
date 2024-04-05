@@ -302,7 +302,7 @@ function _distributed_aggregate_by_threshold(threshold,cutgeo,geo,loc,facet_to_i
   trian = Triangulation(cutgeo,cutinorout,geo)
   model = get_background_model(cutgeo)
   bgtrian = get_triangulation(model)
-  cell_to_cut_meas = map(get_cell_measure,local_views(trian),local_views(bgtrian))
+  cell_to_cut_meas = map(_get_cell_measure,local_views(trian),local_views(bgtrian))
   cell_to_meas = map(get_cell_measure,local_views(bgtrian))
   cell_to_unit_cut_meas = map(cell_to_cut_meas,cell_to_meas) do c_to_cm,c_to_m
     lazy_map(/,c_to_cm,c_to_m)
@@ -524,6 +524,13 @@ function _add_ghost_values(own_v,gids::PRange)
   local_v
 end
 
+function _get_cell_measure(trian1::Triangulation,trian2::Triangulation)
+  if num_cells(trian1) == 0
+    Fill(0.0,num_cells(trian2))
+  else
+    get_cell_measure(trian1,trian2)
+  end
+end
 
 
 end # module

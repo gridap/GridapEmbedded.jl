@@ -83,7 +83,7 @@ writevtk(Ωbg,"bgtrian",celldata=
 
 # TODO:
 # - print aggregates [x]
-# - move to src
+# - move to src [x]
 # - test aggregates with several geometries [x]
 # - reconstruct paths
 # - add remote roots to model
@@ -93,5 +93,11 @@ writevtk(Ωbg,"bgtrian",celldata=
 # 1. root in ghost layer
 # 2. root in neighbors
 # 3. root in neighbors of neighbors
+
+
+# TODO:
+# - test possion eq with root in ghost layer (simplify this geometry)
+# - test graph reconstruction in 1D arrays
+# - add remote roots to model
 
 end # module
