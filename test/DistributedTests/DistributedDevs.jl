@@ -50,14 +50,14 @@ local_aggretation = map(aggregate_owner,own_to_local(gids),own_to_owner(gids)) d
   owners = map(Reindex(owns),o_to_l)
   all(lazy_map(==,owners,o))
 end
-has_local_aggretation = reduction(&,local_aggretation) |> emit |> PartitionedArrays.getany
+has_local_aggretation = reduction(&,local_aggretation,destination=:all) |> PartitionedArrays.getany
 
 remote_aggregation = map(aggregates,global_to_local(gids)) do agg,g_to_l
   lazy_map(agg) do a
    iszero(a) || !iszero(g_to_l[a])
   end |> all |> !
 end
-has_remote_aggregation = reduction(|,remote_aggregation) |> emit |> PartitionedArrays.getany
+has_remote_aggregation = reduction(|,remote_aggregation,destination=:all) |> PartitionedArrays.getany
 
 @test !has_local_aggretation
 @test !has_remote_aggregation
@@ -160,12 +160,40 @@ writevtk(Ωbg,"bgtrian",celldata=
     "aggregate_owner"=>oaggregate_owner])
 
 writevtk(Ω,"trian",cellfields=["uh"=>uh])
+
+
+
+
+using GridapEmbedded.Distributed: add_remote_aggregates
+
+np = (3,)
+
+ranks = distribute(LinearIndices((prod(np),)))
+m = CartesianDiscreteModel(ranks,np,(0, 1),(9,))
+
+
+aggregates = DebugArray([[1, 9, 8, 5], [3, 4, 9, 6, 7], [6, 7, 3, 9]])
+aggregate_owner = DebugArray([[1, 3, 3, 2], [1, 2, 3, 2, 3], [2, 3, 1, 3]])
+
+am = add_remote_aggregates(m,aggregates,aggregate_owner)
+
+gids = partition(get_cell_gids(am))
+test_gids = DebugArray([[1,2,3,4,5,8,9],[3,4,5,6,7,9],[6,7,8,9,3]])
+map(gids,test_gids) do gids,_gids
+  @test all(gids .==_gids)
+end
+
+map(local_views(am),ranks) do m,p
+  writevtk(Triangulation(m),"m$p")
+end
+
 # TODO:
 # - print aggregates [x]
 # - move to src [x]
 # - test aggregates with several geometries [x]
-# - reconstruct paths
-# - add remote roots to model
+# - reconstruct paths [x]
+# - add remote roots to model [x]
+# - migrate model
 
 # TODO: parallel aggregation (parallel aggfem article)
 # 0. exchange measures and aggregates through gid
@@ -173,9 +201,9 @@ writevtk(Ω,"trian",cellfields=["uh"=>uh])
 # 2. root in neighbors
 # 3. root in neighbors of neighbors
 
-
 # TODO:
 # - test possion eq with root in ghost layer (simplify this geometry)
 # - test graph reconstruction in 1D arrays
 # - add remote roots to model
+
 end

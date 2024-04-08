@@ -374,8 +374,7 @@ function _distributed_aggregate_by_threshold_barrier(
     PVector(cell_to_root_centroid,partition(gids)) |> consistent! |> wait
     PVector(cell_to_root_part,partition(gids)) |> consistent! |> wait
 
-    reduction!(&,all_aggregated,all_aggregated)
-    emit!(all_aggregated,all_aggregated)
+    reduction!(&,all_aggregated,all_aggregated,destination=:all)
 
     if PartitionedArrays.getany(all_aggregated)
       break
@@ -531,6 +530,116 @@ function _get_cell_measure(trian1::Triangulation,trian2::Triangulation)
     get_cell_measure(trian1,trian2)
   end
 end
+
+function add_remote_aggregates(model::DistributedDiscreteModel,aggregates,aggregate_owner)
+  gids = get_cell_gids(model)
+  remote_cells,remote_parts = _extract_remote_cells(gids,aggregates,aggregate_owner)
+  remote_cells,remote_parts = _group_remote_ids(remote_cells,remote_parts)
+  add_remote_cells(model,remote_cells,remote_parts)
+end
+
+function _extract_remote_cells(gids::PRange,aggregates,aggregate_owner)
+  remote_aggids = map(aggregates,global_to_local(gids)) do agg,g_to_l
+    ids = findall(agg) do i
+      !iszero(i) && iszero(g_to_l[i])
+    end
+    unique(Reindex(agg),ids)
+  end
+
+  remote_cells = map(aggregates,remote_aggids) do agg,ids
+    map(Reindex(agg),ids)
+  end
+
+  remote_parts = map(aggregate_owner,remote_aggids) do agg,ids
+    map(Reindex(agg),ids)
+  end
+
+  remote_cells,remote_parts
+end
+
+function _group_remote_ids(remote_ids,remote_parts)
+  new_parts = map(sort∘unique,remote_parts)
+  new_ids = map(remote_ids,remote_parts,new_parts) do ids,parts,uparts
+    grouped_ids = map(i->Int[],1:length(uparts))
+    for (id,p) in zip(ids,parts)
+      j = findfirst(==(p),uparts)
+      union!(grouped_ids[j],id)
+    end
+    map!(sort!,grouped_ids,grouped_ids)
+  end
+  new_ids,new_parts
+end
+
+function _ungroup_remote_ids(remote_ids,remote_parts)
+  new_ids = map(remote_ids) do ids
+    reduce(append!,ids,init=eltype(eltype(ids))[])
+  end
+  new_parts = map(remote_ids,remote_parts) do ids,parts
+    n = map(length,ids)
+    parts_v = map((p,n)->Fill(p,n),parts,n)
+    reduce(append!,parts_v,init=eltype(parts)[])
+  end
+  new_ids,new_parts
+end
+
+function add_remote_ids(gids::PRange,remote_gids,remote_parts)
+  new_gids,new_parts = _ungroup_remote_ids(remote_gids,remote_parts)
+  lid_to_gid = map(vcat,local_to_global(gids),new_gids)
+  lid_to_part = map(vcat,local_to_owner(gids),new_parts)
+  p = map(lid_to_gid,lid_to_part,partition(gids)) do l_to_g,l_to_p,p
+    LocalIndices(length(gids),part_id(p),l_to_g,l_to_p)
+  end
+  PRange(p)
+end
+
+function add_remote_cells(model::DistributedDiscreteModel,remote_cells,remote_parts)
+  # Send remote gids to owners
+  snd_ids = remote_parts
+  snd_remotes = remote_cells
+  graph = ExchangeGraph(snd_ids)
+  rcv_remotes = allocate_exchange(snd_remotes,graph)
+  exchange!(rcv_remotes,snd_remotes,graph) |> wait
+
+  # Send remote coordinates
+  gids = get_cell_gids(model)
+  snd_gids = rcv_remotes
+  snd_lids = map(global_to_local(gids),snd_gids) do g_to_l,gids
+    map(Reindex(g_to_l),gids)
+  end
+  snd_coords = map(local_views(model),snd_lids) do m,lids
+    map(lids) do lids
+      coords = map(Reindex(get_cell_coordinates(m)),lids)
+      reduce(append!,coords,init=eltype(eltype(coords))[])
+    end
+  end
+  rgraph = reverse(graph)
+  rcv_coords = allocate_exchange(snd_coords,rgraph)
+  exchange!(rcv_coords,snd_coords,rgraph) |> wait
+
+  # Build remote grids
+  ncells = map(remote_cells) do cells
+    sum(length,cells)
+  end
+  reffes = map(get_reffes,local_views(model))
+  reffe = map(only,reffes)
+  ctypes = map(n->ones(Int,n),ncells)
+  coords = map(PartitionedArrays.getdata,rcv_coords)
+  conn = map(ncells,reffe) do ncells,reffe
+    n = num_nodes(reffe)
+    data = 1:n*ncells
+    ptrs = 1:n:n*ncells+1
+    Table(data,ptrs)
+  end
+  rgrids = map(UnstructuredGrid,coords,conn,reffes,ctypes)
+
+  # Build appended model
+  lgrids = map(get_grid,local_views(model))
+  grids = map(lazy_append,lgrids,rgrids)
+  models = map(UnstructuredDiscreteModel,grids)
+  agids = add_remote_ids(gids,remote_cells,remote_parts)
+  DistributedDiscreteModel(models,agids)
+end
+
 
 
 end # module
