@@ -242,9 +242,40 @@ function compute_bgcell_to_inoutcut(cutgeo::DistributedEmbeddedDiscretization,ar
 end
 
 function change_bgmodel(
+  cutgeo::DistributedEmbeddedDiscretization,
+  model::DistributedDiscreteModel,
+  args...)
+
+  cuts = _change_bgmodels(cutgeo,model,args...)
+  gids = get_cell_gids(model)
+  ls_to_bgcell_to_inoutcut = map(c->c.ls_to_bgcell_to_inoutcut,cuts)
+  _consistent!(ls_to_bgcell_to_inoutcut,gids)
+  DistributedEmbeddedDiscretization(cuts,model)
+end
+
+function _change_bgmodels(
+  cutgeo::DistributedEmbeddedDiscretization,
+  model::DistributedDiscreteModel,
+  cell_to_newcell)
+
+  map(local_views(cutgeo),local_views(model),cell_to_newcell) do c,m,c_to_nc
+    change_bgmodel(c,m,c_to_nc)
+  end
+end
+
+function _change_bgmodels(
+  cutgeo::DistributedEmbeddedDiscretization,
+  model::DistributedDiscreteModel)
+
+  map(local_views(cutgeo),local_views(model)) do c,m
+    change_bgmodel(c,m)
+  end
+end
+
+function change_bgmodel(
   cut::EmbeddedDiscretization,
   newmodel::DiscreteModel,
-  cell_to_newcell)
+  cell_to_newcell=1:num_cells(get_background_model(cut)))
 
   ls_to_bgc_to_ioc = map(cut.ls_to_bgcell_to_inoutcut) do bgc_to_ioc
     new_bgc_to_ioc = Vector{Int8}(undef,num_cells(newmodel))
@@ -594,6 +625,7 @@ end
 
 function add_remote_cells(model::DistributedDiscreteModel,remote_cells,remote_parts)
   # Send remote gids to owners
+  display(remote_cells)
   snd_ids = remote_parts
   snd_remotes = remote_cells
   graph = ExchangeGraph(snd_ids)
@@ -607,10 +639,12 @@ function add_remote_cells(model::DistributedDiscreteModel,remote_cells,remote_pa
     map(Reindex(g_to_l),gids)
   end
   snd_coords = map(local_views(model),snd_lids) do m,lids
-    map(lids) do lids
+    T = eltype(eltype(get_cell_coordinates(m)))
+    coords = map(lids) do lids
       coords = map(Reindex(get_cell_coordinates(m)),lids)
-      reduce(append!,coords,init=eltype(eltype(coords))[])
+      reduce(append!,coords,init=T[])
     end
+    Vector{Vector{T}}(coords)
   end
   rgraph = reverse(graph)
   rcv_coords = allocate_exchange(snd_coords,rgraph)
@@ -618,7 +652,7 @@ function add_remote_cells(model::DistributedDiscreteModel,remote_cells,remote_pa
 
   # Build remote grids
   ncells = map(remote_cells) do cells
-    sum(length,cells)
+    sum(length,cells,init=0)
   end
   reffes = map(get_reffes,local_views(model))
   reffe = map(only,reffes)
@@ -638,6 +672,22 @@ function add_remote_cells(model::DistributedDiscreteModel,remote_cells,remote_pa
   models = map(UnstructuredDiscreteModel,grids)
   agids = add_remote_ids(gids,remote_cells,remote_parts)
   DistributedDiscreteModel(models,agids)
+end
+
+
+function has_remote_aggregation(model::DistributedDiscreteModel,aggregates)
+  gids = get_cell_gids(model)
+  has_remote_aggregation(aggregates,gids)
+end
+
+function has_remote_aggregation(aggregates,gids::PRange)
+  remote_aggregation = map(aggregates,global_to_local(gids)) do agg,g_to_l
+    lazy_map(agg) do a
+    iszero(a) || !iszero(g_to_l[a])
+    end |> all |> !
+  end
+  display( remote_aggregation)
+ reduction(|,remote_aggregation,destination=:all) |> PartitionedArrays.getany
 end
 
 

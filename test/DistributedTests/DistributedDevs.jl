@@ -7,6 +7,7 @@ using PartitionedArrays
 using Test
 
 using GridapEmbedded.Distributed: distributed_aggregate
+using GridapEmbedded.Distributed: has_remote_aggregation
 
 distribute = PartitionedArrays.DebugArray
 
@@ -46,21 +47,19 @@ aggregates,aggregate_owner,aggregate_neig = distributed_aggregate(
 
 
 gids = get_cell_gids(bgmodel)
+# TODO: do not use owner for this query (has ghost aggregation?)
 local_aggretation = map(aggregate_owner,own_to_local(gids),own_to_owner(gids)) do owns,o_to_l,o
   owners = map(Reindex(owns),o_to_l)
   all(lazy_map(==,owners,o))
 end
 has_local_aggretation = reduction(&,local_aggretation,destination=:all) |> PartitionedArrays.getany
 
-remote_aggregation = map(aggregates,global_to_local(gids)) do agg,g_to_l
-  lazy_map(agg) do a
-   iszero(a) || !iszero(g_to_l[a])
-  end |> all |> !
-end
-has_remote_aggregation = reduction(|,remote_aggregation,destination=:all) |> PartitionedArrays.getany
+
+@test !has_remote_aggregation(bgmodel,aggregates)
+
 
 @test !has_local_aggretation
-@test !has_remote_aggregation
+# @test !has_remote_aggregation
 
 cut_in = map(aggregates) do agg
   findall(!iszero,agg)
@@ -186,6 +185,32 @@ end
 map(local_views(am),ranks) do m,p
   writevtk(Triangulation(m),"m$p")
 end
+
+
+# import GridapEmbedded.Distributed: change_bgmodel
+# using GridapEmbedded.Distributed: DistributedEmbeddedDiscretization
+# using GridapDistributed: DistributedDiscreteModel
+
+
+
+
+
+# cutgeo::DistributedEmbeddedDiscretization
+# map local_views(cutgeo)
+# change_bgmodel(cutgeo,bgmodel,own_to_local(gids))
+# end
+# ls_to_bgcell_to_inoutcut = map(c->c.ls_to_bgcell_to_inoutcut,cuts)
+# _consistent!(ls_to_bgcell_to_inoutcut,gids)
+# DistributedEmbeddedDiscretization(cuts,bgmodel)
+
+# change_bgmodel(
+#   cut::EmbeddedDiscretization,
+#   newmodel::DiscreteModel,
+#   cell_to_newcell)
+
+# cell_to_newcell = 1:num_cells(get_background_model(cut))
+
+
 
 # TODO:
 # - print aggregates [x]
