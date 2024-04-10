@@ -191,44 +191,24 @@ end
 # using GridapEmbedded.Distributed: DistributedEmbeddedDiscretization
 # using GridapDistributed: DistributedDiscreteModel
 
-
-
-
-
-# cutgeo::DistributedEmbeddedDiscretization
-# map local_views(cutgeo)
-# change_bgmodel(cutgeo,bgmodel,own_to_local(gids))
-# end
-# ls_to_bgcell_to_inoutcut = map(c->c.ls_to_bgcell_to_inoutcut,cuts)
-# _consistent!(ls_to_bgcell_to_inoutcut,gids)
-# DistributedEmbeddedDiscretization(cuts,bgmodel)
-
-# change_bgmodel(
-#   cut::EmbeddedDiscretization,
-#   newmodel::DiscreteModel,
-#   cell_to_newcell)
-
-# cell_to_newcell = 1:num_cells(get_background_model(cut))
-
-
-
 # TODO:
 # - print aggregates [x]
 # - move to src [x]
 # - test aggregates with several geometries [x]
 # - reconstruct paths [x]
 # - add remote roots to model [x]
-# - migrate model
+# - migrate model [x]
+# - agfem fe space with remotes
 
 # TODO: parallel aggregation (parallel aggfem article)
-# 0. exchange measures and aggregates through gid
-# 1. root in ghost layer
-# 2. root in neighbors
-# 3. root in neighbors of neighbors
+# 0. exchange measures and aggregates through gid [x]
+# 1. root in ghost layer [x]
+# 2. root in neighbors [x]
+# 3. root in neighbors of neighbors [x]
 
 # TODO:
-# - test possion eq with root in ghost layer (simplify this geometry)
-# - test graph reconstruction in 1D arrays
-# - add remote roots to model
+# - test possion eq with root in ghost layer (simplify this geometry) [x]
+# - test graph reconstruction in 1D arrays [x]
+# - add remote roots to model [x]
 
 end

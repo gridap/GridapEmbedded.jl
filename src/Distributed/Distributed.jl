@@ -184,11 +184,14 @@ function _consistent!(
   p_to_i_to_a::AbstractArray{<:Vector{<:Vector}},
   prange::PRange)
 
-  tables = map(Table,p_to_i_to_a)
-  data = map(t->t.data,tables)
-  pdata = PVector(data,partition(prange))
-  consistent!(pdata) |> wait
-  map(copyto!,p_to_i_to_a,tables)
+  n = map(length,p_to_i_to_a) |> PartitionedArrays.getany
+  for i in 1:n
+    p_to_a = map(i_to_a->i_to_a[i],p_to_i_to_a)
+    PVector(p_to_a,partition(prange)) |> consistent! |> wait
+    map(p_to_a,p_to_i_to_a) do p_to_a,p_to_ia
+      copyto!(p_to_ia[i],p_to_a)
+    end
+  end
 end
 
 
@@ -625,7 +628,6 @@ end
 
 function add_remote_cells(model::DistributedDiscreteModel,remote_cells,remote_parts)
   # Send remote gids to owners
-  display(remote_cells)
   snd_ids = remote_parts
   snd_remotes = remote_cells
   graph = ExchangeGraph(snd_ids)
@@ -686,8 +688,7 @@ function has_remote_aggregation(aggregates,gids::PRange)
     iszero(a) || !iszero(g_to_l[a])
     end |> all |> !
   end
-  display( remote_aggregation)
- reduction(|,remote_aggregation,destination=:all) |> PartitionedArrays.getany
+  reduction(|,remote_aggregation,destination=:all) |> PartitionedArrays.getany
 end
 
 

@@ -1,4 +1,4 @@
-module testing_remote_aggs
+module testing_remote_no_aggs
 
 using Gridap
 using GridapEmbedded
@@ -21,34 +21,6 @@ nc = (9,9)
 
 L = 1
 
-# C shape
-x0 = Point(0.1,0.1)
-d1 = VectorValue(0.8,0.0)
-d2 = VectorValue(0.0,0.05)
-geo1 = quadrilateral(;x0=x0,d1=d1,d2=d2)
-
-x0 = Point(0.15,0.125)
-d1 = VectorValue(0.2,0.0)
-d2 = VectorValue(0.0,0.6)
-geo2 = quadrilateral(;x0=x0,d1=d1,d2=d2)
-
-x0 = Point(0.1,0.6)
-d1 = VectorValue(0.8,0.0)
-d2 = VectorValue(0.0,0.3)
-geo3 = quadrilateral(;x0=x0,d1=d1,d2=d2)
-
-geo12 = union(geo1,geo2)
-geo = union(geo12,geo3)
-geo = geo12
-
-# Cirlce (test)
-R = 0.35
-p0 = Point(0.5,0.5)
-geo = disk(R,x0=p0)
-geo = geo3
-
-
-# Bigger  cut cells (test)
 x0 = Point(0.05,0.05)
 d1 = VectorValue(0.9,0.0)
 d2 = VectorValue(0.0,0.15)
@@ -84,7 +56,6 @@ _bgmodel = add_remote_aggregates(bgmodel,aggregates,aggregate_owner)
 
 _cutgeo = change_bgmodel(cutgeo,_bgmodel)
 
-
 gids = get_cell_gids(_bgmodel)
 # Add remote to aggregates
 _aggregates = map(aggregates,local_to_global(gids)) do agg,l_to_g
@@ -95,19 +66,17 @@ _aggregates = map(aggregates,local_to_global(gids)) do agg,l_to_g
   _agg
 end
 
-
 bgmodel = _bgmodel
 cutgeo = _cutgeo
 aggregates = _aggregates
 
-gids = get_cell_gids(bgmodel)
 # Local aggregates
+gids = get_cell_gids(bgmodel)
 laggregates = map(aggregates,global_to_local(gids)) do agg,g_to_l
   map(agg) do i
     iszero(i) ? i : g_to_l[i]
   end
 end
-
 
 Ω_bg = Triangulation(bgmodel)
 Ω_act = Triangulation(cutgeo,ACTIVE)
@@ -124,7 +93,6 @@ reffe = ReferenceFE(lagrangian,Float64,order)
 
 Vstd = FESpace(Ω_act,reffe)
 
-V = AgFEMSpace(bgmodel,Vstd,laggregates)
 V = Vstd
 U = TrialFESpace(V)
 
@@ -158,11 +126,12 @@ eh1 = h1(e)
 ul2 = l2(uh)
 uh1 = h1(uh)
 
+@test el2/ul2 < 1e-9
+@test eh1/uh1 < 1e-9
 
 Ω = Triangulation(cutgeo)
 Γ = EmbeddedBoundary(cutgeo)
 Ωbg = Triangulation(bgmodel)
-Ω_act = Triangulation(cutgeo,ACTIVE)
 
 writevtk(Ω,"trian");
 writevtk(Γ,"bnd");
@@ -173,30 +142,9 @@ writevtk(Ω,"trian",
   cellfields=["uh"=>uh,"u"=>u,"e"=>e],);
 
 
-
-# Debug VTK
-map(local_views(_bgmodel),ranks) do m,p
-  writevtk(get_grid(m),"bgmodel_$p")
-end
-
-
 map(local_views(uh),local_views(bgmodel),ranks) do uh,m,p
   trian = Triangulation(m)
   writevtk(trian,"ltrian_$p",cellfields=["uh"=>uh])
 end
-
-
-map(local_views(cutgeo),ranks) do c,p
-  m = get_background_model(c)
-  c_io = compute_bgcell_to_inoutcut(c,c.geo)
-  writevtk(Triangulation(m),"bgtrian_$p",celldata=["inout"=>c_io])
-end
-
-
-
-# TODO:
-# only own remotes, not ghost remotes
-# add remotes (itself) to aggregate array [x]
-
 
 end # module
