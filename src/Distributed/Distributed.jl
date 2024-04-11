@@ -146,8 +146,10 @@ function AgFEMSpace(
   trian = DistributedTriangulation(trians,bgmodel)
   trian = add_ghost_cells(trian)
   trian_gids = generate_cell_gids(trian)
+  cell_to_cellin = _active_aggregates(bgcell_to_bgcellin)
   cell_to_ldofs = map(get_cell_dof_ids,spaces)
   cell_to_ldofs = map(i->map(sort,i),cell_to_ldofs)
+  _remove_improper_cell_ldofs!(cell_to_ldofs,cell_to_cellin)
   nldofs = map(num_free_dofs,spaces)
   gids = generate_gids(trian_gids,cell_to_ldofs,nldofs)
   vector_type = _find_vector_type(spaces,gids)
@@ -689,6 +691,35 @@ function has_remote_aggregation(aggregates,gids::PRange)
     end |> all |> !
   end
   reduction(|,remote_aggregation,destination=:all) |> PartitionedArrays.getany
+end
+
+
+function _active_aggregates(bgcell_to_bgcellin::AbstractVector{<:AbstractVector})
+  map(_active_aggregates,bgcell_to_bgcellin)
+end
+
+function _active_aggregates(bgcell_to_bgcellin)
+  acell_to_bgcell = findall(!iszero,bgcell_to_bgcellin)
+  bgcell_to_acell = zeros(Int,length(bgcell_to_bgcellin))
+  bgcell_to_acell[acell_to_bgcell] = 1:length(acell_to_bgcell)
+  acell_to_bgcellin = bgcell_to_bgcellin[ acell_to_bgcell ]
+  bgcell_to_acell[ acell_to_bgcellin ]
+end
+
+function _remove_improper_cell_ldofs!(
+  cell_to_ldofs::AbstractVector{<:AbstractVector{<:AbstractVector}},
+  bgcell_to_bgcellin::AbstractVector{<:AbstractVector})
+
+  map(_remove_improper_cell_ldofs!,cell_to_ldofs,bgcell_to_bgcellin)
+end
+
+
+function _remove_improper_cell_ldofs!(cell_to_ldofs,cell_to_cellin)
+  for cell in 1:length(cell_to_ldofs)
+    cell_to_cellin[cell] != cell || continue
+    cell_to_ldofs[cell] = empty!(cell_to_ldofs[cell])
+  end
+  cell_to_ldofs
 end
 
 

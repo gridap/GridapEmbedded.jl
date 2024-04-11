@@ -123,9 +123,8 @@ dΓ = Measure(Γ,degree)
 reffe = ReferenceFE(lagrangian,Float64,order)
 
 Vstd = FESpace(Ω_act,reffe)
-
 V = AgFEMSpace(bgmodel,Vstd,laggregates)
-V = Vstd
+
 U = TrialFESpace(V)
 
 
@@ -193,10 +192,7 @@ map(local_views(cutgeo),ranks) do c,p
 end
 
 
-
-# TODO:
-# only own remotes, not ghost remotes
-# add remotes (itself) to aggregate array [x]
-
-
+# TODO: encapsulate and reduce Interfaces
+# add tests with mpi
+# PR
 end # module
