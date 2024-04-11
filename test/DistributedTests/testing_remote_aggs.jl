@@ -6,11 +6,6 @@ using GridapDistributed
 using PartitionedArrays
 using Test
 
-using GridapEmbedded.Distributed: distributed_aggregate
-using GridapEmbedded.Distributed: has_remote_aggregation
-using GridapEmbedded.Distributed: add_remote_aggregates
-using GridapEmbedded.Distributed: change_bgmodel
-
 distribute = PartitionedArrays.DebugArray
 
 
@@ -78,51 +73,6 @@ strategy = AggregateCutCellsByThreshold(1.0)
 
 
 bgmodel,cutgeo,aggregates = aggregate(strategy,cutgeo,geo,IN);
-# aggregates,aggregate_owner = distributed_aggregate(strategy,cutgeo,geo,IN);
-
-# if has_remote_aggregation(bgmodel,aggregates)
-#   bgmodel = add_remote_aggregates(bgmodel,aggregates,aggregate_owner)
-#   cutgeo = change_bgmodel(cutgeo,_bgmodel)
-#   aggregates = _change_model(aggregates,get_cell_gids(_bgmodel))
-# end
-
-# laggregates = _local_aggregates(aggregates,get_cell_gids(bgmodel))
-
-# bgmodel,cutgeo,laggregates
-
-
-
-# @test has_remote_aggregation(bgmodel,aggregates)
-
-# _bgmodel = add_remote_aggregates(bgmodel,aggregates,aggregate_owner)
-
-# @test ! has_remote_aggregation(_bgmodel,aggregates)
-
-# _cutgeo = change_bgmodel(cutgeo,_bgmodel)
-
-
-# gids = get_cell_gids(_bgmodel)
-# # Add remote to aggregates
-# _aggregates = map(aggregates,local_to_global(gids)) do agg,l_to_g
-#   _agg = zeros(Int,length(l_to_g))
-#   for (l,g) in enumerate(l_to_g)
-#     _agg[l] = l > length(agg) ? g : agg[l]
-#   end
-#   _agg
-# end
-
-
-# bgmodel = _bgmodel
-# cutgeo = _cutgeo
-# aggregates = _aggregates
-
-# gids = get_cell_gids(bgmodel)
-# # Local aggregates
-# laggregates = map(aggregates,global_to_local(gids)) do agg,g_to_l
-#   map(agg) do i
-#     iszero(i) ? i : g_to_l[i]
-#   end
-# end
 
 
 Ω_bg = Triangulation(bgmodel)
@@ -208,8 +158,8 @@ writevtk(Ω,"trian",
 # end
 
 
-# TODO: encapsulate and reduce Interfaces
-# split files
+# TODO:
+# add geometries
 # add tests with mpi
 # PR
 end # module
