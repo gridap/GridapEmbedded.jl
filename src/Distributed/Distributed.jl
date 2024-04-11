@@ -105,28 +105,32 @@ function distributed_embedded_triangulation(
 end
 
 
-function aggregate(stragegy,cutgeo::DistributedEmbeddedDiscretization)
-  aggregates = map(local_views(cutgeo)) do lcutgeo
-    aggregate(stragegy,lcutgeo)
-  end
+function aggregate(strategy,cutgeo::DistributedEmbeddedDiscretization,args...)
+  aggregates,aggregate_owner = distributed_aggregate(strategy,cutgeo,args...)
   bgmodel = get_background_model(cutgeo)
-  consistent_aggregates(aggregates,bgmodel)
+  if has_remote_aggregation(bgmodel,aggregates)
+    bgmodel = add_remote_aggregates(bgmodel,aggregates,aggregate_owner)
+    cutgeo = change_bgmodel(cutgeo,bgmodel)
+    aggregates = _change_model(aggregates,get_cell_gids(bgmodel))
+  end
+  laggregates = _local_aggregates(aggregates,get_cell_gids(bgmodel))
+  bgmodel,cutgeo,laggregates
 end
 
-function consistent_aggregates(aggregates,bgmodel::DistributedDiscreteModel)
-  consistent_aggregates(aggregates,get_cell_gids(bgmodel))
-end
+# function consistent_aggregates(aggregates,bgmodel::DistributedDiscreteModel)
+#   consistent_aggregates(aggregates,get_cell_gids(bgmodel))
+# end
 
-function consistent_aggregates(aggregates,gids::PRange)
-  global_aggregates = map(aggregates,local_to_global(gids)) do agg,gid
-    map(i-> iszero(i) ? i : gid[i],agg)
-  end
-  paggregates = PVector(global_aggregates,partition(gids))
-  consistent!(paggregates) |> wait
-  map(local_values(paggregates),global_to_local(gids)) do agg,lgid
-    map(i-> iszero(i) ? i : lgid[i],agg)
-  end
-end
+# function consistent_aggregates(aggregates,gids::PRange)
+#   global_aggregates = map(aggregates,local_to_global(gids)) do agg,gid
+#     map(i-> iszero(i) ? i : gid[i],agg)
+#   end
+#   paggregates = PVector(global_aggregates,partition(gids))
+#   consistent!(paggregates) |> wait
+#   map(local_values(paggregates),global_to_local(gids)) do agg,lgid
+#     map(i-> iszero(i) ? i : lgid[i],agg)
+#   end
+# end
 
 function AgFEMSpace(
   bgmodel::DistributedDiscreteModel,
@@ -722,6 +726,27 @@ function _remove_improper_cell_ldofs!(cell_to_ldofs,cell_to_cellin)
   cell_to_ldofs
 end
 
+function _local_aggregates(cell_to_gcellin,gids::PRange)
+  map(_local_aggregates,cell_to_gcellin,global_to_local(gids))
+end
 
+function _local_aggregates(cell_to_gcellin,gcell_to_cell)
+  map(cell_to_gcellin) do gcin
+    iszero(gcin) ? gcin : gcell_to_cell[ gcin ]
+  end
+end
+
+function _change_model(cell_to_gcellin,gids::PRange)
+  map(_change_model,cell_to_gcellin,local_to_global(gids))
+end
+
+function _change_model(cell_to_gcellin,ncell_to_gcell)
+  ncells = length(cell_to_gcellin)
+  ncell_to_gcellin = zeros(Int,length(ncell_to_gcell))
+  for (ncell,gcell) in enumerate(ncell_to_gcell)
+    ncell_to_gcellin[ncell] = ncell > ncells ? gcell : cell_to_gcellin[ncell]
+  end
+  ncell_to_gcellin
+end
 
 end # module

@@ -67,46 +67,62 @@ geo3 = quadrilateral(;x0=x0,d1=d1,d2=d2)
 geo12 = union(geo1,geo2)
 geo = union(geo12,geo3)
 
+geo = geo12
+
 domain = (0, 1, 0, 1)
 bgmodel = CartesianDiscreteModel(ranks,np,domain,nc)
 
 cutgeo = cut(bgmodel,geo)
 
 strategy = AggregateCutCellsByThreshold(1.0)
-aggregates,aggregate_owner = distributed_aggregate(strategy,cutgeo,geo,IN);
 
 
-@test has_remote_aggregation(bgmodel,aggregates)
+bgmodel,cutgeo,aggregates = aggregate(strategy,cutgeo,geo,IN);
+# aggregates,aggregate_owner = distributed_aggregate(strategy,cutgeo,geo,IN);
 
-_bgmodel = add_remote_aggregates(bgmodel,aggregates,aggregate_owner)
+# if has_remote_aggregation(bgmodel,aggregates)
+#   bgmodel = add_remote_aggregates(bgmodel,aggregates,aggregate_owner)
+#   cutgeo = change_bgmodel(cutgeo,_bgmodel)
+#   aggregates = _change_model(aggregates,get_cell_gids(_bgmodel))
+# end
 
-@test ! has_remote_aggregation(_bgmodel,aggregates)
+# laggregates = _local_aggregates(aggregates,get_cell_gids(bgmodel))
 
-_cutgeo = change_bgmodel(cutgeo,_bgmodel)
-
-
-gids = get_cell_gids(_bgmodel)
-# Add remote to aggregates
-_aggregates = map(aggregates,local_to_global(gids)) do agg,l_to_g
-  _agg = zeros(Int,length(l_to_g))
-  for (l,g) in enumerate(l_to_g)
-    _agg[l] = l > length(agg) ? g : agg[l]
-  end
-  _agg
-end
+# bgmodel,cutgeo,laggregates
 
 
-bgmodel = _bgmodel
-cutgeo = _cutgeo
-aggregates = _aggregates
 
-gids = get_cell_gids(bgmodel)
-# Local aggregates
-laggregates = map(aggregates,global_to_local(gids)) do agg,g_to_l
-  map(agg) do i
-    iszero(i) ? i : g_to_l[i]
-  end
-end
+# @test has_remote_aggregation(bgmodel,aggregates)
+
+# _bgmodel = add_remote_aggregates(bgmodel,aggregates,aggregate_owner)
+
+# @test ! has_remote_aggregation(_bgmodel,aggregates)
+
+# _cutgeo = change_bgmodel(cutgeo,_bgmodel)
+
+
+# gids = get_cell_gids(_bgmodel)
+# # Add remote to aggregates
+# _aggregates = map(aggregates,local_to_global(gids)) do agg,l_to_g
+#   _agg = zeros(Int,length(l_to_g))
+#   for (l,g) in enumerate(l_to_g)
+#     _agg[l] = l > length(agg) ? g : agg[l]
+#   end
+#   _agg
+# end
+
+
+# bgmodel = _bgmodel
+# cutgeo = _cutgeo
+# aggregates = _aggregates
+
+# gids = get_cell_gids(bgmodel)
+# # Local aggregates
+# laggregates = map(aggregates,global_to_local(gids)) do agg,g_to_l
+#   map(agg) do i
+#     iszero(i) ? i : g_to_l[i]
+#   end
+# end
 
 
 Ω_bg = Triangulation(bgmodel)
@@ -123,7 +139,7 @@ dΓ = Measure(Γ,degree)
 reffe = ReferenceFE(lagrangian,Float64,order)
 
 Vstd = FESpace(Ω_act,reffe)
-V = AgFEMSpace(bgmodel,Vstd,laggregates)
+V = AgFEMSpace(bgmodel,Vstd,aggregates)
 
 U = TrialFESpace(V)
 
@@ -173,26 +189,27 @@ writevtk(Ω,"trian",
 
 
 
-# Debug VTK
-map(local_views(_bgmodel),ranks) do m,p
-  writevtk(get_grid(m),"bgmodel_$p")
-end
+# # Debug VTK
+# map(local_views(_bgmodel),ranks) do m,p
+#   writevtk(get_grid(m),"bgmodel_$p")
+# end
 
 
-map(local_views(uh),local_views(bgmodel),ranks) do uh,m,p
-  trian = Triangulation(m)
-  writevtk(trian,"ltrian_$p",cellfields=["uh"=>uh])
-end
+# map(local_views(uh),local_views(bgmodel),ranks) do uh,m,p
+#   trian = Triangulation(m)
+#   writevtk(trian,"ltrian_$p",cellfields=["uh"=>uh])
+# end
 
 
-map(local_views(cutgeo),ranks) do c,p
-  m = get_background_model(c)
-  c_io = compute_bgcell_to_inoutcut(c,c.geo)
-  writevtk(Triangulation(m),"bgtrian_$p",celldata=["inout"=>c_io])
-end
+# map(local_views(cutgeo),ranks) do c,p
+#   m = get_background_model(c)
+#   c_io = compute_bgcell_to_inoutcut(c,c.geo)
+#   writevtk(Triangulation(m),"bgtrian_$p",celldata=["inout"=>c_io])
+# end
 
 
 # TODO: encapsulate and reduce Interfaces
+# split files
 # add tests with mpi
 # PR
 end # module
