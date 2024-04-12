@@ -4,10 +4,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## [0.9.1] - 2024-04-12
 
 ### Changed
 
+- Update compats to include Gridap 0.18. Since PR [#80](https://github.com/gridap/GridapEmbedded.jl/pull/80).
 - Optimise computation of normal displacement in dynamic simulations. Since PR [#78](https://github.com/gridap/GridapEmbedded.jl/pull/78).
 
 ### Fixed
