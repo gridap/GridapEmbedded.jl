@@ -9,8 +9,10 @@ using Test
 using GridapEmbedded.CSG
 
 function main(distribute,parts;
+  threshold=1,
   n=8,
-  cells=(n,n))
+  cells=(n,n),
+  geometry=:circle)
 
   ranks = distribute(LinearIndices((prod(parts),)))
 
@@ -18,54 +20,30 @@ function main(distribute,parts;
   f(x) = -Δ(u)(x)
   ud(x) = u(x)
 
-  L = 1
-  p0 = Point(0.0,0.0)
-  pmin = p0-L/2
-  pmax = p0+L/2
 
 
-  R = 0.35
-  geo = disk(R,x0=p0)
+  geometries = Dict(
+    :circle => circle_geometry,
+    :remotes => remotes_geometry,
+  )
 
-  R = 0.15
-  d = L/4
-  geo1 = disk(R,x0=p0-d)
-  geo2 = disk(R,x0=p0+d)
-  #geo = !union(geo1,geo2)
 
-  bgmodel = CartesianDiscreteModel(ranks,parts,pmin,pmax,cells)
-  # bgtrian = Triangulation(bgmodel)
-  # writevtk(bgtrian,"bgtrian")
+  bgmodel,geo = geometries[geometry](ranks,parts,cells)
 
-  dp = pmax - pmin
-  h = dp[1]/n
+  D = 2
+  cell_meas = map(get_cell_measure∘Triangulation,local_views(bgmodel))
+  meas = map(first,cell_meas) |> PartitionedArrays.getany
+  h = meas^(1/D)
 
   cutgeo = cut(bgmodel,geo)
 
-  strategy = AggregateAllCutCells()
-  strategy = AggregateCutCellsByThreshold(0.5)
-  aggregates = aggregate(strategy,cutgeo)
-
+  strategy = AggregateCutCellsByThreshold(threshold)
+  bgmodel,cutgeo,aggregates = aggregate(strategy,cutgeo)
 
   Ω_bg = Triangulation(bgmodel)
   Ω_act = Triangulation(cutgeo,ACTIVE)
   Ω = Triangulation(cutgeo,PHYSICAL)
   Γ = EmbeddedBoundary(cutgeo)
-
-  # using GridapEmbedded.Interfaces: CUT
-  # Ω_in = Triangulation(cutgeo,IN)
-  # Ω_out = Triangulation(cutgeo,OUT)
-  # Ω_cut = Triangulation(cutgeo,CUT)
-
-  # writevtk(Ω_in,"trian_in")
-  # writevtk(Ω_out,"trian_out")
-  # writevtk(Ω_cut,"trian_cut")
-
-
-  writevtk(Ω_bg,"trian")
-  writevtk(Ω_act,"trian_act")
-  writevtk(Ω,"trian_O")
-  writevtk(Γ,"trian_G")
 
   n_Γ = get_normal_vector(Γ)
 
@@ -120,7 +98,6 @@ function main(distribute,parts;
     map(Reindex(col),oid)
   end
 
-
   writevtk(Ω_bg,"trian",
     celldata=[
       "aggregate"=>own_aggregates,
@@ -134,5 +111,37 @@ function main(distribute,parts;
   @test eh1/uh1 < 1.e-7
 
 end
+
+function circle_geometry(ranks,parts,cells)
+  L = 1
+  p0 = Point(0.0,0.0)
+  pmin = p0-L/2
+  pmax = p0+L/2
+  R = 0.35
+  geo = disk(R,x0=p0)
+  bgmodel = CartesianDiscreteModel(ranks,parts,pmin,pmax,cells)
+  bgmodel,geo
+end
+
+function remotes_geometry(ranks,parts,cells)
+  x0 = Point(0.05,0.05)
+  d1 = VectorValue(0.9,0.0)
+  d2 = VectorValue(0.0,0.1)
+  geo1 = quadrilateral(;x0=x0,d1=d1,d2=d2)
+
+  x0 = Point(0.15,0.1)
+  d1 = VectorValue(0.25,0.0)
+  d2 = VectorValue(0.0,0.6)
+  geo2 = quadrilateral(;x0=x0,d1=d1,d2=d2)
+  geo12 = union(geo1,geo2)
+  geo = union(geo12,geo3)
+
+  domain = (0, 1, 0, 1)
+  bgmodel = CartesianDiscreteModel(ranks,parts,domain,cells)
+  bgmodel,geo
+end
+
+
+
 
 end # module

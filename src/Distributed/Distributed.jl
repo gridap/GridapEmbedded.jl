@@ -36,6 +36,7 @@ import GridapEmbedded.Interfaces: cut
 import GridapEmbedded.Interfaces: EmbeddedBoundary
 import GridapEmbedded.Interfaces: compute_bgfacet_to_inoutcut
 import GridapEmbedded.Interfaces: compute_bgcell_to_inoutcut
+import GridapEmbedded.CSG: get_geometry
 import Gridap.Geometry: Triangulation
 import Gridap.Geometry: get_background_model
 import GridapDistributed: local_views

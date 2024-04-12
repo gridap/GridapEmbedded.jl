@@ -15,6 +15,11 @@ local_views(a::DistributedEmbeddedDiscretization) = a.discretizations
 
 get_background_model(a::DistributedEmbeddedDiscretization) = a.model
 
+function get_geometry(a::DistributedEmbeddedDiscretization)
+  cut = local_views(a) |> PartitionedArrays.getany
+  get_geometry(cut)
+end
+
 function cut(bgmodel::DistributedDiscreteModel,args...)
   cut(LevelSetCutter(),bgmodel,args...)
 end

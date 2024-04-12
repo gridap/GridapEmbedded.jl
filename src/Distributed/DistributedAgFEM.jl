@@ -39,6 +39,14 @@ function aggregate(strategy,cutgeo::DistributedEmbeddedDiscretization,args...)
   bgmodel,cutgeo,laggregates
 end
 
+function distributed_aggregate(
+  strategy::AggregateCutCellsByThreshold,
+  cut::DistributedEmbeddedDiscretization,
+  in_or_out=IN)
+
+  geo = get_geometry(cut)
+  distributed_aggregate(strategy,cut,geo,in_or_out)
+end
 
 function distributed_aggregate(
   strategy::AggregateCutCellsByThreshold,
