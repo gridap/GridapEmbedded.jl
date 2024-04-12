@@ -33,7 +33,7 @@ function aggregate(strategy,cutgeo::DistributedEmbeddedDiscretization,args...)
   if has_remote_aggregation(bgmodel,aggregates)
     bgmodel = add_remote_aggregates(bgmodel,aggregates,aggregate_owner)
     cutgeo = change_bgmodel(cutgeo,bgmodel)
-    aggregates = _change_model(aggregates,get_cell_gids(bgmodel))
+    aggregates = change_bgmodel(aggregates,get_cell_gids(bgmodel))
   end
   laggregates = _local_aggregates(aggregates,get_cell_gids(bgmodel))
   bgmodel,cutgeo,laggregates
@@ -461,11 +461,11 @@ function _local_aggregates(cell_to_gcellin,gcell_to_cell)
   end
 end
 
-function _change_model(cell_to_gcellin,gids::PRange)
-  map(_change_model,cell_to_gcellin,local_to_global(gids))
+function change_bgmodel(cell_to_gcellin,gids::PRange)
+  map(change_bgmodel,cell_to_gcellin,local_to_global(gids))
 end
 
-function _change_model(cell_to_gcellin,ncell_to_gcell)
+function change_bgmodel(cell_to_gcellin,ncell_to_gcell)
   ncells = length(cell_to_gcellin)
   ncell_to_gcellin = zeros(Int,length(ncell_to_gcell))
   for (ncell,gcell) in enumerate(ncell_to_gcell)

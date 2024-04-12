@@ -29,10 +29,4 @@ end
 run_driver(4,"runtests_body.jl",sysimage)
 run_driver(1,"runtests_body.jl",sysimage) # Check that the degenerated case works
 
-procs = 4
-mpiexec() do cmd
-  run(`$cmd -n $procs $(Base.julia_cmd()) --project=$repodir -e "import Pkg; Pkg.status()" `)
-end
-
-
 end # module
