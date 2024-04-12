@@ -59,6 +59,7 @@ end
 @publish AlgoimUtils fill_cpp_data_raw
 @publish AlgoimUtils compute_closest_point_projections
 @publish AlgoimUtils compute_normal_displacement
+@publish AlgoimUtils compute_normal_displacement!
 @publish AlgoimUtils compute_distance_fe_function
 @publish AlgoimUtils delaunaytrian
 @publish AlgoimUtils convexhull
