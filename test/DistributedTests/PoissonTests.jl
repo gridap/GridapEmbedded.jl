@@ -20,13 +20,10 @@ function main(distribute,parts;
   f(x) = -Δ(u)(x)
   ud(x) = u(x)
 
-
-
   geometries = Dict(
     :circle => circle_geometry,
     :remotes => remotes_geometry,
   )
-
 
   bgmodel,geo = geometries[geometry](ranks,parts,cells)
 
@@ -36,6 +33,7 @@ function main(distribute,parts;
   h = meas^(1/D)
 
   cutgeo = cut(bgmodel,geo)
+  cutgeo_facets = cut_facets(bgmodel,geo)
 
   strategy = AggregateCutCellsByThreshold(threshold)
   bgmodel,cutgeo,aggregates = aggregate(strategy,cutgeo)

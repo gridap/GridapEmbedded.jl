@@ -1,13 +1,13 @@
 
-struct DistributedEmbeddedDiscretization{Dp,T,A,B} <: GridapType
+struct DistributedEmbeddedDiscretization{A,B} <: GridapType
   discretizations::A
   model::B
   function DistributedEmbeddedDiscretization(
-    d::AbstractArray{<:EmbeddedDiscretization{Dp,T}},
-    model::DistributedDiscreteModel) where {Dp,T}
+    d::AbstractArray{<:AbstractEmbeddedDiscretization},
+    model::DistributedDiscreteModel)
     A = typeof(d)
     B = typeof(model)
-    new{Dp,T,A,B}(d,model)
+    new{A,B}(d,model)
   end
 end
 
@@ -31,8 +31,29 @@ function cut(cutter::Cutter,bgmodel::DistributedDiscreteModel,args...)
     cutgeo = cut(cutter,ownmodel,args...)
     change_bgmodel(cutgeo,bgmodel,own_to_local(gids))
   end
-  ls_to_bgcell_to_inoutcut = map(c->c.ls_to_bgcell_to_inoutcut,cuts)
-  _consistent!(ls_to_bgcell_to_inoutcut,gids)
+  consistent_bgcell_to_inoutcut!(cuts,gids)
+  DistributedEmbeddedDiscretization(cuts,bgmodel)
+end
+
+function cut_facets(bgmodel::DistributedDiscreteModel,args...)
+  cut_facets(LevelSetCutter(),bgmodel,args...)
+end
+
+function cut_facets(cutter::Cutter,bgmodel::DistributedDiscreteModel,args...)
+  D = map(num_dims,local_views(bgmodel)) |> PartitionedArrays.getany
+  cell_gids = get_cell_gids(bgmodel)
+  facet_gids = get_face_gids(bgmodel,D-1)
+  cuts = map(
+    local_views(bgmodel),
+    local_views(cell_gids),
+    local_views(facet_gids)) do bgmodel,cell_gids,facet_gids
+    ownmodel = remove_ghost_cells(bgmodel,cell_gids)
+    facet_to_pfacet = get_face_to_parent_face(ownmodel,D-1)
+    cutfacets = cut_facets(cutter,ownmodel,args...)
+    cutfacets = change_bgmodel(cutfacets,bgmodel,facet_to_pfacet)
+    remove_ghost_subfacets(cutfacets,facet_gids)
+  end
+  consistent_bgfacet_to_inoutcut!(cuts,facet_gids)
   DistributedEmbeddedDiscretization(cuts,bgmodel)
 end
 
@@ -51,6 +72,16 @@ end
 
 function EmbeddedBoundary(cutgeo::DistributedEmbeddedDiscretization,args...)
   trian = distributed_embedded_triangulation(EmbeddedBoundary,cutgeo,args...)
+  remove_ghost_cells(trian)
+end
+
+function SkeletonTriangulation(cutgeo::DistributedEmbeddedDiscretization,args...)
+  trian = distributed_embedded_triangulation(SkeletonTriangulation,cutgeo,args...)
+  remove_ghost_cells(trian)
+end
+
+function BoundaryTriangulation(cutgeo::DistributedEmbeddedDiscretization,args...)
+  trian = distributed_embedded_triangulation(BoundaryTriangulation,cutgeo,args...)
   remove_ghost_cells(trian)
 end
 
@@ -139,6 +170,30 @@ function remove_ghost_cells(model::DiscreteModel,gids::AbstractLocalIndices)
   DiscreteModelPortion(model,own_to_local(gids))
 end
 
+function consistent_bgcell_to_inoutcut!(
+  cuts::AbstractArray{<:AbstractEmbeddedDiscretization},
+  gids::PRange)
+
+  ls_to_bgcell_to_inoutcut = map(get_ls_to_bgcell_to_inoutcut,cuts)
+  _consistent!(ls_to_bgcell_to_inoutcut,gids)
+end
+
+function get_ls_to_bgcell_to_inoutcut(cut::EmbeddedDiscretization)
+  cut.ls_to_bgcell_to_inoutcut
+end
+
+function consistent_bgfacet_to_inoutcut!(
+  cuts::AbstractArray{<:AbstractEmbeddedDiscretization},
+  gids::PRange)
+
+  ls_to_bgfacet_to_inoutcut = map(get_ls_to_bgfacet_to_inoutcut,cuts)
+  _consistent!(ls_to_bgfacet_to_inoutcut,gids)
+end
+
+function get_ls_to_bgfacet_to_inoutcut(cut::EmbeddedFacetDiscretization)
+  cut.ls_to_facet_to_inoutcut
+end
+
 function _consistent!(
   p_to_i_to_a::AbstractArray{<:Vector{<:Vector}},
   prange::PRange)
@@ -207,6 +262,28 @@ function change_bgmodel(
     cut.geo)
 end
 
+function change_bgmodel(
+  cut::EmbeddedFacetDiscretization,
+  newmodel::DiscreteModel,
+  facet_to_newfacet=1:num_facets(get_background_model(cut)))
+
+  nfacets = num_facets(newmodel)
+
+  ls_to_bgf_to_ioc = map(cut.ls_to_facet_to_inoutcut) do bgf_to_ioc
+    new_bgf_to_ioc = Vector{Int8}(undef,nfacets)
+    new_bgf_to_ioc[facet_to_newfacet] = bgf_to_ioc
+    new_bgf_to_ioc
+  end
+  subfacets = change_bgmodel(cut.subfacets,facet_to_newfacet)
+  EmbeddedFacetDiscretization(
+    newmodel,
+    ls_to_bgf_to_ioc,
+    subfacets,
+    cut.ls_to_subfacet_to_inout,
+    cut.oid_to_ls,
+    cut.geo)
+end
+
 function change_bgmodel(cells::SubCellData,cell_to_newcell)
   cell_to_bgcell = lazy_map(Reindex(cell_to_newcell),cells.cell_to_bgcell)
   SubCellData(
@@ -224,4 +301,21 @@ function change_bgmodel(facets::SubFacetData,cell_to_newcell)
     collect(Int32,facet_to_bgcell),
     facets.point_to_coords,
     facets.point_to_rcoords)
+end
+
+function remove_ghost_subfacets(cut::EmbeddedFacetDiscretization,facet_gids)
+  bgfacet_mask = map(!iszero,local_to_owner(facet_gids))
+  subfacet_mask = map(Reindex(bgfacet_mask),cut.subfacets.cell_to_bgcell)
+  new_subfacets = findall(subfacet_mask)
+  subfacets = SubCellData(cut.subfacets,new_subfacets)
+  ls_to_subfacet_to_inout = map(cut.ls_to_subfacet_to_inout) do sf_to_io
+    map(Reindex(sf_to_io),new_subfacets)
+  end
+  EmbeddedFacetDiscretization(
+    cut.bgmodel,
+    cut.ls_to_facet_to_inoutcut,
+    subfacets,
+    ls_to_subfacet_to_inout,
+    cut.oid_to_ls,
+    cut.geo)
 end
