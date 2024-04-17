@@ -24,7 +24,7 @@ function AgFEMSpace(
   nldofs = map(num_free_dofs,spaces)
   gids = generate_gids(trian_gids,cell_to_ldofs,nldofs)
   vector_type = _find_vector_type(spaces,gids)
-  DistributedSingleFieldFESpace(spaces,gids,vector_type)
+  DistributedSingleFieldFESpace(spaces,gids,trian,vector_type)
 end
 
 function aggregate(strategy,cutgeo::DistributedEmbeddedDiscretization,args...)
