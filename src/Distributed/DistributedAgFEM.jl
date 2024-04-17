@@ -403,7 +403,7 @@ function add_remote_ids(gids::PRange,remote_gids,remote_parts)
   lid_to_part = map(vcat,local_to_owner(gids),new_parts)
   p = map(lid_to_gid,lid_to_part,partition(gids)) do l_to_g,l_to_p,p
     l_to_g = collect(Int,l_to_g)
-    l_to_p = collect(Int,l_to_p)
+    l_to_p = collect(Int32,l_to_p)
     LocalIndices(length(gids),part_id(p),l_to_g,l_to_p)
   end
   PRange(p)
