@@ -407,6 +407,7 @@ function add_remote_ids(gids::PRange,remote_gids,remote_parts)
     ids = LocalIndices(length(gids),part_id(p),l_to_g,l_to_p)
     @show typeof(l_to_g)
     @show typeof(local_to_global(ids))
+    @show typeof(ghost_to_global(ids))
     ids
   end
   PRange(p)
