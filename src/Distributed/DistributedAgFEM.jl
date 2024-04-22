@@ -404,11 +404,13 @@ function add_remote_ids(gids::PRange,remote_gids,remote_parts)
   p = map(lid_to_gid,lid_to_part,partition(gids)) do l_to_g,l_to_p,p
     l_to_g = collect(Int,l_to_g)
     l_to_p = collect(Int32,l_to_p)
-    LocalIndices(length(gids),part_id(p),l_to_g,l_to_p)
+    ids = LocalIndices(length(gids),part_id(p),l_to_g,l_to_p)
+    @show typeof(l_to_g)
+    @show typeof(local_to_global(ids))
+    ids
   end
   PRange(p)
 end
-
 
 function has_remote_aggregation(model::DistributedDiscreteModel,aggregates)
   gids = get_cell_gids(model)
