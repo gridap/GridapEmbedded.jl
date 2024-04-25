@@ -43,15 +43,36 @@ function Quadrature(trian::Grid,
   Quadrature(trian,momentfitted,cut,geo,degree;in_or_out=in_or_out)
 end
 
-function Quadrature(active_mesh::Grid,
+function Quadrature(trian::Grid,
+                    ::MomentFitted,
+                    cut::AbstractEmbeddedDiscretization,
+                    cutf::AbstractEmbeddedDiscretization,
+                    degree::Int;
+                    in_or_out=IN)
+  geo = get_geometry(cut)
+  Quadrature(trian,momentfitted,cut,cutf,geo,degree;in_or_out=in_or_out)
+end
+
+function Quadrature(trian::Grid,
                     ::MomentFitted,
                     cut::AbstractEmbeddedDiscretization,
                     geo::CSG.Geometry,
                     degree::Int;
                     in_or_out=IN)
+  cutf = cut_facets(cut,geo)
+  Quadrature(trian,momentfitted,cut,cutf,geo,degree;in_or_out=in_or_out)
+end
+
+function Quadrature(active_mesh::Grid,
+                    ::MomentFitted,
+                    cut::AbstractEmbeddedDiscretization,
+                    cutf::AbstractEmbeddedDiscretization,
+                    geo::CSG.Geometry,
+                    degree::Int;
+                    in_or_out=IN)
 
   acell_to_point_vals, acell_to_weight_vals = #
-    compute_lag_moments_from_leg(cut,geo,in_or_out,degree)
+    compute_lag_moments_from_leg(cut,cutf,geo,in_or_out,degree)
   acell_to_weight_vals = collect(get_array(acell_to_weight_vals))
 
   D = num_dims(active_mesh)
@@ -131,6 +152,7 @@ function legendreToMonomial(n::Int,d::Int)
 end
 
 function compute_lag_moments_from_leg(cut::AbstractEmbeddedDiscretization,
+                                      cutf::AbstractEmbeddedDiscretization,
                                       geo::CSG.Geometry,
                                       in_or_out,
                                       degree::Int)
@@ -138,7 +160,7 @@ function compute_lag_moments_from_leg(cut::AbstractEmbeddedDiscretization,
   T = eltype(eltype(get_node_coordinates(cut_trian)))
   D = num_dims(cut_trian)
   b = MonomialBasis{D}(T,degree)
-  mon_contribs = compute_monomial_domain_contribution(cut,geo,in_or_out,b,degree)
+  mon_contribs = compute_monomial_domain_contribution(cut,cutf,geo,in_or_out,b,degree)
   mon_moments = compute_monomial_cut_cell_moments(cut_trian,mon_contribs,b)
   mon_to_leg = Fill(legendreToMonomial(degree,D),num_cells(cut_trian))
   leg_moments = lazy_map(*,mon_to_leg,mon_moments)
@@ -149,14 +171,16 @@ function compute_lag_moments_from_leg(cut::AbstractEmbeddedDiscretization,
 end
 
 function compute_monomial_domain_contribution(cut::AbstractEmbeddedDiscretization,
+                                              cutf::AbstractEmbeddedDiscretization,
                                               in_or_out,
                                               b::MonomialBasis,
                                               deg::Int)
   geo = get_geometry(cut)
-  compute_monomial_domain_contribution(cut,geo,in_or_out,b,deg)
+  compute_monomial_domain_contribution(cut,cutf,geo,in_or_out,b,deg)
 end
 
 function compute_monomial_domain_contribution(cut::AbstractEmbeddedDiscretization,
+                                              cutf::AbstractEmbeddedDiscretization,
                                               geo::CSG.Geometry,
                                               in_or_out::Integer,
                                               b::MonomialBasis,
@@ -164,7 +188,6 @@ function compute_monomial_domain_contribution(cut::AbstractEmbeddedDiscretizatio
 
   cut_io = CutInOrOut(in_or_out)
   dir_Γᵉ = (-1)^(in_or_out==OUT)
-  cutf = cut_facets(cut,geo)
   # Embedded facets
   Γᵉ = EmbeddedBoundary(cut,geo)
   # Interior fitted cut facets
@@ -354,4 +377,3 @@ function _get_terms_degrees(c::CartesianIndex)
 end
 
 end #module
-

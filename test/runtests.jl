@@ -21,6 +21,8 @@ if QHULL_LOADED
 
   @time @testset "MomentFittedQuadratures" begin include("MomentFittedQuadraturesTests/runtests.jl") end
 
+  @time @testset "Distributed" begin include("DistributedTests/runtests.jl") end
+
   include(joinpath(@__DIR__,"..","examples","runexamples.jl"))
 
 else
