@@ -253,7 +253,7 @@ end
 function Triangulation(cut::EmbeddedDiscretization,in_or_out::Tuple,geo::CSG.Geometry)
   trian1 = Triangulation(cut,in_or_out[1],geo)
   trian2 = Triangulation(cut,in_or_out[2],geo)
-  lazy_append(trian1,trian2)
+  num_cells(trian1) == 0 ? trian2 : lazy_append(trian1,trian2)
 end
 
 function Triangulation(cut::EmbeddedDiscretization,in_or_out::CutInOrOut,geo::CSG.Geometry)
