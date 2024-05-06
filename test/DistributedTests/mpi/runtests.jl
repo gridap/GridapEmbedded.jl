@@ -1,7 +1,7 @@
 module MPITests
 
-using MPI
 using Test
+using MPI
 
 #Sysimage
 sysimage=nothing
