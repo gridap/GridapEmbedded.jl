@@ -38,7 +38,6 @@ export Quadrature
 export is_cell_active
 export restrict_measure
 export fill_cpp_data
-export fill_cpp_data_raw
 export compute_closest_point_projections
 export compute_normal_displacement
 export compute_normal_displacement!
