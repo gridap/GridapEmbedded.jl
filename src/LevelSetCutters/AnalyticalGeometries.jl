@@ -181,7 +181,7 @@ function square(;L=1,x0=Point(0,0),name="square",edges=["edge$i" for i in 1:4])
   geo12 = intersect(plane1,plane2)
   geo34 = intersect(plane3,plane4)
 
-  intersect(geo12,geo34)
+  intersect(geo12,geo34,name=name)
 
 end
 
@@ -226,7 +226,7 @@ function quadrilateral(;x0=Point(0,0),d1=VectorValue(1,0),d2=VectorValue(0,1),na
     geo12 = intersect(plane1,plane2)
     geo34 = intersect(plane3,plane4)
 
-    intersect(geo12,geo34)
+    intersect(geo12,geo34,name=name)
 
 end
 
