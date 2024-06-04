@@ -16,9 +16,15 @@ using Gridap.Arrays: collect1d, CompressedArray, Table
 using Gridap.Adaptivity
 using Gridap.Fields: testitem
 using Gridap.CellData
-using Gridap.CellData: GenericCellField, get_data
+using Gridap.CellData: GenericField, GenericCellField, get_data
 using Gridap.CellData: _point_to_cell_cache, _point_to_cell!
 using Gridap.Geometry
+
+using PartitionedArrays
+using GridapDistributed
+using GridapDistributed: DistributedTriangulation
+using GridapDistributed: DistributedMeasure
+using GridapDistributed: DistributedCellField
 
 using GridapEmbedded.Interfaces
 using GridapEmbedded.Interfaces: Simplex
@@ -79,7 +85,13 @@ end
 
 function normal(phi::AlgoimCallLevelSetFunction,trian::Triangulation)
   f = [ x -> normal(phi,x,i) for i in 1:num_cells(trian) ]
+  f = map(GenericField,f)
   GenericCellField(f,trian,PhysicalDomain())
+end
+
+function normal(phi::AlgoimCallLevelSetFunction,trian::DistributedTriangulation)
+  normals = map(t->normal(phi,t),local_views(trian))
+  DistributedCellField(normals,trian)
 end
 
 function normal(ls::AlgoimCallLevelSetFunction{<:CellField,<:CellField},x::Point,cell_id::Int=1)
@@ -149,18 +161,27 @@ function is_cell_active(meas::Measure)
 end
 
 function restrict_measure(meas::Measure,trian::Triangulation)
-  ocell_quad = meas.quad
-  cell_quad   = lazy_map(Reindex(ocell_quad.cell_quad),trian.tface_to_mface)
-  cell_point  = lazy_map(Reindex(ocell_quad.cell_point),trian.tface_to_mface)
-  cell_weight = lazy_map(Reindex(ocell_quad.cell_weight),trian.tface_to_mface)
-  dds = ocell_quad.data_domain_style
-  ids = ocell_quad.integration_domain_style
+  oquad = meas.quad
+  cell_quad   = lazy_map(Reindex(oquad.cell_quad),trian.tface_to_mface)
+  cell_point  = lazy_map(Reindex(oquad.cell_point),trian.tface_to_mface)
+  cell_weight = lazy_map(Reindex(oquad.cell_weight),trian.tface_to_mface)
+  dds = oquad.data_domain_style
+  ids = oquad.integration_domain_style
   Measure(CellQuadrature(cell_quad,cell_point,cell_weight,trian,dds,ids))
 end
 
-function TriangulationAndMeasure(Ωbg::Triangulation,quad::Tuple)
-  msg = "TriangulationAndMeasure can only receive the background triangulation"
-  @notimplementedif num_cells(get_background_model(Ωbg)) != num_cells(Ωbg) msg
+function restrict_measure(meas::Measure,trian::Triangulation,gids::AbstractLocalIndices)
+  oquad = meas.quad
+  tface_to_own_mface = local_to_own(gids)[trian.tface_to_mface]
+  cell_quad = lazy_map(Reindex(oquad.cell_quad),tface_to_own_mface)
+  cell_point = lazy_map(Reindex(oquad.cell_point),tface_to_own_mface)
+  cell_weight = lazy_map(Reindex(oquad.cell_weight),tface_to_own_mface)
+  dds = oquad.data_domain_style
+  ids = oquad.integration_domain_style
+  Measure(CellQuadrature(cell_quad,cell_point,cell_weight,trian,dds,ids))
+end
+
+function _triangulation_and_measure(Ωbg::Triangulation,quad::Tuple)
   dΩbg = Measure(Ωbg,quad,data_domain_style=PhysicalDomain())
   # RMK: This is a hack, but algoim interface does not let you 
   # know if a (given) cell intersects the interior of the level 
@@ -171,6 +192,26 @@ function TriangulationAndMeasure(Ωbg::Triangulation,quad::Tuple)
   Ωᵃ = Triangulation(Ωbg,cell_to_is_active)
   dΩᵃ = restrict_measure(dΩbg,Ωᵃ)
   Ωᵃ,dΩᵃ,cell_to_is_active
+end
+
+function _triangulation_and_measure(Ωbg::DistributedTriangulation,quad::Tuple)
+  ltrians = local_views(Ωbg)
+  dΩbg = map(lt->Measure(lt,quad,data_domain_style=PhysicalDomain()),ltrians)
+  cell_to_is_active = map(meas->is_cell_active(meas),dΩbg)
+  gids = local_views(get_cell_gids(get_background_model(Ωbg)))
+  Ωᵃ = map((lt,ca)->Triangulation(lt,ca),ltrians,cell_to_is_active)
+  dΩᵃ = map((db,at,gs)->restrict_measure(db,at,gs),dΩbg,Ωᵃ,gids)
+  # DistributedTriangulation(Ωᵃ),DistributedMeasure(dΩᵃ),cell_to_is_active
+  Mbg = get_background_model(Ωbg)
+  DΩᵃ = DistributedTriangulation(Ωᵃ,Mbg)
+  # PVector(cell_to_is_active,partition(gids)) |> consistent! |> wait
+  DΩᵃ,DistributedMeasure(dΩᵃ,DΩᵃ),cell_to_is_active
+end
+
+function TriangulationAndMeasure(Ωbg,quad::Tuple)
+  msg = "TriangulationAndMeasure can only receive the background triangulation"
+  @notimplementedif num_cells(get_background_model(Ωbg)) != num_cells(Ωbg) msg
+  _triangulation_and_measure(Ωbg,quad)
 end
 
 using Gridap.Geometry: get_cell_to_parent_cell
