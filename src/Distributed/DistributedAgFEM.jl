@@ -474,3 +474,67 @@ function change_bgmodel(cell_to_gcellin,ncell_to_gcell)
   end
   ncell_to_gcellin
 end
+
+# Specialised methods for Algoim quadratures
+
+function aggregate(bgmodel::DistributedDiscreteModel,
+                   cell_to_is_active,
+                   cell_to_is_cut,
+                   in_or_out)
+  aggregates,aggregate_owner = distributed_aggregate(bgmodel,
+                                                     cell_to_is_active,
+                                                     cell_to_is_cut,
+                                                     in_or_out)
+  if has_remote_aggregation(bgmodel,aggregates)
+    bgmodel = add_remote_aggregates(bgmodel,aggregates,aggregate_owner)
+    aggregates = change_bgmodel(aggregates,get_cell_gids(bgmodel))
+  end
+  laggregates = _local_aggregates(aggregates,get_cell_gids(bgmodel))
+  bgmodel,laggregates
+end
+
+function aggregate(bgtrian::DistributedTriangulation,
+                   cell_to_is_active,
+                   cell_to_is_cut,
+                   in_or_out)
+  msg = """
+  This is not implemented, because the aggregation might need
+  to extend the background model with the remote aggregates.
+  """
+  @notimplemented  msg
+end
+
+function distributed_aggregate(bgmodel::DistributedDiscreteModel,
+                               cell_to_is_active,
+                               cell_to_is_cut,
+                               in_or_out)
+  n_cells = length(cell_to_is_active)
+  @assert n_cells == length(cell_to_is_cut)
+
+  cell_to_unit_cut_meas = map(cell_to_is_active,cell_to_is_cut) do visa, visc
+    lazy_map(visa,visc) do isa, isc
+      !isa ? 0.0 : (isc ? 0.0 : 1.0)
+    end
+  end
+
+  ocell_to_inoutcut = map(cell_to_is_active,cell_to_is_cut) do visa, visc
+    lazy_map(visa,visc) do isa, isc
+      !isa ? OUT : (isc ? CUT : IN)
+    end
+  end
+
+  cell_to_coords = map(get_cell_coordinates,local_views(bgmodel))
+  topo = get_grid_topology(bgmodel)
+  D = num_cell_dims(bgmodel)
+  cell_to_faces = map(t->get_faces(t,D,D-1),local_views(topo))
+  face_to_cells = map(t->get_faces(t,D-1,D),local_views(topo))
+  gids = get_cell_gids(bgmodel)
+  # A hack follows to avoid constructing the actual facet_to_inoutcut array
+  facet_to_inoutcut = map(m->fill(in_or_out,num_faces(m,D-1)),local_views(bgmodel))
+
+  threshold = 1.0
+  cell_to_inoutcut = _add_ghost_values(ocell_to_inoutcut,gids)
+  _distributed_aggregate_by_threshold_barrier(
+    threshold,cell_to_unit_cut_meas,facet_to_inoutcut,cell_to_inoutcut,
+    in_or_out,cell_to_coords,cell_to_faces,face_to_cells,gids)
+end

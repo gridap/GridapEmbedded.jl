@@ -306,7 +306,7 @@ end
 
 # Specialised methods for Algoim quadratures
 
-function aggregate(bgtrian,cell_to_is_active,cell_to_is_cut,in_or_out)
+function aggregate(bgmodel::DiscreteModel,cell_to_is_active,cell_to_is_cut,in_or_out)
   n_cells = length(cell_to_is_active)
   @assert n_cells == length(cell_to_is_cut)
 
@@ -319,13 +319,12 @@ function aggregate(bgtrian,cell_to_is_active,cell_to_is_cut,in_or_out)
   end
 
   cell_to_coords = get_cell_coordinates(bgtrian)
-  model = get_background_model(bgtrian)
-  topo = get_grid_topology(model)
-  D = num_cell_dims(model)
+  topo = get_grid_topology(bgmodel)
+  D = num_cell_dims(bgmodel)
   cell_to_faces = get_faces(topo,D,D-1)
   face_to_cells = get_faces(topo,D-1,D)
   # A hack follows to avoid constructing the actual facet_to_inoutcut array
-  facet_to_inoutcut = fill(in_or_out,num_faces(model,D-1)) 
+  facet_to_inoutcut = fill(in_or_out,num_faces(bgmodel,D-1)) 
 
   threshold = 1.0
   _aggregate_by_threshold_barrier(
@@ -333,7 +332,16 @@ function aggregate(bgtrian,cell_to_is_active,cell_to_is_cut,in_or_out)
     in_or_out,cell_to_coords,cell_to_faces,face_to_cells)
 end
 
-function aggregate_narrow_band(bgtrian,cell_to_is_in_narrow,cell_to_is_active,cell_to_is_cut,in_or_out)
+function aggregate(bgtrian::Triangulation,cell_to_is_active,cell_to_is_cut,in_or_out)
+  bgmodel = get_background_model(bgtrian)
+  aggregate(bgmodel,cell_to_is_active,cell_to_is_cut,in_or_out)
+end
+
+function aggregate_narrow_band(bgtrian::Triangulation,
+                               cell_to_is_in_narrow,
+                               cell_to_is_active,
+                               cell_to_is_cut,
+                               in_or_out)
   n_cells = length(cell_to_is_in_narrow)
   @assert n_cells == length(cell_to_is_active)
   @assert n_cells == length(cell_to_is_cut)
