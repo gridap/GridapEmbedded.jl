@@ -22,6 +22,7 @@ using Gridap.Geometry
 
 using PartitionedArrays
 using GridapDistributed
+using GridapDistributed: DistributedDiscreteModel
 using GridapDistributed: DistributedTriangulation
 using GridapDistributed: DistributedMeasure
 using GridapDistributed: DistributedCellField
@@ -38,6 +39,7 @@ import Algoim: AlgoimCallLevelSetFunction
 import Algoim: normal
 import Gridap.ReferenceFEs: Quadrature
 
+export CellQuadratureAndActiveMask
 export TriangulationAndMeasure
 export algoim
 export Quadrature
@@ -155,9 +157,38 @@ function Quadrature(cell_id::Int,
   GenericQuadrature(coords,weights,"Algoim quadrature of degree $degree")
 end
 
-function is_cell_active(meas::Measure)
+function is_cell_active(cell_quad::AbstractArray{<:Quadrature})
   has_non_empty_quad(x) = num_points(x) > 0
-  lazy_map(has_non_empty_quad,get_data(meas.quad))
+  lazy_map(has_non_empty_quad,cell_quad)
+end
+
+function is_cell_active(meas::Measure)
+  is_cell_active(get_data(meas.quad))
+end
+
+function _cell_quadrature_and_active_mask(trian::Grid,::Algoim,args;kwargs)
+  cell_quad = Quadrature(trian,algoim,args...;kwargs...)
+  cell_to_is_active = is_cell_active(cell_quad)
+  cell_quad, cell_to_is_active
+end
+
+function _cell_quadrature_and_active_mask(trian::DistributedTriangulation,
+                                          ::Algoim,args;kwargs)
+  ltrians = local_views(trian)
+  cell_quad = map(t->Quadrature(t,algoim,args...;kwargs...),ltrians)
+  cell_to_is_active = map(cq->is_cell_active(cq),cell_quad)
+  cell_quad, cell_to_is_active
+end
+
+function CellQuadratureAndActiveMask(trian,quad::Tuple{<:QuadratureName,Any,Any})
+  name, args, kwargs = quad
+  _cell_quadrature_and_active_mask(trian,name,args;kwargs)
+end
+
+function CellQuadratureAndActiveMask(
+          model::Union{DiscreteModel,DistributedDiscreteModel},
+          quad::Tuple{<:QuadratureName,Any,Any})
+  CellQuadratureAndActiveMask(Triangulation(model),quad)
 end
 
 function restrict_measure(meas::Measure,trian::Triangulation)
@@ -201,10 +232,32 @@ function _triangulation_and_measure(Ωbg::DistributedTriangulation,quad::Tuple)
   gids = local_views(get_cell_gids(get_background_model(Ωbg)))
   Ωᵃ = map((lt,ca)->Triangulation(lt,ca),ltrians,cell_to_is_active)
   dΩᵃ = map((db,at,gs)->restrict_measure(db,at,gs),dΩbg,Ωᵃ,gids)
-  # DistributedTriangulation(Ωᵃ),DistributedMeasure(dΩᵃ),cell_to_is_active
   Mbg = get_background_model(Ωbg)
   DΩᵃ = DistributedTriangulation(Ωᵃ,Mbg)
-  # PVector(cell_to_is_active,partition(gids)) |> consistent! |> wait
+  DΩᵃ,DistributedMeasure(dΩᵃ,DΩᵃ),cell_to_is_active
+end
+
+function _triangulation_and_measure(Ωbg::Triangulation,
+                                    cell_quad::AbstractArray{<:Quadrature},
+                                    cell_to_is_active::AbstractArray{Bool})
+  dds = PhysicalDomain(); ids = PhysicalDomain()
+  dΩbg = Measure(Ωbg,cell_quad,dds,ids)
+  Ωᵃ = Triangulation(Ωbg,cell_to_is_active)
+  dΩᵃ = restrict_measure(dΩbg,Ωᵃ)
+  Ωᵃ,dΩᵃ,cell_to_is_active
+end
+
+function _triangulation_and_measure(Ωbg::DistributedTriangulation,
+                                    cell_quad::AbstractArray,
+                                    cell_to_is_active::AbstractArray)
+  ltrians = local_views(Ωbg)
+  dds = PhysicalDomain(); ids = PhysicalDomain()
+  dΩbg = map((lt,cq)->Measure(lt,cq,dds,ids),ltrians,cell_quad)
+  gids = local_views(get_cell_gids(get_background_model(Ωbg)))
+  Ωᵃ = map((lt,ca)->Triangulation(lt,ca),ltrians,cell_to_is_active)
+  dΩᵃ = map((db,at,gs)->restrict_measure(db,at,gs),dΩbg,Ωᵃ,gids)
+  Mbg = get_background_model(Ωbg)
+  DΩᵃ = DistributedTriangulation(Ωᵃ,Mbg)
   DΩᵃ,DistributedMeasure(dΩᵃ,DΩᵃ),cell_to_is_active
 end
 
@@ -212,6 +265,12 @@ function TriangulationAndMeasure(Ωbg,quad::Tuple)
   msg = "TriangulationAndMeasure can only receive the background triangulation"
   @notimplementedif num_cells(get_background_model(Ωbg)) != num_cells(Ωbg) msg
   _triangulation_and_measure(Ωbg,quad)
+end
+
+function TriangulationAndMeasure(Ωbg,cell_quad,cell_to_is_active)
+  msg = "TriangulationAndMeasure can only receive the background triangulation"
+  @notimplementedif num_cells(get_background_model(Ωbg)) != num_cells(Ωbg) msg
+  _triangulation_and_measure(Ωbg,cell_quad,cell_to_is_active)
 end
 
 using Gridap.Geometry: get_cell_to_parent_cell
