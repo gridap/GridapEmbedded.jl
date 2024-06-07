@@ -16,8 +16,12 @@ local_views(a::DistributedEmbeddedDiscretization) = a.discretizations
 get_background_model(a::DistributedEmbeddedDiscretization) = a.model
 
 function get_geometry(a::DistributedEmbeddedDiscretization)
-  cut = local_views(a) |> PartitionedArrays.getany
-  get_geometry(cut)
+  loc_geometries = map(get_geometry,local_views(a))
+  get_geometry(loc_geometries)
+end
+
+function get_geometry(a::AbstractArray{<:CSG.Geometry})
+  PartitionedArrays.getany(a)
 end
 
 function cut(bgmodel::DistributedDiscreteModel,args...)
