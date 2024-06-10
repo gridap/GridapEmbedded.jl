@@ -4,12 +4,12 @@ end
 
 local_views(a::DistributedDiscreteGeometry) = a.geometries
 
-function DistributedDiscreteGeometry(φh::CellField,model::DistributedDiscreteModel)
+function DistributedDiscreteGeometry(φh::CellField,model::DistributedDiscreteModel;name::String="")
   gids = get_cell_gids(model)
   geometries = map(local_views(model),local_views(gids),local_views(φh)) do model,gids,φh
     ownmodel = remove_ghost_cells(model,gids)
     point_to_coords = collect1d(get_node_coordinates(ownmodel))
-    DiscreteGeometry(φh(point_to_coords),point_to_coords)
+    DiscreteGeometry(φh(point_to_coords),point_to_coords;name)
   end
   DistributedDiscreteGeometry(geometries)
 end
