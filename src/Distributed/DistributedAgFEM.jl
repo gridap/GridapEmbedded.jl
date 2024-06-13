@@ -358,8 +358,6 @@ function add_remote_cells(model::DistributedDiscreteModel,remote_cells,remote_pa
   end
   models = map(UnstructuredDiscreteModel,grids,topos,labels)
 
-  @show "REMOTE AGGREGATION"
-
   agids = add_remote_ids(gids,remote_cells,remote_parts)
   DistributedDiscreteModel(models,agids)
 end
