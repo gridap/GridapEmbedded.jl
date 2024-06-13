@@ -318,7 +318,7 @@ function aggregate(bgmodel::DiscreteModel,cell_to_is_active,cell_to_is_cut,in_or
     !isa ? OUT : (isc ? CUT : IN)
   end
 
-  cell_to_coords = get_cell_coordinates(bgtrian)
+  cell_to_coords = get_cell_coordinates(bgmodel)
   topo = get_grid_topology(bgmodel)
   D = num_cell_dims(bgmodel)
   cell_to_faces = get_faces(topo,D,D-1)
