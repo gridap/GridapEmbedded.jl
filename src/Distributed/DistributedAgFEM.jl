@@ -457,8 +457,9 @@ function _local_aggregates(cell_to_gcellin,gids::PRange)
 end
 
 function _local_aggregates(cell_to_gcellin,gcell_to_cell)
+  T = eltype(cell_to_gcellin)
   map(cell_to_gcellin) do gcin
-    iszero(gcin) ? gcin : gcell_to_cell[ gcin ]
+    iszero(gcin) ? gcin : T(gcell_to_cell[ gcin ])
   end
 end
 
