@@ -43,7 +43,7 @@ import GridapEmbedded.Interfaces: EmbeddedBoundary
 import GridapEmbedded.Interfaces: compute_bgfacet_to_inoutcut
 import GridapEmbedded.Interfaces: compute_bgcell_to_inoutcut
 import GridapEmbedded.CSG: get_geometry
-import GridapEmbedded.LevelSetCutters: discretize
+import GridapEmbedded.LevelSetCutters: discretize, DiscreteGeometry
 import Gridap.Geometry: Triangulation
 import Gridap.Geometry: SkeletonTriangulation
 import Gridap.Geometry: BoundaryTriangulation

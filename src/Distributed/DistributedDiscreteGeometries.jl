@@ -4,12 +4,55 @@ end
 
 local_views(a::DistributedDiscreteGeometry) = a.geometries
 
-function DistributedDiscreteGeometry(φh::CellField,model::DistributedDiscreteModel;name::String="")
+function _get_values_at_owned_coords(φh,model::DistributedDiscreteModel{Dc,Dp}) where {Dc,Dp}
+  @assert DomainStyle(φh) == ReferenceDomain()
   gids = get_cell_gids(model)
-  geometries = map(local_views(model),local_views(gids),local_views(φh)) do model,gids,φh
+  values = map(local_views(φh),local_views(model),local_views(gids)) do φh, model, gids
+    # Maps from the no-ghost model to the original model
+    own_model = remove_ghost_cells(model,gids)
+    own_to_local_node = Geometry.get_face_to_parent_face(own_model,0)
+    local_to_own_node = Arrays.find_inverse_index_map(own_to_local_node,num_nodes(model))
+    own_to_local_cell = Geometry.get_face_to_parent_face(own_model,Dc)
+
+    # Cell-to-node map for the original model
+    # topo = get_grid_topology(model)
+    # c2n_map = get_faces(topo,Dc,0)
+    c2n_map = collect1d(get_cell_node_ids(model))
+
+    # Cell-wise node coordinates (in ReferenceDomain coordinates)
+    cell_reffe = get_cell_reffe(model)
+    cell_node_coords = lazy_map(get_node_coordinates,cell_reffe)
+
+    φh_data = CellData.get_data(φh)
+    space = get_fe_space(φh)
+    T = get_dof_value_type(space)
+    values  = Vector{T}(undef,num_nodes(own_model))
+    touched = fill(false,num_nodes(model))
+
+    cell_node_coords_cache = array_cache(cell_node_coords)
+    for cell in own_to_local_cell # For each owned cell
+      field = φh_data[cell]
+      node_coords = getindex!(cell_node_coords_cache,cell_node_coords,cell)
+      for (iN,node) in enumerate(c2n_map[cell]) # Go over local nodes
+        own_node = local_to_own_node[node]
+        if (own_node != 0) && !touched[node] # Compute value if suitable
+          values[own_node] = field(node_coords[iN])
+          touched[node] = true
+        end
+      end
+    end
+    return values
+  end
+  return values
+end
+
+function DiscreteGeometry(φh::CellField,model::DistributedDiscreteModel;name::String="")
+  φ_values = _get_values_at_owned_coords(φh,model)
+  gids = get_cell_gids(model)
+  geometries = map(local_views(model),local_views(gids),local_views(φ_values)) do model,gids,loc_φ
     ownmodel = remove_ghost_cells(model,gids)
     point_to_coords = collect1d(get_node_coordinates(ownmodel))
-    DiscreteGeometry(φh(point_to_coords),point_to_coords;name)
+    DiscreteGeometry(loc_φ,point_to_coords;name)
   end
   DistributedDiscreteGeometry(geometries)
 end

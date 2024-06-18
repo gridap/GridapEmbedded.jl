@@ -65,9 +65,41 @@ function _find_unique_leaves(tree)
   j_to_fun, oid_to_j
 end
 
+function _get_value_at_coords(φh::CellField,model::DiscreteModel{Dc,Dp}) where {Dc,Dp}
+  @assert DomainStyle(φh) == ReferenceDomain()
+  # Cell-to-node map for the original model
+  c2n_map = collect1d(get_cell_node_ids(model))
+
+  # Cell-wise node coordinates (in ReferenceDomain coordinates)
+  cell_reffe = get_cell_reffe(model)
+  cell_node_coords = lazy_map(get_node_coordinates,cell_reffe)
+
+  # Get cell data
+  φh_data = CellData.get_data(φh)
+  space = get_fe_space(φh)
+  T = get_dof_value_type(space)
+  values  = Vector{T}(undef,num_nodes(model))
+  cell_node_coords_cache = array_cache(cell_node_coords)
+  # Loop over cells
+  for cell in eachindex(c2n_map)
+    field = φh_data[cell]
+    node_coords = getindex!(cell_node_coords_cache,cell_node_coords,cell)
+    for (iN,node) in enumerate(c2n_map[cell])
+      values[node] = field(node_coords[iN])
+    end
+  end
+end
+
 function DiscreteGeometry(
   point_to_value::AbstractVector,point_to_coords::AbstractVector;name::String="")
   data = (point_to_value,name,nothing)
   tree = Leaf(data)
   DiscreteGeometry(tree,point_to_coords)
+end
+
+function DiscreteGeometry(
+  φh::CellField,model::DiscreteModel;name::String="")
+  point_to_value = _get_value_at_coords(φh,model)
+  point_to_coords = collect1d(get_node_coordinates(model))
+  DiscreteGeometry(point_to_value,point_to_coords;name)
 end
