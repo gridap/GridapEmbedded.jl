@@ -24,7 +24,7 @@ function _get_values_at_owned_coords(φh,model::DistributedDiscreteModel{Dc,Dp})
     cell_node_coords = lazy_map(get_node_coordinates,cell_reffe)
 
     φh_data = CellData.get_data(φh)
-    space = get_fe_space(φh)
+    space = FESpaces.get_fe_space(φh)
     T = get_dof_value_type(space)
     values  = Vector{T}(undef,num_nodes(own_model))
     touched = fill(false,num_nodes(model))

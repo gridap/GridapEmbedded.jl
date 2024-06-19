@@ -10,6 +10,7 @@ using Gridap.CellData
 using Gridap.Geometry
 using Gridap.Helpers
 using Gridap.ReferenceFEs
+using Gridap.FESpaces
 
 using GridapEmbedded.CSG
 using GridapEmbedded.LevelSetCutters
