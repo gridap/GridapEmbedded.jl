@@ -28,6 +28,7 @@ using Gridap.Geometry
 using Gridap.CellData
 using Gridap.Polynomials
 using Gridap.Visualization
+using Gridap.FESpaces
 
 export LevelSetCutter
 export AnalyticalGeometry

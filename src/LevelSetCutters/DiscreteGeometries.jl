@@ -76,7 +76,7 @@ function _get_value_at_coords(φh::CellField,model::DiscreteModel{Dc,Dp}) where 
 
   # Get cell data
   φh_data = CellData.get_data(φh)
-  space = get_fe_space(φh)
+  space = FESpaces.get_fe_space(φh)
   T = get_dof_value_type(space)
   values  = Vector{T}(undef,num_nodes(model))
   cell_node_coords_cache = array_cache(cell_node_coords)
@@ -88,6 +88,7 @@ function _get_value_at_coords(φh::CellField,model::DiscreteModel{Dc,Dp}) where 
       values[node] = field(node_coords[iN])
     end
   end
+  return values
 end
 
 function DiscreteGeometry(
