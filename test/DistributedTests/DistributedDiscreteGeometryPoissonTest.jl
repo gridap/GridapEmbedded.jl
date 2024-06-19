@@ -140,9 +140,4 @@ function remotes_geometry(ranks,parts,cells)
   bgmodel,geo
 end
 
-with_debug() do distribute
-  main(distribute,(2,2))
-  main(distribute,(4,1),cells=(12,12),geometry=:remotes)
-end
-
 end # module
