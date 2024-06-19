@@ -5,7 +5,7 @@ using Gridap
 using GridapEmbedded
 using Gridap.Geometry: get_active_model
 
-const R = 0.5
+const R = 0.55
 geom = disk(R,x0=Point(0.5,0.5))
 n = 21
 partition = (n,n)
@@ -46,7 +46,7 @@ tol = 10e-9
 @test sum( ∫(abs2(v-vhagg))dΩ ) < tol
 @test sum( ∫(abs2(v-vhagg))dΩ_in ) < tol
 
-vh = FEFunction(V,rand(num_free_dofs(V)))
+vh = FEFunction(Vstd,rand(num_free_dofs(Vstd)))
 vhagg = interpolate(vh,Vagg)
 @test sum( ∫(abs2(vh-vhagg))dΩ_in ) < tol
 
