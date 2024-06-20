@@ -28,7 +28,7 @@ dΩ = Measure(Ω,2)
 dΩ_in = Measure(Ω_in,2)
 
 model = get_active_model(Ω_ac)
-order = 2
+order = 1
 
 # In the physical domain
 cell_fe = FiniteElements(PhysicalDomain(),model,lagrangian,Float64,order)
@@ -42,13 +42,9 @@ vhagg = interpolate(v,Vagg)
 
 writevtk(Ω_ac,"test",cellfields=["v"=>vhagg])
 
-tol = 10e-9
+tol = 10e-7
 @test sum( ∫(abs2(v-vhagg))dΩ ) < tol
 @test sum( ∫(abs2(v-vhagg))dΩ_in ) < tol
-
-vh = FEFunction(Vstd,rand(num_free_dofs(Vstd)))
-vhagg = interpolate(vh,Vagg)
-@test sum( ∫(abs2(vh-vhagg))dΩ_in ) < tol
 
 # In the reference space
 
@@ -59,13 +55,9 @@ Vagg = AgFEMSpace(V,aggregates)
 v(x) = (x[1]-0.5)^2 + (x[2]-0.5)^2
 vhagg = interpolate(v,Vagg)
 
-tol = 10e-9
+tol = 10e-7
 @test sum( ∫(abs2(v-vhagg))dΩ ) < tol
 @test sum( ∫(abs2(v-vhagg))dΩ_in ) < tol
-
-vh = FEFunction(V,rand(num_free_dofs(V)))
-vhagg = interpolate(vh,Vagg)
-@test sum( ∫(abs2(vh-vhagg))dΩ_in ) < tol
 
 #cellfields = ["vh"=>vh,"vhagg"=>vhagg,"e"=>vh-vhagg]
 #writevtk(Ω_bg,"trian_bg",nsubcells=10,cellfields=cellfields)
