@@ -7,6 +7,7 @@ using MPI
 include("../PoissonTests.jl")
 include("../AggregatesTests.jl")
 include("../DistributedDiscreteGeometryPoissonTest.jl")
+include("../DistributedLSDiscreteGeometryPoissonTest.jl")
 
 if ! MPI.Initialized()
   MPI.Init()
@@ -26,6 +27,10 @@ function all_tests(distribute,parts)
   DistributedDiscreteGeometryPoissonTest.main(distribute,parts)
   DistributedDiscreteGeometryPoissonTest.main(distribute,(prod(parts),1),cells=(12,12),geometry=:remotes)
   PArrays.toc!(t,"DistributedDiscreteGeometryPoisson")
+
+  PArrays.tic!(t)
+  DistributedLSDiscreteGeometryPoissonTest.main(distribute,parts,cells=(21,21))
+  PArrays.toc!(t,"DistributedLSDiscreteGeometryPoissonTest")
 
   if prod(parts) == 4
     DistributedAggregatesTests.main(distribute,parts)

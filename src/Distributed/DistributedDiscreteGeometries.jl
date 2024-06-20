@@ -10,9 +10,9 @@ function _get_values_at_owned_coords(φh,model::DistributedDiscreteModel{Dc,Dp})
   values = map(local_views(φh),local_views(model),local_views(gids)) do φh, model, gids
     # Maps from the no-ghost model to the original model
     own_model = remove_ghost_cells(model,gids)
-    own_to_local_node = Geometry.get_face_to_parent_face(own_model,0)
-    local_to_own_node = Arrays.find_inverse_index_map(own_to_local_node,num_nodes(model))
-    own_to_local_cell = Geometry.get_face_to_parent_face(own_model,Dc)
+    own_to_local_node = get_face_to_parent_face(own_model,0)
+    local_to_own_node = find_inverse_index_map(own_to_local_node,num_nodes(model))
+    own_to_local_cell = get_face_to_parent_face(own_model,Dc)
 
     # Cell-to-node map for the original model
     # topo = get_grid_topology(model)
