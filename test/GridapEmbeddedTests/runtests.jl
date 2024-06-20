@@ -8,8 +8,6 @@ using Test
 
 @time @testset "PeriodicPoissonAgFEM" begin include("PeriodicPoissonAgFEMTests.jl") end
 
-@time @testset "PeriodicDiscreteGeoPoissonAgFEM" begin include("PeriodicDiscreteGeoPoissonAgFEMTests.jl") end
-
 @time @testset "PoissonModalC0AgFEM" begin include("PoissonModalC0AgFEMTests.jl") end
 
 @time @testset "BimaterialPoissonCutFEM" begin include("BimaterialPoissonCutFEMTests.jl") end

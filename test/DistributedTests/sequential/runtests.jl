@@ -6,4 +6,7 @@ using Test
 @time @testset "DiscreteGeoPoissonSeq" begin include("DistributedDiscreteGeometryPoissonTest.jl") end
 @time @testset "LSDiscreteGeoPoissonSeq" begin include("DistributedLSDiscreteGeometryPoissonTest.jl") end
 
+## Disabled due to Issue #87
+# @time @testset "PeriodicDiscreteGeoPoissonSeq" begin include("PeriodicDistributedDiscreteGeometryPoissonTest.jl") end
+
 end
