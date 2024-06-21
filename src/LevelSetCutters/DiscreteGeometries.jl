@@ -76,7 +76,7 @@ function _get_value_at_coords(φh::CellField,model::DiscreteModel{Dc,Dp}) where 
 
   # Get cell data
   φh_data = CellData.get_data(φh)
-  T = typeof(first(φh_data)(first(first(cell_node_coords)))) # Allow propogation of dual numbers
+  T = return_type(testitem(CellData.get_data(φh)),testitem(testitem(cell_node_coords)))
   values  = Vector{T}(undef,num_nodes(model))
   cell_node_coords_cache = array_cache(cell_node_coords)
   # Loop over cells

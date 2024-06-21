@@ -22,6 +22,7 @@ using MiniQhull
 using Gridap.TensorValues
 using Gridap.ReferenceFEs
 using Gridap.Arrays
+using Gridap.Arrays: testitem, return_type
 using Gridap.Fields
 using Gridap.Helpers
 using Gridap.Geometry
