@@ -6,4 +6,6 @@ using Test
 
 @testset "AgFEMSpaces" begin include("AgFEMSpacesTests.jl") end
 
+@testset "PeriodicAgFEMSpaces" begin include("PeriodicAgFEMSpacesTests.jl") end
+
 end # module
