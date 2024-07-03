@@ -11,6 +11,8 @@ using Gridap.Geometry
 using Gridap.Helpers
 using Gridap.ReferenceFEs
 
+using PartitionedArrays: VectorFromDict
+
 using GridapEmbedded.CSG
 using GridapEmbedded.LevelSetCutters
 using GridapEmbedded.Interfaces
