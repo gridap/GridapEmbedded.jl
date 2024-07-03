@@ -103,7 +103,7 @@ function main(distribute,parts;
       "gid"=>own_to_global(gids)])#,
   #  cellfields=["uh"=>uh])
 
-  writevtk(Ω,"trian_O",cellfields=["uh"=>uh])
+  writevtk(Ω,"trian_O",cellfields=["uh"=>uh,"eh"=>e])
   writevtk(Γ,"trian_G")
   @test el2/ul2 < 1.e-8
   @test eh1/uh1 < 1.e-7
