@@ -27,6 +27,7 @@ using GridapEmbedded.AgFEM: AggregateCutCellsByThreshold
 using GridapEmbedded.MomentFittedQuadratures: MomentFitted
 using Gridap.Geometry: AppendedTriangulation
 using Gridap.Geometry: get_face_to_parent_face
+using Gridap.FESpaces: FESpaceWithLinearConstraints
 using GridapDistributed: DistributedDiscreteModel
 using GridapDistributed: DistributedTriangulation
 using GridapDistributed: DistributedFESpace

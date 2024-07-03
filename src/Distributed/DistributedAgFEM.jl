@@ -18,9 +18,7 @@ function AgFEMSpace(
   trian = add_ghost_cells(trian)
   trian_gids = generate_cell_gids(trian)
   cell_to_cellin = _active_aggregates(bgcell_to_bgcellin)
-  cell_to_ldofs = map(get_cell_dof_ids,spaces)
-  cell_to_ldofs = map(i->map(sort,i),cell_to_ldofs)
-  _remove_improper_cell_ldofs!(cell_to_ldofs,cell_to_cellin)
+  cell_to_ldofs = cell_ldof_to_mdof(spaces,cell_to_cellin)
   nldofs = map(num_free_dofs,spaces)
   gids = generate_gids(trian_gids,cell_to_ldofs,nldofs)
   vector_type = _find_vector_type(spaces,gids)
@@ -469,13 +467,32 @@ function _active_aggregates(bgcell_to_bgcellin)
   bgcell_to_acell[ acell_to_bgcellin ]
 end
 
-function _remove_improper_cell_ldofs!(
-  cell_to_ldofs::AbstractVector{<:AbstractVector{<:AbstractVector}},
-  bgcell_to_bgcellin::AbstractVector{<:AbstractVector})
+function cell_ldof_to_mdof(
+  spaces::AbstractArray{<:FESpace},
+  cell_to_cellin::AbstractArray{<:AbstractVector})
 
-  map(_remove_improper_cell_ldofs!,cell_to_ldofs,bgcell_to_bgcellin)
+  map(cell_ldof_to_mdof,spaces,cell_to_cellin)
 end
 
+function cell_ldof_to_mdof(
+  space::FESpaceWithLinearConstraints,
+  cell_to_cellin::AbstractVector)
+
+  DOF_to_mDOFs = space.DOF_to_mDOFs
+  cell_ldof_to_dof = space.cell_to_ldof_to_dof
+  cell_ldof_to_mdof = map(cell_ldof_to_dof) do ldof_to_dof
+    map(ldof_to_dof) do dof
+      mDOFs = DOF_to_mDOFs[dof]
+      length(mDOFs) == 1 ? mDOFs[1] : zero(eltype(mDOFs))
+    end
+  end
+  for (cell,ldof_to_mdof) in enumerate(cell_ldof_to_mdof)
+    if cell_to_cellin[cell] != cell
+     empty!(ldof_to_mdof)
+    end
+  end
+  cell_ldof_to_mdof
+end
 
 function _remove_improper_cell_ldofs!(cell_to_ldofs,cell_to_cellin)
   for cell in 1:length(cell_to_ldofs)
