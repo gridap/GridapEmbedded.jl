@@ -1,6 +1,7 @@
 module PoissonTests
 
 using Gridap
+using Gridap.ReferenceFEs
 using GridapEmbedded
 using GridapDistributed
 using PartitionedArrays
@@ -107,6 +108,113 @@ function main(distribute,parts;
   writevtk(Γ,"trian_G")
   @test el2/ul2 < 1.e-8
   @test eh1/uh1 < 1.e-7
+
+end
+
+function main_algoim(distribute,parts;
+  threshold=1,
+  n=4,
+  cells=(n,n),
+  order=1,
+  solution_degree=1)
+
+  ranks = distribute(LinearIndices((prod(parts),)))
+
+  φ(x) = x[1]-x[2]-1.0
+  ∇φ(x) = VectorValue(1.0,-1.0)
+  phi = AlgoimCallLevelSetFunction(φ,∇φ)
+  # phi = AlgoimCallLevelSetFunction(
+  #   x -> ( x[1]*x[1] + x[2]*x[2] + x[3]*x[3] ) - 1.0,
+  #   x -> VectorValue( 2.0 * x[1], 2.0 * x[2], 2.0 * x[3] ) )
+
+  u(x) = sum(x)^solution_degree
+  f(x) = -Δ(u)(x)
+  ud(x) = u(x)
+
+  domain = (-1.1,1.1,-1.1,1.1)
+  model = CartesianDiscreteModel(ranks,parts,domain,cells)
+
+  degree = order == 1 ? 3 : 2*order
+  vquad = Quadrature(algoim,phi,degree,phase=IN)
+  v_cell_quad,is_a = CellQuadratureAndActiveMask(model,vquad)
+  squad = Quadrature(algoim,phi,degree)
+  s_cell_quad,is_c = CellQuadratureAndActiveMask(model,squad)
+  
+  model,aggregates = aggregate(model,is_a,is_c,IN)
+  # map(aggregates) do agg
+  #   @show agg
+  # end
+
+  Ω = Triangulation(model)
+  Ωᵃ,dΩᵃ = TriangulationAndMeasure(Ω,v_cell_quad,is_a)
+  _,dΓ = TriangulationAndMeasure(Ω,s_cell_quad,is_c)
+
+  n_Γ = normal(phi,Ω)
+
+  writevtk(model,"bgmodel")
+
+  # colors = map(color_aggregates,aggregates,local_views(model))
+  # gids = get_cell_gids(model)
+
+  # global_aggregates = map(aggregates,local_to_global(gids)) do agg,gid
+  #   map(i-> i==0 ? 0 : gid[i],agg)
+  # end
+  # own_aggregates = map(global_aggregates,own_to_local(gids)) do agg,oid
+  #   map(Reindex(agg),oid)
+  # end
+  # own_colors = map(colors,own_to_local(gids)) do col,oid
+  #   map(Reindex(col),oid)
+  # end
+
+  # writevtk(Ω,"dtrian",
+  #   celldata=[
+  #     "aggregate"=>own_aggregates,
+  #     "color"=>own_colors,
+  #     "gid"=>own_to_global(gids)])
+
+  reffe = ReferenceFE(lagrangian,Float64,order)
+  
+  Vstd = TestFESpace(Ωᵃ,reffe,conformity=:H1,dirichlet_tags="boundary")
+  
+  V = AgFEMSpace(model,Vstd,aggregates)
+  U = TrialFESpace(V,ud)
+
+  # eΩᵃ = GridapDistributed.add_ghost_cells(Ωᵃ)
+  # cell_dof_ids = map(get_cell_dof_ids,local_views(V),local_views(eΩᵃ))
+  # map(cell_dof_ids) do cell_dof_ids
+  #   @show cell_dof_ids
+  # end
+
+  # Nitsche method
+  γᵈ = 2.0*order^2
+  h = (domain[2]-domain[1])/cells[1]
+
+  a(u,v) =
+    ∫( ∇(v)⋅∇(u) )dΩᵃ +
+    ∫( (γᵈ/h)*v*u - v*(n_Γ⋅∇(u)) - (n_Γ⋅∇(v))*u )dΓ
+
+  l(v) =
+    ∫( v*f )dΩᵃ +
+    ∫( (γᵈ/h)*v*ud - (n_Γ⋅∇(v))*ud )dΓ
+
+  # FE problem
+  op = AffineFEOperator(a,l,U,V)
+  uₕ = solve(op)
+
+  eₕ = u - uₕ
+
+  writevtk(Ωᵃ,"rtrian",cellfields=["uh"=>uₕ,"eh"=>eₕ])
+
+  l2(u) = √(∑( ∫( u*u )dΩᵃ ))
+  h1(u) = √(∑( ∫( u*u + ∇(u)⋅∇(u) )dΩᵃ ))
+
+  el2 = l2(eₕ)
+  eh1 = h1(eₕ)
+
+  # @test el2 < 1.0e-014
+  # @test eh1 < 1.0e-013
+  @show el2
+  @show eh1
 
 end
 
