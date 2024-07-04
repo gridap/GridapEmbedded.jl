@@ -474,16 +474,35 @@ function cell_ldof_to_mdof(
   map(cell_ldof_to_mdof,spaces,cell_to_cellin)
 end
 
+function _dof_to_DOF(dof,n_fdofs)
+  if dof > 0
+    DOF = dof
+  else
+    DOF = n_fdofs - dof
+  end
+end
+
+function _DOF_to_dof(DOF,n_fdofs)
+  if DOF > n_fdofs
+    dof = -(DOF-n_fdofs)
+  else
+    dof = DOF
+  end
+end
+
 function cell_ldof_to_mdof(
   space::FESpaceWithLinearConstraints,
   cell_to_cellin::AbstractVector)
 
   DOF_to_mDOFs = space.DOF_to_mDOFs
   cell_ldof_to_dof = space.cell_to_ldof_to_dof
+  n_fdofs = space.n_fdofs
+  n_fmdofs = space.n_fmdofs
   cell_ldof_to_mdof = map(cell_ldof_to_dof) do ldof_to_dof
     map(ldof_to_dof) do dof
-      mDOFs = DOF_to_mDOFs[dof]
-      length(mDOFs) == 1 ? mDOFs[1] : zero(eltype(mDOFs))
+      DOF = _dof_to_DOF(dof,n_fdofs)
+      mDOFs = DOF_to_mDOFs[DOF]
+      length(mDOFs) == 1 ? _DOF_to_dof(mDOFs[1],n_fmdofs) : zero(eltype(mDOFs))
     end
   end
   for (cell,ldof_to_mdof) in enumerate(cell_ldof_to_mdof)
