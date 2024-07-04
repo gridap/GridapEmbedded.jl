@@ -372,29 +372,37 @@ function add_remote_cells(model::DistributedDiscreteModel,remote_cells,remote_pa
   # Build appended model
   lgrids = map(get_grid,local_views(model))
   _grids = map(lazy_append,lgrids,rgrids)
-  grids = map(UnstructuredGrid,_grids)
-  topos = map(UnstructuredGridTopology,grids)
-
+  _models = map(UnstructuredDiscreteModel,_grids)
+  agids = add_remote_ids(gids,remote_cells,remote_parts)
+  amodel = DistributedDiscreteModel(_models,agids) |> merge_nodes
+  
   D = num_cell_dims(model)
+  grids = map(get_grid,local_views(amodel))
+  topos = map(get_grid_topology,local_views(amodel))
   d_to_dface_to_entity = map(topos) do topo
     [ fill(Int32(UNSET),num_faces(topo,d)) for d in 0:D ]
   end
   oldtopos = map(get_grid_topology,local_views(model))
   oldlabels = map(get_face_labeling,local_views(model))
   for d in 0:D
-    _fill_labels!(d_to_dface_to_entity,oldlabels,oldtopos,model,d,D,snd_lids,rgraph)
+    _fill_labels!(d_to_dface_to_entity,
+                  oldlabels,
+                  oldtopos,
+                  topos,
+                  ncells,
+                  d,D,
+                  snd_lids,
+                  rgraph)
   end
   labels = map(d_to_dface_to_entity,oldlabels) do d_to_dface_to_entity,ol
     FaceLabeling(d_to_dface_to_entity,ol.tag_to_entities,ol.tag_to_name)
   end
   models = map(UnstructuredDiscreteModel,grids,topos,labels)
-
-  agids = add_remote_ids(gids,remote_cells,remote_parts)
-  DistributedDiscreteModel(models,agids) |> merge_nodes
+  DistributedDiscreteModel(models,agids)
 end
 
-function _fill_labels!(d_to_dface_to_entity,llabels,ltopos,
-                       model::DistributedDiscreteModel,d::Int,D::Int,snd_lids,rgraph)
+function _fill_labels!(d_to_dface_to_entity,llabels,ltopos,ntopos,nremotes,
+                       d::Int,D::Int,snd_lids,rgraph)
   snd_labels = map(ltopos,llabels,snd_lids) do topo,labels,lids
     dface_to_entity = get_face_entity(labels,d)
     T = eltype(eltype(dface_to_entity))
@@ -408,8 +416,15 @@ function _fill_labels!(d_to_dface_to_entity,llabels,ltopos,
   rcv_labels = allocate_exchange(snd_labels,rgraph)
   exchange!(rcv_labels,snd_labels,rgraph) |> wait
   rlabels = map(PartitionedArrays.getdata,rcv_labels)
-  map(d_to_dface_to_entity,llabels,rlabels) do d_to_dface_to_entity,l,r
-    d_to_dface_to_entity[d+1] = lazy_append(get_face_entity(l,d),r)
+  map(d_to_dface_to_entity,llabels) do d_to_dface_to_entity,l
+    l_face_entity = get_face_entity(l,d)
+    d_to_dface_to_entity[d+1][1:length(l_face_entity)] = l_face_entity
+  end
+  map(d_to_dface_to_entity,ntopos,nremotes,rlabels) do d_to_dface_to_entity,nt,nr,r
+    nr > 0 && begin
+      rf = reduce(vcat,get_faces(nt,D,d)[end-nr+1:end])
+      d_to_dface_to_entity[d+1][rf] = r
+    end
   end
 end
 
