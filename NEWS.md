@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - Unused `name` keywork argument in `square` and `quadrilateral` analytical geometries. Since PR [#86](https://github.com/gridap/GridapEmbedded.jl/pull/86).
+- Background model with remote aggregates is topologicaly conforming. Since PR [#91](https://github.com/gridap/GridapEmbedded.jl/pull/91)
 
 ## [0.9.3] - 2024-05-20
 
