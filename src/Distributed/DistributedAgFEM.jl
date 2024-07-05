@@ -497,14 +497,6 @@ function cell_ldof_to_mdof(
   cell_ldof_to_mdof
 end
 
-function _remove_improper_cell_ldofs!(cell_to_ldofs,cell_to_cellin)
-  for cell in 1:length(cell_to_ldofs)
-    cell_to_cellin[cell] != cell || continue
-    cell_to_ldofs[cell] = empty!(cell_to_ldofs[cell])
-  end
-  cell_to_ldofs
-end
-
 function _local_aggregates(cell_to_gcellin,gids::PRange)
   map(_local_aggregates,cell_to_gcellin,global_to_local(gids))
 end
