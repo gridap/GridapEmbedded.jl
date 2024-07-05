@@ -480,10 +480,13 @@ function cell_ldof_to_mdof(
 
   DOF_to_mDOFs = space.DOF_to_mDOFs
   cell_ldof_to_dof = space.cell_to_ldof_to_dof
+  n_fdofs = space.n_fdofs
+  n_fmdofs = space.n_fmdofs
   cell_ldof_to_mdof = map(cell_ldof_to_dof) do ldof_to_dof
     map(ldof_to_dof) do dof
-      mDOFs = DOF_to_mDOFs[dof]
-      length(mDOFs) == 1 ? mDOFs[1] : zero(eltype(mDOFs))
+      DOF = _dof_to_DOF(dof,n_fdofs)
+      mDOFs = DOF_to_mDOFs[DOF]
+      length(mDOFs) == 1 ? _DOF_to_dof(mDOFs[1],n_fmdofs) : zero(eltype(mDOFs))
     end
   end
   for (cell,ldof_to_mdof) in enumerate(cell_ldof_to_mdof)
@@ -492,14 +495,6 @@ function cell_ldof_to_mdof(
     end
   end
   cell_ldof_to_mdof
-end
-
-function _remove_improper_cell_ldofs!(cell_to_ldofs,cell_to_cellin)
-  for cell in 1:length(cell_to_ldofs)
-    cell_to_cellin[cell] != cell || continue
-    cell_to_ldofs[cell] = empty!(cell_to_ldofs[cell])
-  end
-  cell_to_ldofs
 end
 
 function _local_aggregates(cell_to_gcellin,gids::PRange)
