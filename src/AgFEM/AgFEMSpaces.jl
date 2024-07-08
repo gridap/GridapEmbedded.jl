@@ -25,7 +25,7 @@ function AgFEMSpace(
   glue = get_glue(trian_a,Val(D))
   acell_to_bgcell = glue.tface_to_mface
   bgcell_to_acell = glue.mface_to_tface
-  acell_to_bgcellin = lazy_map(Reindex(bgcell_to_bgcellin),acell_to_bgcell)
+  acell_to_bgcellin = collect(lazy_map(Reindex(bgcell_to_bgcellin),acell_to_bgcell))
   acell_to_acellin = collect(lazy_map(Reindex(bgcell_to_acell),acell_to_bgcellin))
   acell_to_gcell = lazy_map(Reindex(bgcell_to_gcell),acell_to_bgcell)
 
