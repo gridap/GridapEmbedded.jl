@@ -375,7 +375,11 @@ function add_remote_cells(model::DistributedDiscreteModel,remote_cells,remote_pa
   _models = map(UnstructuredDiscreteModel,_grids)
   agids = add_remote_ids(gids,remote_cells,remote_parts)
   amodel = DistributedDiscreteModel(_models,agids) |> merge_nodes
+<<<<<<< HEAD
   
+=======
+
+>>>>>>> d579786312ab8726581d7aa664f3a61c4d1c2b11
   D = num_cell_dims(model)
   grids = map(get_grid,local_views(amodel))
   topos = map(get_grid_topology,local_views(amodel))
