@@ -4,10 +4,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## [0.9.4] - 2024-07-09
+
+### Added
+- Missing distributed functions. Since PR [#92](https://github.com/gridap/GridapEmbedded.jl/pull/92).
+- Background models extended with remote ghosts inherit Cartesian labels. Since PR [#93](https://github.com/gridap/GridapEmbedded.jl/pull/93).
 
 ### Fixed
 - Unused `name` keywork argument in `square` and `quadrilateral` analytical geometries. Since PR [#86](https://github.com/gridap/GridapEmbedded.jl/pull/86).
+- Gluing of the remote root cells to the local+ghost mesh. Since PR [#91](https://github.com/gridap/GridapEmbedded.jl/pull/91).
 
 ## [0.9.3] - 2024-05-20
 

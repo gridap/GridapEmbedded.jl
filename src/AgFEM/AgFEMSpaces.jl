@@ -25,7 +25,7 @@ function AgFEMSpace(
   glue = get_glue(trian_a,Val(D))
   acell_to_bgcell = glue.tface_to_mface
   bgcell_to_acell = glue.mface_to_tface
-  acell_to_bgcellin = lazy_map(Reindex(bgcell_to_bgcellin),acell_to_bgcell)
+  acell_to_bgcellin = collect(lazy_map(Reindex(bgcell_to_bgcellin),acell_to_bgcell))
   acell_to_acellin = collect(lazy_map(Reindex(bgcell_to_acell),acell_to_bgcellin))
   acell_to_gcell = lazy_map(Reindex(bgcell_to_gcell),acell_to_bgcell)
 
@@ -76,9 +76,9 @@ function _setup_agfem_constraints(
       if dof > 0
         fdof = dof
         acell_dof = fdof_to_acell[fdof]
+        fdof_to_isagg[fdof] &= iscut
         if acell_dof == 0 || gcell > acell_to_gcell[acell_dof]
           fdof_to_acell[fdof] = acell
-          fdof_to_isagg[fdof] = iscut && fdof_to_isagg[fdof]
           fdof_to_ldof[fdof] = ldof
          end
       end

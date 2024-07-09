@@ -18,9 +18,7 @@ function AgFEMSpace(
   trian = add_ghost_cells(trian)
   trian_gids = generate_cell_gids(trian)
   cell_to_cellin = _active_aggregates(bgcell_to_bgcellin)
-  cell_to_ldofs = map(get_cell_dof_ids,spaces)
-  cell_to_ldofs = map(i->map(sort,i),cell_to_ldofs)
-  _remove_improper_cell_ldofs!(cell_to_ldofs,cell_to_cellin)
+  cell_to_ldofs = cell_ldof_to_mdof(spaces,cell_to_cellin)
   nldofs = map(num_free_dofs,spaces)
   gids = generate_gids(trian_gids,cell_to_ldofs,nldofs)
   vector_type = _find_vector_type(spaces,gids)
@@ -296,6 +294,39 @@ function _get_cell_measure(trian1::Triangulation,trian2::Triangulation)
   end
 end
 
+function merge_nodes(model::DistributedDiscreteModel)
+  node_gids = get_face_gids(model,0)
+  cell_gids = get_cell_gids(model)
+  models = map(local_views(model),local_views(node_gids)) do model,node_ids
+    merge_nodes(model,node_ids)
+  end
+  DistributedDiscreteModel(models,cell_gids)
+end
+
+function merge_nodes(model::DiscreteModel,ids)
+  l_to_g = local_to_global(ids)
+  n_global = length(global_to_local(ids))
+  n_local = length(l_to_g)
+  g_to_l = VectorFromDict(reverse(l_to_g),reverse(1:length(l_to_g)),n_global)
+  l_to_lparent = g_to_l[l_to_g]
+  lnew_to_l = findall(map(==,l_to_lparent,1:n_local))
+  l_to_lnew = zeros(Int,n_local)
+  l_to_lnew[lnew_to_l] = 1:length(lnew_to_l)
+  g_to_lnew = map(l->iszero(l) ? l : l_to_lnew[l], g_to_l)
+  l_to_lnew = g_to_lnew[l_to_g]
+
+  grid = get_grid(model)
+  coords = get_node_coordinates(grid)
+  conn = get_cell_node_ids(grid)
+  reffes = get_reffes(grid)
+  ctypes = get_cell_type(grid)
+
+  coords = coords[lnew_to_l]
+  conn = map(Broadcasting(Reindex(l_to_lnew)),conn) |> Table
+  grid = UnstructuredGrid(coords,conn,reffes,ctypes)
+  UnstructuredDiscreteModel(grid)
+end
+
 function add_remote_cells(model::DistributedDiscreteModel,remote_cells,remote_parts)
   # Send remote gids to owners
   snd_ids = remote_parts
@@ -340,10 +371,61 @@ function add_remote_cells(model::DistributedDiscreteModel,remote_cells,remote_pa
 
   # Build appended model
   lgrids = map(get_grid,local_views(model))
-  grids = map(lazy_append,lgrids,rgrids)
-  models = map(UnstructuredDiscreteModel,grids)
+  _grids = map(lazy_append,lgrids,rgrids)
+  _models = map(UnstructuredDiscreteModel,_grids)
   agids = add_remote_ids(gids,remote_cells,remote_parts)
+  amodel = DistributedDiscreteModel(_models,agids) |> merge_nodes
+
+  D = num_cell_dims(model)
+  grids = map(get_grid,local_views(amodel))
+  topos = map(get_grid_topology,local_views(amodel))
+  d_to_dface_to_entity = map(topos) do topo
+    [ fill(Int32(UNSET),num_faces(topo,d)) for d in 0:D ]
+  end
+  oldtopos = map(get_grid_topology,local_views(model))
+  oldlabels = map(get_face_labeling,local_views(model))
+  for d in 0:D
+    _fill_labels!(d_to_dface_to_entity,
+                  oldlabels,
+                  oldtopos,
+                  topos,
+                  ncells,
+                  d,D,
+                  snd_lids,
+                  rgraph)
+  end
+  labels = map(d_to_dface_to_entity,oldlabels) do d_to_dface_to_entity,ol
+    FaceLabeling(d_to_dface_to_entity,ol.tag_to_entities,ol.tag_to_name)
+  end
+  models = map(UnstructuredDiscreteModel,grids,topos,labels)
   DistributedDiscreteModel(models,agids)
+end
+
+function _fill_labels!(d_to_dface_to_entity,llabels,ltopos,ntopos,nremotes,
+                       d::Int,D::Int,snd_lids,rgraph)
+  snd_labels = map(ltopos,llabels,snd_lids) do topo,labels,lids
+    dface_to_entity = get_face_entity(labels,d)
+    T = eltype(eltype(dface_to_entity))
+    labels = map(lids) do lids
+      faces = map(Reindex(get_faces(topo,D,d)),lids)
+      labels = map(Reindex(dface_to_entity),faces)
+      reduce(append!,labels,init=T[])
+    end
+    Vector{Vector{T}}(labels)
+  end
+  rcv_labels = allocate_exchange(snd_labels,rgraph)
+  exchange!(rcv_labels,snd_labels,rgraph) |> wait
+  rlabels = map(PartitionedArrays.getdata,rcv_labels)
+  map(d_to_dface_to_entity,llabels) do d_to_dface_to_entity,l
+    l_face_entity = get_face_entity(l,d)
+    d_to_dface_to_entity[d+1][1:length(l_face_entity)] = l_face_entity
+  end
+  map(d_to_dface_to_entity,ntopos,nremotes,rlabels) do d_to_dface_to_entity,nt,nr,r
+    nr > 0 && begin
+      rf = reduce(vcat,get_faces(nt,D,d)[end-nr+1:end])
+      d_to_dface_to_entity[d+1][rf] = r
+    end
+  end
 end
 
 function add_remote_aggregates(model::DistributedDiscreteModel,aggregates,aggregate_owner)
@@ -436,20 +518,34 @@ function _active_aggregates(bgcell_to_bgcellin)
   bgcell_to_acell[ acell_to_bgcellin ]
 end
 
-function _remove_improper_cell_ldofs!(
-  cell_to_ldofs::AbstractVector{<:AbstractVector{<:AbstractVector}},
-  bgcell_to_bgcellin::AbstractVector{<:AbstractVector})
+function cell_ldof_to_mdof(
+  spaces::AbstractArray{<:FESpace},
+  cell_to_cellin::AbstractArray{<:AbstractVector})
 
-  map(_remove_improper_cell_ldofs!,cell_to_ldofs,bgcell_to_bgcellin)
+  map(cell_ldof_to_mdof,spaces,cell_to_cellin)
 end
 
+function cell_ldof_to_mdof(
+  space::FESpaceWithLinearConstraints,
+  cell_to_cellin::AbstractVector)
 
-function _remove_improper_cell_ldofs!(cell_to_ldofs,cell_to_cellin)
-  for cell in 1:length(cell_to_ldofs)
-    cell_to_cellin[cell] != cell || continue
-    cell_to_ldofs[cell] = empty!(cell_to_ldofs[cell])
+  DOF_to_mDOFs = space.DOF_to_mDOFs
+  cell_ldof_to_dof = space.cell_to_ldof_to_dof
+  n_fdofs = space.n_fdofs
+  n_fmdofs = space.n_fmdofs
+  cell_ldof_to_mdof = map(cell_ldof_to_dof) do ldof_to_dof
+    map(ldof_to_dof) do dof
+      DOF = _dof_to_DOF(dof,n_fdofs)
+      mDOFs = DOF_to_mDOFs[DOF]
+      length(mDOFs) == 1 ? _DOF_to_dof(mDOFs[1],n_fmdofs) : zero(eltype(mDOFs))
+    end
   end
-  cell_to_ldofs
+  for (cell,ldof_to_mdof) in enumerate(cell_ldof_to_mdof)
+    if cell_to_cellin[cell] != cell
+     empty!(ldof_to_mdof)
+    end
+  end
+  cell_ldof_to_mdof
 end
 
 function _local_aggregates(cell_to_gcellin,gids::PRange)
@@ -457,8 +553,9 @@ function _local_aggregates(cell_to_gcellin,gids::PRange)
 end
 
 function _local_aggregates(cell_to_gcellin,gcell_to_cell)
+  T = eltype(cell_to_gcellin)
   map(cell_to_gcellin) do gcin
-    iszero(gcin) ? gcin : gcell_to_cell[ gcin ]
+    iszero(gcin) ? gcin : T(gcell_to_cell[ gcin ])
   end
 end
 

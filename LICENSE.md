@@ -1,7 +1,7 @@
 GridapEmbedded.jl Copyright and License
 ==
 
-Copyright (c) 2020 by [Francesc Verdugo](mailto:f.verdugo.rojano@vu.nl), [Eric Neiva](mailto:eric.neiva@college-de-france.fr) and [Santiago Badia](mailto:santiago.badia@monash.edu).
+Copyright (c) 2020 by [Francesc Verdugo](mailto:f.verdugo.rojano@vu.nl), [Eric Neiva](mailto:eric.neiva@college-de-france.fr), [Pere Antoni Martorell](mailto:pere.antoni.martorell@upc.edu) and [Santiago Badia](mailto:santiago.badia@monash.edu).
 
 GridapEmbedded.jl is licensed under the MIT Expat License
 
@@ -106,4 +106,4 @@ By making a contribution to this project, I certify that:
 Contact
 ==
 
-Please, contact the project administrators, [Francesc Verdugo](mailto:f.verdugo.rojano@vu.nl), [Eric Neiva](mailto:eric.neiva@college-de-france.fr) and [Santiago Badia](mailto:santiago.badia@monash.edu), for further questions about licenses and terms of use.
+Please, contact the project administrators, [Francesc Verdugo](mailto:f.verdugo.rojano@vu.nl), [Eric Neiva](mailto:eric.neiva@college-de-france.fr), [Pere Antoni Martorell](mailto:pere.antoni.martorell@upc.edu) and [Santiago Badia](mailto:santiago.badia@monash.edu), for further questions about licenses and terms of use.

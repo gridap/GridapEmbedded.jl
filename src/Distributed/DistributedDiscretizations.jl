@@ -148,6 +148,12 @@ function compute_bgcell_to_inoutcut(cutgeo::DistributedEmbeddedDiscretization,ar
   end
 end
 
+function compute_bgfacet_to_inoutcut(cutgeo::DistributedEmbeddedDiscretization,args...)
+  map(local_views(cutgeo)) do cutgeo
+    compute_bgfacet_to_inoutcut(cutgeo,args...)
+  end
+end
+
 function remove_ghost_cells(trian::DistributedTriangulation)
   model = get_background_model(trian)
   gids = get_cell_gids(model)
@@ -223,6 +229,20 @@ function change_bgmodel(
   _consistent!(ls_to_bgcell_to_inoutcut,gids)
   DistributedEmbeddedDiscretization(cuts,model)
 end
+
+function change_bgmodel(
+  cutgeo::DistributedEmbeddedDiscretization{<:AbstractArray{<:EmbeddedFacetDiscretization}},
+  model::DistributedDiscreteModel,
+  args...)
+
+  D = map(num_dims,local_views(model)) |> PartitionedArrays.getany
+  cuts = _change_bgmodels(cutgeo,model,args...)
+  gids = get_face_gids(model,D-1)
+  ls_to_facet_to_inoutcut = map(c->c.ls_to_facet_to_inoutcut,cuts)
+  _consistent!(ls_to_facet_to_inoutcut,gids)
+  DistributedEmbeddedDiscretization(cuts,model)
+end
+
 
 function _change_bgmodels(
   cutgeo::DistributedEmbeddedDiscretization,
