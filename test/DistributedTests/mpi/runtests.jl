@@ -26,7 +26,8 @@ function run_driver(procs,file,sysimage)
   end
 end
 
-run_driver(4,"runtests_body.jl",sysimage)
+run_driver(8,"runtests_body.jl",sysimage)
 run_driver(1,"runtests_body.jl",sysimage) # Check that the degenerated case works
+# run_driver(64,"runtests_body.jl",sysimage)
 
 end # module

@@ -23,9 +23,11 @@ using Gridap.Geometry
 using PartitionedArrays
 using GridapDistributed
 using GridapDistributed: DistributedDiscreteModel
+using GridapDistributed: DistributedCartesianDiscreteModel
 using GridapDistributed: DistributedTriangulation
 using GridapDistributed: DistributedMeasure
 using GridapDistributed: DistributedCellField
+import GridapDistributed: local_views
 
 using GridapEmbedded.Interfaces
 using GridapEmbedded.Interfaces: Simplex
@@ -79,6 +81,17 @@ function AlgoimCallLevelSetFunction(φ::CellField,∇φ::CellField)
   cache_φ = (cellφ,array_cache(cellφ),return_cache(testitem(cellφ),xφ))
   cache_∇φ = (cell∇φ,array_cache(cell∇φ),return_cache(testitem(cell∇φ),x∇φ))
   AlgoimCallLevelSetFunction{typeof(φ),typeof(∇φ),typeof(cache_φ),typeof(cache_∇φ)}(φ,∇φ,cache_φ,cache_∇φ)
+end
+
+struct DistributedAlgoimCallLevelSetFunction{A<:AbstractArray{<:AlgoimCallLevelSetFunction}} <: GridapType
+  levelsets::A
+end
+
+local_views(a::DistributedAlgoimCallLevelSetFunction) = a.levelsets
+
+function AlgoimCallLevelSetFunction(φ::DistributedCellField,∇φ::DistributedCellField)
+  levelsets = map((v,g)->AlgoimCallLevelSetFunction(v,g),local_views(φ),local_views(∇φ))
+  DistributedAlgoimCallLevelSetFunction(levelsets)
 end
 
 function normal(phi::AlgoimCallLevelSetFunction,x::AbstractVector{<:Point},cell_id::Int=1)
@@ -292,6 +305,40 @@ function compute_closest_point_projections(model::CartesianDiscreteModel,
   xmin = cdesc.origin
   xmax = xmin + Point(cdesc.sizes .* partition)
   fill_cpp_data(φ,partition,xmin,xmax,cppdegree,trim,limitstol)
+end
+
+function compute_closest_point_projections(model::DistributedCartesianDiscreteModel,
+                                           φ::AlgoimCallLevelSetFunction;
+                                           cppdegree::Int=2,
+                                           trim::Bool=false,
+                                           limitstol::Float64=1.0e-8)
+  cpps = map(local_views(model)) do m
+    cdesc = get_cartesian_descriptor(m)
+    partition = Int32[cdesc.partition...]
+    xmin = cdesc.origin
+    xmax = xmin + Point(cdesc.sizes .* partition)
+    fill_cpp_data(φ,partition,xmin,xmax,cppdegree,trim,limitstol)
+  end
+  node_gids = get_face_gids(model,0)
+  PVector(cpps,partition(node_gids)) |> consistent! |> wait
+  cpps
+end
+
+function compute_closest_point_projections(model::DistributedCartesianDiscreteModel,
+                                           φ::DistributedAlgoimCallLevelSetFunction;
+                                           cppdegree::Int=2,
+                                           trim::Bool=false,
+                                           limitstol::Float64=1.0e-8)
+  cpps = map(local_views(model),local_views(φ)) do m,f
+    cdesc = get_cartesian_descriptor(m)
+    partition = Int32[cdesc.partition...]
+    xmin = cdesc.origin
+    xmax = xmin + Point(cdesc.sizes .* partition)
+    fill_cpp_data(f,partition,xmin,xmax,cppdegree,trim,limitstol)
+  end
+  node_gids = get_face_gids(model,0)
+  PVector(cpps,partition(node_gids)) |> consistent! |> wait
+  cpps
 end
 
 function compute_closest_point_projections(fespace::FESpace,

@@ -114,14 +114,14 @@ end
 function main_algoim(distribute,parts;
   threshold=1,
   n=4,
-  cells=(n,n),
+  cells=(n,n,n),
   order=1,
   solution_degree=1)
 
   ranks = distribute(LinearIndices((prod(parts),)))
 
-  φ(x) = x[1]-x[2]-1.0
-  ∇φ(x) = VectorValue(1.0,-1.0)
+  φ(x) = x[1]-x[2]+0.01
+  ∇φ(x) = VectorValue(1.0,-1.0) # ,0.0)
   phi = AlgoimCallLevelSetFunction(φ,∇φ)
   # phi = AlgoimCallLevelSetFunction(
   #   x -> ( x[1]*x[1] + x[2]*x[2] + x[3]*x[3] ) - 1.0,
@@ -131,7 +131,7 @@ function main_algoim(distribute,parts;
   f(x) = -Δ(u)(x)
   ud(x) = u(x)
 
-  domain = (-1.1,1.1,-1.1,1.1)
+  domain = (-1.1,1.1,-1.1,1.1) # ,-1.1,1.1)
   model = CartesianDiscreteModel(ranks,parts,domain,cells)
 
   degree = order == 1 ? 3 : 2*order
@@ -152,6 +152,8 @@ function main_algoim(distribute,parts;
   n_Γ = normal(phi,Ω)
 
   writevtk(model,"bgmodel")
+  writevtk(Ω,"trian")
+  writevtk(Ωᵃ,"atrian")
 
   # colors = map(color_aggregates,aggregates,local_views(model))
   # gids = get_cell_gids(model)
@@ -203,7 +205,7 @@ function main_algoim(distribute,parts;
 
   eₕ = u - uₕ
 
-  writevtk(Ωᵃ,"rtrian",cellfields=["uh"=>uₕ,"eh"=>eₕ])
+  # writevtk(Ωᵃ,"rtrian",cellfields=["uh"=>uₕ,"eh"=>eₕ])
 
   l2(u) = √(∑( ∫( u*u )dΩᵃ ))
   h1(u) = √(∑( ∫( u*u + ∇(u)⋅∇(u) )dΩᵃ ))

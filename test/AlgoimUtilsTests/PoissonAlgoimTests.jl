@@ -8,8 +8,8 @@ using GridapEmbedded.Interfaces
 
 function run_poisson(domain,cells,order,solution_degree)
 
-  φ(x) = x[1]-x[2]
-  ∇φ(x) = VectorValue(1.0,-1.0,0.0)
+  φ(x) = x[1]-x[2]-1.0
+  ∇φ(x) = VectorValue(1.0,-1.0)
   phi = AlgoimCallLevelSetFunction(φ,∇φ)
 
   u(x) = sum(x)^solution_degree
@@ -21,14 +21,25 @@ function run_poisson(domain,cells,order,solution_degree)
 
   degree = order == 1 ? 3 : 2*order
   vquad = Quadrature(algoim,phi,degree,phase=IN)
-  Ωᵃ,dΩᵃ = TriangulationAndMeasure(Ω,vquad)
+  Ωᵃ,dΩᵃ,is_a = TriangulationAndMeasure(Ω,vquad)
   squad = Quadrature(algoim,phi,degree)
-  _,dΓ = TriangulationAndMeasure(Ω,squad)
+  _,dΓ,is_c = TriangulationAndMeasure(Ω,squad)
   n_Γ = normal(phi,Ω)
 
+  aggregates = aggregate(model,is_a,is_c,IN)
+  @show aggregates
+
   reffe = ReferenceFE(lagrangian,Float64,order)
-  V = TestFESpace(Ωᵃ,reffe,conformity=:H1,dirichlet_tags="boundary")
+  Vstd = TestFESpace(Ωᵃ,reffe,conformity=:H1,dirichlet_tags="boundary")
+
+  V = AgFEMSpace(Vstd,aggregates)
   U = TrialFESpace(V,ud)
+
+  cell_to_dofs = get_cell_dof_ids(Vstd)
+  @show cell_to_dofs
+
+  cell_to_dofs = get_cell_dof_ids(V)
+  @show cell_to_dofs
 
   # Nitsche method
   γᵈ = 2.0*order^2
@@ -59,6 +70,6 @@ function run_poisson(domain,cells,order,solution_degree)
   
 end
 
-run_poisson((-1.1,1.1,-1.1,1.1,-1.1,1.1),(8,8,8),1,1)
+run_poisson((-1.1,1.1,-1.1,1.1),(6,6),1,1)
 
 end # module
