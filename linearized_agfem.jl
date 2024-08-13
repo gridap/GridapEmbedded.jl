@@ -84,15 +84,7 @@ function solve_with_agfem(n, order, scheme)
   if (scheme == :petrov_galerkin)
     testRefFE=Gridap.HQkIsoQ1(Float64,num_cell_dims(mH),order)
     Vstd = TestFESpace(ΩHact,testRefFE,conformity=:H1)
-    Vagg=Gridap.FESpaces.FESpaceWithLinearConstraints(
-      Vstd,
-      Uagg.n_fdofs,
-      Uagg.n_fmdofs,
-      Uagg.mDOF_to_DOF,
-      Uagg.DOF_to_mDOFs,
-      Uagg.DOF_to_coeffs,
-      Uagg.cell_to_lmdof_to_mdof,
-      Uagg.cell_to_ldof_to_dof)
+    Vagg = AgFEMSpace(Vstd,coarse_aggregates)
   end
 
   function a(u,v)
@@ -141,7 +133,6 @@ solve_with_agfem(3,1,:petrov_galerkin)
 solve_with_agfem(3,2,:petrov_galerkin)
 solve_with_agfem(3,4,:petrov_galerkin)
 solve_with_agfem(3,8,:petrov_galerkin) # Fails
-
 
 
 # DEBUG statements
