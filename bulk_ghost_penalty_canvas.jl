@@ -1,13 +1,11 @@
 using Gridap
 using GridapEmbedded
 using FillArrays
+using LinearAlgebra
 
 # Manufactured solution
-order = 1
-u(x) = x[1] + x[2]^order
-∇u(x) = ∇(u)(x)
-f(x) = -Δ(u)(x)
-ud(x) = u(x)
+order = 0
+uex(x) = x[1]^order + x[2]^order
 
 # Select geometry
 R = 0.2
@@ -162,7 +160,6 @@ end
 
 # Set up global spaces 
 Ωhact = Triangulation(cutdisk,ACTIVE)
-order = 1
 reffe = ReferenceFE(lagrangian,Float64,order)
 Vstd  = TestFESpace(Ωhact,reffe,conformity=:L2)
 Ustd  = TrialFESpace(Vstd)
@@ -184,7 +181,7 @@ ref_agg_cell_to_agg_cell_map=get_cell_map(Ωagg_cells)
 
 # Generate an array that given the local ID of an "agg_cell"
 # returns the ID of the aggregate to which it belongs
-# (i.e., flattened version of aggregrate_to_cells)
+# (i.e., flattened version of aggregate_to_cells)
 agg_cells_to_aggregate=Vector{Int}()
 for (i,cells) in enumerate(aggregate_to_cells)
     for _ in cells 
@@ -202,7 +199,6 @@ ref_agg_cell_to_ref_bb_map=
 # Compute LHS of L2 projection 
 degree=2*order
 dΩagg_cells = Measure(Ωagg_cells,degree)
-order=1
 reffe=ReferenceFE(lagrangian,Float64,order) # Here we MUST use a Q space (not a P space!)
 Vbb=FESpace(aggregates_bounding_box_model,reffe,conformity=:L2) # We need a DG space to represent the L2 projection
 Ubb=TrialFESpace(Vbb)
@@ -337,13 +333,89 @@ du_l2_proj_agg_cells=Gridap.CellData.GenericCellField(lazy_map(transpose,dv_l2_p
                                                       Ωagg_cells,
                                                       ReferenceDomain()) 
 
-# TO-DO: how to implement? ...
+# Compute and assemble the bulk penalty stabilization term
 # ∫( (dv-dv_l2_proj_agg_cells)*(du-du_l2_proj_agg_cells))*dΩ_agg_cells
+
+γ = 10.0 # Interior bulk-penalty stabilization parameter
+         # (@amartinhuertas no idea what a reasonable value is)
+
+h_U = 1.0 # TO-DO: properly compute h_U
+
+function compute_aggregate_dof_ids(agg_cells_dof_ids, aggregate_to_agg_cells)
+    aggregate_dof_ids=Vector{Vector{Int}}(undef, length(aggregate_to_agg_cells))
+    current_aggregate=1
+    current_cell=1
+    for agg_cells in aggregate_to_agg_cells
+        current_aggregate_dof_ids=Int[]
+        for (i,_) in enumerate(agg_cells)
+            current_cell_dof_ids=agg_cells_dof_ids[current_cell]
+            for (j, dof) in enumerate(current_cell_dof_ids)
+                if !(dof in current_aggregate_dof_ids)
+                    push!(current_aggregate_dof_ids, dof)
+                end 
+            end 
+            current_cell+=1
+        end 
+        aggregate_dof_ids[current_aggregate]=current_aggregate_dof_ids
+        current_aggregate+=1
+    end
+    aggregate_dof_ids
+end
+
+aggregate_dof_ids=compute_aggregate_dof_ids(Ωagg_cell_dof_ids,aggregate_to_cells)
+agg_cells_to_aggregate_dof_ids=lazy_map(Reindex(aggregate_dof_ids),agg_cells_to_aggregate)
+
+# Manually set up the arrays that collect_cell_matrix would return automatically
+w = []
+r = []
+c = []
 
 dv=get_fe_basis(Vstd)
 du=get_trial_fe_basis(Ustd)
 
-get_array(∫(dv*du)*dΩagg_cells)[1] #- 
-  get_array(∫(dv*du_l2_proj_agg_cells)*dΩagg_cells)[1] #- 
-    get_array(∫(dv_l2_proj_agg_cells*du)*dΩagg_cells)[1] #+ 
-       get_array(∫(dv_l2_proj_agg_cells*du_l2_proj_agg_cells)*dΩagg_cells)[1]
+dv_du_mat_contribs=get_array(∫(γ*(1.0/h_U^2)*dv*du)*dΩagg_cells)
+push!(w, dv_du_mat_contribs)
+push!(r, Ωagg_cell_dof_ids)
+push!(c, Ωagg_cell_dof_ids)
+
+dv_proj_du_mat_contribs=get_array(∫(γ*(1.0/h_U^2)*(-1.0)*dv_l2_proj_agg_cells*du)*dΩagg_cells)
+push!(w, dv_proj_du_mat_contribs)
+push!(r, agg_cells_to_aggregate_dof_ids)
+push!(c, Ωagg_cell_dof_ids)
+
+proj_dv_du_mat_contribs=get_array(∫(γ*(1.0/h_U^2)*(-1.0)*dv*(du_l2_proj_agg_cells))*dΩagg_cells)
+push!(w, proj_dv_du_mat_contribs)
+push!(r, Ωagg_cell_dof_ids)
+push!(c, agg_cells_to_aggregate_dof_ids)
+
+proj_dv_proj_du_mat_contribs=get_array(∫(γ*(1.0/h_U^2)*dv_l2_proj_agg_cells*du_l2_proj_agg_cells)dΩagg_cells)
+push!(w, proj_dv_proj_du_mat_contribs)
+push!(r, agg_cells_to_aggregate_dof_ids)
+push!(c, agg_cells_to_aggregate_dof_ids)
+
+# Set up global projection matrix 
+Ωcut = Triangulation(cutdisk,PHYSICAL)
+dΩcut = Measure(Ωcut,degree)
+a(u,v)=∫(v*u)dΩcut 
+wrc=Gridap.FESpaces.collect_cell_matrix(Ustd,Vstd,a(du,dv))
+
+assem=SparseMatrixAssembler(Ustd,Vstd)
+Anostab=assemble_matrix(assem, wrc)
+cond(Array(Anostab))
+
+# Add the bulk penalty stabilization term to wrc
+push!(wrc[1], w...)
+push!(wrc[2], r...)
+push!(wrc[3], c...)
+
+Awithstab=assemble_matrix(assem, wrc)
+cond(Array(Awithstab))
+
+# Set up rhs global projection 
+l(v)=∫(v*uex)dΩcut
+b = assemble_vector(l, Vstd)
+
+global_l2_proj_dofs = Awithstab\b
+uh = FEFunction(Ustd, global_l2_proj_dofs)
+eh = uex-uh
+sum(∫(eh*eh)*dΩcut)
