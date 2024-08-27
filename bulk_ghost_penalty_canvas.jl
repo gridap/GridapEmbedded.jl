@@ -268,47 +268,36 @@ agg_cells_rhs_contribs=get_array(∫(vbb_Ωagg_cells*du)dΩagg_cells)
 
 # TO-DO: Better name?
 struct AssembleRhsMap{A,B} <: Gridap.Fields.Map 
-    agg_cells_dof_ids::A 
+    agg_cells_local_dof_ids::A 
     agg_cells_rhs_contribs::B
 end 
 
-function Gridap.Fields.return_cache(m::AssembleRhsMap,cells)
-  cache_agg_cells_dof_ids=array_cache(m.agg_cells_dof_ids)
+function Gridap.Fields.return_cache(m::AssembleRhsMap,aggregate_local_cells)
+  cache_agg_cells_local_dof_ids=array_cache(m.agg_cells_local_dof_ids)
   cache_unassembled_rhs=array_cache(m.agg_cells_rhs_contribs)
   evaluate_result=Gridap.Arrays.CachedArray(eltype(eltype(m.agg_cells_rhs_contribs)),2)
-  cache_agg_cells_dof_ids,cache_unassembled_rhs,evaluate_result
+  cache_agg_cells_local_dof_ids,cache_unassembled_rhs,evaluate_result
 end
 
-function Gridap.Fields.evaluate!(cache,m::AssembleRhsMap,cells)
-  cache_cell_dof_ids,cache_unassembled_rhs,result=cache
+function Gridap.Fields.evaluate!(cache,m::AssembleRhsMap,aggregate_local_cells)
+  cache_agg_cells_local_dof_ids,cache_unassembled_rhs,result=cache
+  contrib = getindex!(cache_unassembled_rhs,m.agg_cells_rhs_contribs,1)
 
-  # TO-DO: this is a naive/not efficient implementation to 
-  #        compute a local numbering of dofs of those cells 
-  #        which belong to current aggregate. We should 
-  #        pre-compute this numbering outside and store it in an 
-  #        array of arrays (i.e., Gridap.Arrays.Table) 
-  global_to_local_dofs = Dict{Int32,Int32}()
-  current=1
-  for (i,cell) in enumerate(cells)
-        current_cell_dof_ids = getindex!(cache_cell_dof_ids,
-                                         m.agg_cells_dof_ids,
-                                         cell) 
-        for dof in current_cell_dof_ids
-          if !haskey(global_to_local_dofs,dof)
-            global_to_local_dofs[dof]=current
-            current+=1
-          end 
-        end 
+  max_local_dof_id=-1
+  for (i,cell) in enumerate(aggregate_local_cells)
+    current_cell_local_dof_ids = getindex!(cache_agg_cells_local_dof_ids,m.agg_cells_local_dof_ids,cell)
+    for local_dof in current_cell_local_dof_ids
+        max_local_dof_id=max(max_local_dof_id,local_dof)
+    end
   end
 
-  contrib = getindex!(cache_unassembled_rhs,m.agg_cells_rhs_contribs,1)
-  Gridap.Arrays.setsize!(result,(size(contrib,1),current-1))
+  Gridap.Arrays.setsize!(result,(size(contrib,1),max_local_dof_id))
   result.array .= 0.0
-  for (i,cell) in enumerate(cells)
-        current_cell_dof_ids = getindex!(cache_cell_dof_ids,m.agg_cells_dof_ids,cell)
+  for (i,cell) in enumerate(aggregate_local_cells)
+        current_cell_local_dof_ids = getindex!(cache_agg_cells_local_dof_ids,m.agg_cells_local_dof_ids,cell)
         contrib = getindex!(cache_unassembled_rhs,m.agg_cells_rhs_contribs,cell)
-        for (j,dof) in enumerate(current_cell_dof_ids)
-           result.array[:,global_to_local_dofs[dof]] += contrib[:,j]
+        for (j,local_dof) in enumerate(current_cell_local_dof_ids)
+           result.array[:,local_dof] += contrib[:,j]
         end
   end
   result.array
@@ -324,7 +313,32 @@ end
 # lhs_uhex=lazy_map(ass_lhs_map_uhex,aggregate_to_local_cells)
 ### END TESTING CODE
 
-ass_rhs_map=AssembleRhsMap(Ωagg_cell_dof_ids,agg_cells_rhs_contribs)
+function compute_agg_cells_local_dof_ids(agg_cells_dof_ids, aggregate_to_agg_cells)
+    agg_cells_local_dof_ids=copy(agg_cells_dof_ids)
+    current_cell=1
+    for agg_cells in aggregate_to_agg_cells
+        g2l=Dict{Int32,Int32}()
+        current_local_dof=1
+        for (i,_) in enumerate(agg_cells)
+            current_cell_dof_ids=agg_cells_dof_ids[current_cell]
+            for (j, dof) in enumerate(current_cell_dof_ids)
+                if !(dof in keys(g2l))
+                    g2l[dof]=current_local_dof
+                    agg_cells_local_dof_ids[current_cell][j]=current_local_dof
+                    current_local_dof+=1
+                else 
+                    agg_cells_local_dof_ids[current_cell][j]=g2l[dof]
+                end 
+            end 
+            current_cell+=1
+            println(agg_cells_local_dof_ids)
+        end
+    end
+    agg_cells_local_dof_ids
+end
+
+agg_cells_local_dof_ids=compute_agg_cells_local_dof_ids(Ωagg_cell_dof_ids, aggregate_to_local_cells)
+ass_rhs_map=AssembleRhsMap(agg_cells_local_dof_ids,agg_cells_rhs_contribs)
 rhs=lazy_map(ass_rhs_map,aggregate_to_local_cells)
 
 # TO-DO: optimize using our own optimized version Gridap.Fields.Map 
@@ -355,7 +369,11 @@ du_l2_proj_agg_cells=Gridap.CellData.GenericCellField(lazy_map(transpose,dv_l2_p
 γ = 10.0 # Interior bulk-penalty stabilization parameter
          # (@amartinhuertas no idea what a reasonable value is)
 
-h_U = 1.0 # TO-DO: properly compute h_U
+Ωbb  = Triangulation(aggregates_bounding_box_model)
+dΩbb = Measure(Ωbb, degree)
+h_U_array = get_array(∫(1.0)dΩbb)
+h_U_array = lazy_map(Reindex(h_U_array), agg_cells_to_aggregate)
+h_U = CellField(h_U_array, Ωagg_cells)
 
 function compute_aggregate_dof_ids(agg_cells_dof_ids, aggregate_to_agg_cells)
     aggregate_dof_ids=Vector{Vector{Int}}(undef, length(aggregate_to_agg_cells))
@@ -389,22 +407,22 @@ c = []
 dv=get_fe_basis(Vstd)
 du=get_trial_fe_basis(Ustd)
 
-dv_du_mat_contribs=get_array(∫(γ*(1.0/h_U^2)*dv*du)*dΩagg_cells)
+dv_du_mat_contribs=get_array(∫(γ*(1.0/h_U*h_U)*dv*du)*dΩagg_cells)
 push!(w, dv_du_mat_contribs)
 push!(r, Ωagg_cell_dof_ids)
 push!(c, Ωagg_cell_dof_ids)
 
-dv_proj_du_mat_contribs=get_array(∫(γ*(1.0/h_U^2)*(-1.0)*dv_l2_proj_agg_cells*du)*dΩagg_cells)
+dv_proj_du_mat_contribs=get_array(∫(γ*(1.0/h_U*h_U)*(-1.0)*dv_l2_proj_agg_cells*du)*dΩagg_cells)
 push!(w, dv_proj_du_mat_contribs)
 push!(r, agg_cells_to_aggregate_dof_ids)
 push!(c, Ωagg_cell_dof_ids)
 
-proj_dv_du_mat_contribs=get_array(∫(γ*(1.0/h_U^2)*(-1.0)*dv*(du_l2_proj_agg_cells))*dΩagg_cells)
+proj_dv_du_mat_contribs=get_array(∫(γ*(1.0/h_U*h_U)*(-1.0)*dv*(du_l2_proj_agg_cells))*dΩagg_cells)
 push!(w, proj_dv_du_mat_contribs)
 push!(r, Ωagg_cell_dof_ids)
 push!(c, agg_cells_to_aggregate_dof_ids)
 
-proj_dv_proj_du_mat_contribs=get_array(∫(γ*(1.0/h_U^2)*dv_l2_proj_agg_cells*du_l2_proj_agg_cells)dΩagg_cells)
+proj_dv_proj_du_mat_contribs=get_array(∫(γ*(1.0/h_U*h_U)*dv_l2_proj_agg_cells*du_l2_proj_agg_cells)dΩagg_cells)
 push!(w, proj_dv_proj_du_mat_contribs)
 push!(r, agg_cells_to_aggregate_dof_ids)
 push!(c, agg_cells_to_aggregate_dof_ids)
