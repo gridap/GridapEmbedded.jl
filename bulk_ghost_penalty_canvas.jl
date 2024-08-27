@@ -4,7 +4,7 @@ using FillArrays
 using LinearAlgebra
 
 # Manufactured solution
-order = 0
+order = 1
 uex(x) = x[1]^order + x[2]^order
 
 # Select geometry
@@ -197,7 +197,7 @@ ref_agg_cell_to_ref_bb_map=
 
 
 # Compute LHS of L2 projection 
-degree=2*order
+degree=2*(order+1)
 dΩagg_cells = Measure(Ωagg_cells,degree)
 reffe=ReferenceFE(lagrangian,Float64,order) # Here we MUST use a Q space (not a P space!)
 Vbb=FESpace(aggregates_bounding_box_model,reffe,conformity=:L2) # We need a DG space to represent the L2 projection
@@ -231,22 +231,28 @@ end
 # TO-DO: Better name?
 struct AssembleLhsMap{A} <: Gridap.Fields.Map
     agg_cells_lhs_contribs::A
-end 
+end
+
+function _get_rank(::Type{Array{T,N}}) where {T,N}
+  N
+end
 
 function Gridap.Fields.return_cache(m::AssembleLhsMap,cells)
     cache_unassembled_lhs=array_cache(m.agg_cells_lhs_contribs)
-    evaluate_result=Gridap.Arrays.CachedArray(eltype(eltype(m.agg_cells_lhs_contribs)),2)
+    T=eltype(m.agg_cells_lhs_contribs)
+    evaluate_result=Gridap.Arrays.CachedArray(eltype(T),_get_rank(T))
     cache_unassembled_lhs,evaluate_result
 end
   
 function Gridap.Fields.evaluate!(cache,m::AssembleLhsMap,cells)
     cache_unassembled_lhs,result=cache
     contrib = getindex!(cache_unassembled_lhs,m.agg_cells_lhs_contribs,1)
-    Gridap.Arrays.setsize!(result,(size(contrib,1),size(contrib,2)))
+
+    Gridap.Arrays.setsize!(result,size(contrib))
     result.array .= 0.0
     for (i,cell) in enumerate(cells)
         contrib = getindex!(cache_unassembled_lhs,m.agg_cells_lhs_contribs,cell)
-        result.array .= contrib
+        result.array .+= contrib
     end
     result.array
 end
@@ -307,6 +313,16 @@ function Gridap.Fields.evaluate!(cache,m::AssembleRhsMap,cells)
   end
   result.array
 end
+
+### BEGIN TESTING CODE
+# This code is just for testing purposes, so I have commented it out 
+# It allows to evaluate the LHS of the L2 projection corresponding to a 
+# particular FE function, instead of a basis 
+# uhex=interpolate(uex,Ustd)
+# agg_cells_lhs_contribs_uhex=get_array(∫(vbb_Ωagg_cells*uhex)dΩagg_cells)
+# ass_lhs_map_uhex=AssembleLhsMap(agg_cells_lhs_contribs_uhex)
+# lhs_uhex=lazy_map(ass_lhs_map_uhex,aggregate_to_local_cells)
+### END TESTING CODE
 
 ass_rhs_map=AssembleRhsMap(Ωagg_cell_dof_ids,agg_cells_rhs_contribs)
 rhs=lazy_map(ass_rhs_map,aggregate_to_local_cells)
