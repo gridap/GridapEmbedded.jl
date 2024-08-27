@@ -12,7 +12,7 @@ R = 0.2
 geom = disk(R, x0=Point(0.5,0.5))
 
 # Setup background model
-n=10
+n=20
 partition = (n,n)
 box = get_metadata(geom)
 bgmodel = CartesianDiscreteModel((0,1,0,1),partition)
@@ -37,21 +37,35 @@ aggregates = aggregate(strategy,cutdisk)
          array of arrays as a Gridap.Arrays.Table.
 """
 function setup_aggregate_to_cells(aggregates)
+  
+  size_aggregates=Dict{Int,Int}()
+  for (i,agg) in enumerate(aggregates)
+    if agg>0
+        if !haskey(size_aggregates,agg)
+            size_aggregates[agg]=1
+        else 
+            size_aggregates[agg]+=1
+        end
+    end
+  end   
+
   touched=Dict{Int,Int}()
   aggregate_to_cells=Vector{Vector{Int}}()
   current_aggregate=1
   for (i,agg) in enumerate(aggregates)
     if agg>0
-        if !haskey(touched,agg)
-            push!(aggregate_to_cells,[i])
-            touched[agg]=current_aggregate
-            current_aggregate+=1
-        else 
-            push!(aggregate_to_cells[touched[agg]],i)
-        end
+        if (size_aggregates[agg]>1)
+            if !haskey(touched,agg)
+                push!(aggregate_to_cells,[i])
+                touched[agg]=current_aggregate
+                current_aggregate+=1
+            else 
+                push!(aggregate_to_cells[touched[agg]],i)
+            end
+        end 
     end
-   end
-   aggregate_to_cells
+  end
+  aggregate_to_cells
 end 
 
 function setup_aggregates_bounding_box_model(bgmodel, aggregate_to_cells)
@@ -452,4 +466,4 @@ b = assemble_vector(l, Vstd)
 global_l2_proj_dofs = Awithstab\b
 uh = FEFunction(Ustd, global_l2_proj_dofs)
 eh = uex-uh
-sum(∫(eh*eh)*dΩcut)
+@assert sum(∫(eh*eh)*dΩcut) < 1.0e-12
