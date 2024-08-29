@@ -532,6 +532,7 @@ end
 
 function compute_normal_displacement!(
     cache,
+    uₕ::FEFunction,
     cpₕ::FEFunction,
     phi::AlgoimCallLevelSetFunction,
     dt::Float64,
@@ -547,7 +548,7 @@ function compute_normal_displacement!(
   cell_to_points, _ = make_inverse_table(point_to_cell, num_cells(Ω))
   cell_to_xs = lazy_map(Broadcasting(Reindex(cps)), cell_to_points)
   cell_point_xs = CellPoint(cell_to_xs, Ω, PhysicalDomain())
-  fun_xs = evaluate(cpₕ,cell_point_xs)
+  fun_xs = evaluate(uₕ,cell_point_xs)
   nΓ_xs = evaluate(normal(phi,Ω),cell_point_xs)
   cell_point_disp = lazy_map(Broadcasting(⋅),fun_xs,nΓ_xs)
   cache_vals = array_cache(cell_point_disp)
