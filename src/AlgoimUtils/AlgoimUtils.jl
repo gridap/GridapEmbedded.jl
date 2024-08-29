@@ -52,6 +52,7 @@ export compute_closest_point_projections
 export compute_normal_displacement
 export compute_normal_displacement!
 export compute_distance_fe_function
+export narrow_band_triangulation
 export delaunaytrian
 export convexhull
 
@@ -204,6 +205,19 @@ function CellQuadratureAndActiveMask(
   CellQuadratureAndActiveMask(Triangulation(model),quad)
 end
 
+function restrict_measure(meas::Measure)
+  is_r = is_cell_active(meas)
+  rcell_to_cell = findall(is_r)
+  oquad = meas.quad
+  cell_quad   = lazy_map(Reindex(oquad.cell_quad),rcell_to_cell)
+  cell_point  = lazy_map(Reindex(oquad.cell_point),rcell_to_cell)
+  cell_weight = lazy_map(Reindex(oquad.cell_weight),rcell_to_cell)
+  dds = oquad.data_domain_style
+  ids = oquad.integration_domain_style
+  trian = Triangulation(oquad.trian,is_r)
+  Measure(CellQuadrature(cell_quad,cell_point,cell_weight,trian,dds,ids))
+end
+
 function restrict_measure(meas::Measure,trian::Triangulation)
   oquad = meas.quad
   cell_quad   = lazy_map(Reindex(oquad.cell_quad),trian.tface_to_mface)
@@ -312,12 +326,18 @@ function compute_closest_point_projections(model::DistributedCartesianDiscreteMo
                                            cppdegree::Int=2,
                                            trim::Bool=false,
                                            limitstol::Float64=1.0e-8)
+  gdesc = model.metadata.descriptor
+  xmin = gdesc.origin
+  gpartition = Int32[gdesc.partition...]
+  xmax = xmin + Point(gdesc.sizes .* gpartition)
   cpps = map(local_views(model)) do m
     cdesc = get_cartesian_descriptor(m)
-    partition = Int32[cdesc.partition...]
-    xmin = cdesc.origin
-    xmax = xmin + Point(cdesc.sizes .* partition)
-    fill_cpp_data(φ,partition,xmin,xmax,cppdegree,trim,limitstol)
+    cmin = ( cdesc.origin - gdesc.origin )
+    cmin = round.(cmin.data ./ gdesc.sizes) .+ 1
+    cmin = Int32[cmin...]
+    cpartition = Int32[cdesc.partition...]
+    cmax = cmin + cpartition
+    fill_cpp_data(φ,gpartition,xmin,xmax,cppdegree,trim,limitstol,cmin,cmax)
   end
   node_gids = get_face_gids(model,0)
   PVector(cpps,partition(node_gids)) |> consistent! |> wait
@@ -329,12 +349,18 @@ function compute_closest_point_projections(model::DistributedCartesianDiscreteMo
                                            cppdegree::Int=2,
                                            trim::Bool=false,
                                            limitstol::Float64=1.0e-8)
+  gdesc = model.metadata.descriptor
+  xmin = gdesc.origin
+  gpartition = Int32[gdesc.partition...]
+  xmax = xmin + Point(gdesc.sizes .* gpartition)
   cpps = map(local_views(model),local_views(φ)) do m,f
     cdesc = get_cartesian_descriptor(m)
-    partition = Int32[cdesc.partition...]
-    xmin = cdesc.origin
-    xmax = xmin + Point(cdesc.sizes .* partition)
-    fill_cpp_data(f,partition,xmin,xmax,cppdegree,trim,limitstol)
+    cmin = ( cdesc.origin - gdesc.origin )
+    cmin = round.(cmin.data ./ gdesc.sizes) .+ 1
+    cmin = Int32[cmin...]
+    cpartition = Int32[cdesc.partition...]
+    cmax = cmin + cpartition
+    fill_cpp_data(f,gpartition,xmin,xmax,cppdegree,trim,limitstol,cmin,cmax)
   end
   node_gids = get_face_gids(model,0)
   PVector(cpps,partition(node_gids)) |> consistent! |> wait
@@ -504,22 +530,83 @@ function compute_normal_displacement!(
   disps, cache
 end
 
-signed_distance(φ::Function,x,y) = sign(φ(y))*norm(x-y)
+function compute_normal_displacement!(
+    cache,
+    cpₕ::FEFunction,
+    phi::AlgoimCallLevelSetFunction,
+    dt::Float64,
+    Ω::Triangulation)
+  # Note that cps must be (scalar) DoF-numbered, not lexicographic-numbered
+  if isnothing(cache)
+    searchmethod = KDTreeSearch()
+    cache = _point_to_cell_cache(searchmethod,Ω)
+  end
+  x_to_cell(x) = _point_to_cell!(cache, x)
+  cps = map(Point,eachcol(reshape(get_free_dof_values(cpₕ),num_dims(Ω),:)))
+  point_to_cell = lazy_map(x_to_cell, cps)
+  cell_to_points, _ = make_inverse_table(point_to_cell, num_cells(Ω))
+  cell_to_xs = lazy_map(Broadcasting(Reindex(cps)), cell_to_points)
+  cell_point_xs = CellPoint(cell_to_xs, Ω, PhysicalDomain())
+  fun_xs = evaluate(cpₕ,cell_point_xs)
+  nΓ_xs = evaluate(normal(phi,Ω),cell_point_xs)
+  cell_point_disp = lazy_map(Broadcasting(⋅),fun_xs,nΓ_xs)
+  cache_vals = array_cache(cell_point_disp)
+  cache_ctop = array_cache(cell_to_points)
+  disps = zeros(Float64,length(cps))
+  for cell in 1:length(cell_to_points)
+    pts = getindex!(cache_ctop,cell_to_points,cell)
+    vals = getindex!(cache_vals,cell_point_disp,cell)
+    for (i,pt) in enumerate(pts)
+      val = vals[i]
+      disps[pt] = dt * val
+    end
+  end
+  disps, cache
+end
 
-signed_distance(φ::T,x,y) where {T<:Number} = sign(φ)*norm(x-y)
+@inline signed_distance(φ::AlgoimCallLevelSetFunction,x,y) = signed_distance(φ.φ,x,y)
+
+@inline signed_distance(φ::Function,x,y) = sign(φ(y))*norm(x-y)
+
+@inline signed_distance(φ::T,x,y) where {T<:Number} = sign(φ)*norm(x-y)
 
 function _compute_signed_distance(
     φ::AlgoimCallLevelSetFunction{<:Function,<:Function},
     cps::Vector{<:Point{N,T}},cos::Array{<:Point{N,T},N}) where {N,T}
   _dist(x,y) = signed_distance(φ.φ,x,y)
-  lazy_map(_dist,cps,cos)
+  map(_dist,cps,cos)
 end
 
 function _compute_signed_distance(
     φ::AlgoimCallLevelSetFunction{<:CellField,<:CellField},
     cps::Vector{<:Point{N,T}},cos::Array{<:Point{N,T},N}) where {N,T}
   φs = get_free_dof_values(φ.φ)
-  lazy_map(signed_distance,φs,cps,cos)
+  map(signed_distance,φs,cps,cos)
+end
+
+function _compute_signed_distance(
+    φ::AlgoimCallLevelSetFunction{<:Function,<:Function},
+    cps::Vector{T},cos::Vector{T},ndists::Int,D::Int ) where {T}
+  map(1:ndists) do i
+    c = view(cos,D*(i-1)+1:D*i)
+    p = view(cps,D*(i-1)+1:D*i)
+    signed_distance(φ,p,c)
+  end
+end
+
+function _compute_signed_distance(
+    φ::AlgoimCallLevelSetFunction{<:CellField,<:CellField},
+    cps::Vector{T},cos::Vector{T},ndists::Int,D::Int ) where {T}
+  φs = get_free_dof_values(φ.φ)
+  msg = """\n
+    Check that FE space for LS function 
+    and closest point projections match"""
+  @assert length(φs) == ndists msg
+  map(1:ndists) do i
+    c = view(cos,D*(i-1)+1:D*i)
+    p = view(cps,D*(i-1)+1:D*i)
+    signed_distance(φs[i],p,c)
+  end
 end
 
 function compute_distance_fe_function(
@@ -535,6 +622,63 @@ function compute_distance_fe_function(
   cos = node_to_dof_order(cos,fespace,rmodel,order)
   dists = _compute_signed_distance(φ,cps,cos) 
   FEFunction(fespace,dists)
+end
+
+function compute_distance_fe_function(
+    fespace_scalar_type::FESpace,
+    fespace_vector_type::FESpace,
+    closest_point_projections::FEFunction,
+    φ::AlgoimCallLevelSetFunction)
+  model = get_active_model(get_triangulation(fespace_scalar_type))
+  D = num_dims(model)
+  cos = get_free_dof_values(interpolate(identity,fespace_vector_type))
+  cps = get_free_dof_values(closest_point_projections)
+  ndists = num_free_dofs(fespace_scalar_type)
+  dists = _compute_signed_distance(φ,cps,cos,ndists,D)
+  FEFunction(fespace_scalar_type,dists)
+end
+
+function narrow_band_triangulation(Ωⁿ::Triangulation,
+    φ::AlgoimCallLevelSetFunction{<:CellField,<:CellField},
+    dΓ::Measure,δ::Float64,order::Int)
+  
+  is_c = is_cell_active(dΓ)
+  Ωᶜ = Triangulation(Ωⁿ,is_c)
+  
+  ncell_to_ls_values = get_cell_dof_values(φ.φ)
+  msg = """\n
+    Check that the triangulation of the LS function 
+    and the old narrow-band triangulation match."""
+  @assert length(ncell_to_ls_values) == num_cells(Ωⁿ) msg
+  ccell_to_ls_values = lazy_map(Reindex(ncell_to_ls_values),findall(is_c))
+  
+  ccell_to_vertex_ids = get_cell_node_ids(Ωᶜ)
+  bgmodel = get_background_model(Ωᶜ)
+  polytope = get_polytopes(bgmodel)
+  @assert length(polytope) == 1
+  lag_reffe = LagrangianRefFE(Float64,polytope[1],order)
+  vertex_dofs = reduce(vcat,get_face_own_dofs(lag_reffe,0))
+  cvals = Vector{Float64}(undef,length(vertex_dofs))
+  ccell_vertex_to_is_in = map(ccell_to_ls_values) do lsv
+                            cvals = abs.(view(lsv,vertex_dofs)) 
+                            cvals .< δ
+                          end
+  
+  bgmodel_grid_topology = get_grid_topology(bgmodel)
+  bgmodel_vertex_to_cell = get_faces(bgmodel_grid_topology,0,num_dims(bgmodel))
+  ccell_vertex_to_cell_around = 
+    lazy_map(Broadcasting(Reindex(bgmodel_vertex_to_cell)),ccell_to_vertex_ids)
+  is_n = falses(num_cells(bgmodel))
+  ccell_to_parent_cell = get_cell_to_parent_cell(get_active_model(Ωᶜ))
+  is_n[ccell_to_parent_cell] .= true
+  function flag_narrow_band_cells!(v_to_ca,v_to_i) 
+    v_to_i && ( is_n[v_to_ca] .= true )
+    nothing
+  end
+  map(Broadcasting(flag_narrow_band_cells!),
+        ccell_vertex_to_cell_around,ccell_vertex_to_is_in)
+
+  Triangulation(bgmodel,is_n)
 end
 
 abstract type QhullType end

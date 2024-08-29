@@ -61,6 +61,7 @@ end
 @publish AlgoimUtils compute_normal_displacement
 @publish AlgoimUtils compute_normal_displacement!
 @publish AlgoimUtils compute_distance_fe_function
+@publish AlgoimUtils narrow_band_triangulation
 @publish AlgoimUtils delaunaytrian
 @publish AlgoimUtils convexhull
 
