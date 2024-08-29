@@ -532,7 +532,7 @@ end
 
 function compute_normal_displacement!(
     cache,
-    uₕ::FEFunction,
+    uₕ::CellField,
     cpₕ::FEFunction,
     phi::AlgoimCallLevelSetFunction,
     dt::Float64,
