@@ -370,15 +370,14 @@ dv_l2_proj_bb_array=lazy_map(Gridap.Fields.linear_combination,
 dv_l2_proj_bb_array_agg_cells=lazy_map(Broadcasting(∘),
                                        lazy_map(Reindex(dv_l2_proj_bb_array),agg_cells_to_aggregate),
                                        ref_agg_cell_to_ref_bb_map)
-dv_l2_proj_agg_cells=Gridap.CellData.GenericCellField(dv_l2_proj_bb_array_agg_cells,
-                                                      Ωagg_cells,
-                                                      ReferenceDomain()) 
 du_l2_proj_agg_cells=Gridap.CellData.GenericCellField(lazy_map(transpose,dv_l2_proj_bb_array_agg_cells),
                                                       Ωagg_cells,
                                                       ReferenceDomain()) 
 
 # Compute and assemble the bulk penalty stabilization term
 # ∫( (dv-dv_l2_proj_agg_cells)*(du-du_l2_proj_agg_cells))*dΩ_agg_cells
+# ∫( (dv)*(du-du_l2_proj_agg_cells))*dΩ_agg_cells
+
 
 γ = 10.0 # Interior bulk-penalty stabilization parameter
          # (@amartinhuertas no idea what a reasonable value is)
@@ -426,19 +425,9 @@ push!(w, dv_du_mat_contribs)
 push!(r, Ωagg_cell_dof_ids)
 push!(c, Ωagg_cell_dof_ids)
 
-dv_proj_du_mat_contribs=get_array(∫(γ*(1.0/h_U*h_U)*(-1.0)*dv_l2_proj_agg_cells*du)*dΩagg_cells)
-push!(w, dv_proj_du_mat_contribs)
-push!(r, agg_cells_to_aggregate_dof_ids)
-push!(c, Ωagg_cell_dof_ids)
-
 proj_dv_du_mat_contribs=get_array(∫(γ*(1.0/h_U*h_U)*(-1.0)*dv*(du_l2_proj_agg_cells))*dΩagg_cells)
 push!(w, proj_dv_du_mat_contribs)
 push!(r, Ωagg_cell_dof_ids)
-push!(c, agg_cells_to_aggregate_dof_ids)
-
-proj_dv_proj_du_mat_contribs=get_array(∫(γ*(1.0/h_U*h_U)*dv_l2_proj_agg_cells*du_l2_proj_agg_cells)dΩagg_cells)
-push!(w, proj_dv_proj_du_mat_contribs)
-push!(r, agg_cells_to_aggregate_dof_ids)
 push!(c, agg_cells_to_aggregate_dof_ids)
 
 # Set up global projection matrix 
