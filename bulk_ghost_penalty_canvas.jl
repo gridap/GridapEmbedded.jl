@@ -7,7 +7,8 @@ include("BulkGhostPenaltyAssembleMaps.jl")
 
 # Manufactured solution
 order = 1
-uex(x) = x[1]^order + x[2]^order
+uex(x) = VectorValue(x[1],x[2])
+pex(x) = x[1]^order + x[2]^order
 
 # Select geometry
 R = 0.2
@@ -169,9 +170,13 @@ end
 
 # Set up global spaces 
 Ωhact = Triangulation(cutdisk,ACTIVE)
-reffe = ReferenceFE(lagrangian,Float64,order)
-Vstd  = TestFESpace(Ωhact,reffe,conformity=:L2)
-Ustd  = TrialFESpace(Vstd)
+
+V = FESpace(Ωhact, ReferenceFE(raviart_thomas,Float64,order),conformity=:HDiv)
+Q = FESpace(Ωhact, ReferenceFE(lagrangian,Float64,order), conformity=:L2)
+U = TrialFESpace(V)
+P = TrialFESpace(Q)
+Y = MultiFieldFESpace([V, Q])
+X = MultiFieldFESpace([U, P])
 
 # Generate an array with the global IDs of the cells 
 # that belong to an aggregrate. From now on, we will 
@@ -207,11 +212,18 @@ ref_agg_cell_to_ref_bb_map=
 # Compute LHS of L2 projection 
 degree=2*(order+1)
 dΩagg_cells = Measure(Ωagg_cells,degree)
-reffe=ReferenceFE(lagrangian,Float64,order) # Here we MUST use a Q space (not a P space!)
-Vbb=FESpace(aggregates_bounding_box_model,reffe,conformity=:L2) # We need a DG space to represent the L2 projection
+reffe =ReferenceFE(lagrangian,Float64,order) # Here we MUST use a Q space (not a P space!)
+Qbb=FESpace(aggregates_bounding_box_model,reffe,conformity=:L2) # We need a DG space to represent the L2 projection
+Pbb=TrialFESpace(Qbb)
+pbb=get_trial_fe_basis(Pbb)
+qbb=get_fe_basis(Qbb)
+
+reffe=ReferenceFE(raviart_thomas,Float64,order)
+Vbb=FESpace(aggregates_bounding_box_model,reffe,conformity=:L2)
 Ubb=TrialFESpace(Vbb)
 ubb=get_trial_fe_basis(Ubb)
 vbb=get_fe_basis(Vbb)
+
 
 aggregate_to_local_cells=copy(aggregate_to_cells)
 current_local_cell=1
@@ -243,24 +255,45 @@ function set_up_bulk_ghost_penalty_lhs(aggregates_bounding_box_model,
                                                 agg_cells_to_aggregate)
 
     # Compute contributions to LHS of L2 projection
-    agg_cells_to_lhs_contribs=get_array(∫(vbb_Ωagg_cells*ubb_Ωagg_cells)dΩagg_cells)
+    agg_cells_to_lhs_contribs=get_array(∫(vbb_Ωagg_cells⋅ubb_Ωagg_cells)dΩagg_cells)
 
     # Finally assemble LHS contributions
     ass_lhs_map=BulkGhostPenaltyAssembleLhsMap(agg_cells_to_lhs_contribs)
     lazy_map(ass_lhs_map,aggregate_to_local_cells)
 end 
 
-lhs=set_up_bulk_ghost_penalty_lhs(aggregates_bounding_box_model,
+p_lhs=set_up_bulk_ghost_penalty_lhs(aggregates_bounding_box_model,
                                   agg_cells_to_aggregate,
                                   ref_agg_cell_to_ref_bb_map,
                                   dΩagg_cells,
-                                  ubb, 
-                                  vbb)
+                                  pbb,
+                                  qbb)
+
+u_lhs=set_up_bulk_ghost_penalty_lhs(aggregates_bounding_box_model,
+                                  agg_cells_to_aggregate,
+                                  ref_agg_cell_to_ref_bb_map,
+                                  dΩagg_cells,
+                                  ubb,
+                                  vbb)                             
 
 # Compute contributions to the RHS of the L2 projection
-du    = get_trial_fe_basis(Ustd)
-dv    = get_fe_basis(Vstd)
-Ωagg_cell_dof_ids = get_cell_dof_ids(Ustd,Ωagg_cells)
+dx    = get_trial_fe_basis(X)
+dy    = get_fe_basis(Y)
+du,dp = dx  
+dv,dq = dy 
+
+function _restrict_to_block(cell_dof_ids::Gridap.Arrays.LazyArray{<:Fill{<:Gridap.Fields.BlockMap}}, blockid)
+    map=cell_dof_ids.maps.value 
+    @assert length(map.size)==1
+    @assert blockid >= 1
+    @assert blockid <= map.size[1]
+    cell_dof_ids.args[blockid]
+end 
+
+Ωagg_cell_dof_ids   = get_cell_dof_ids(X,Ωagg_cells)
+U_Ωagg_cell_dof_ids = _restrict_to_block(Ωagg_cell_dof_ids, 1) 
+P_Ωagg_cell_dof_ids = _restrict_to_block(Ωagg_cell_dof_ids, 2)
+
 
 ### BEGIN TESTING CODE
 # This code is just for testing purposes, so I have commented it out 
@@ -296,12 +329,10 @@ function compute_agg_cells_local_dof_ids(agg_cells_dof_ids, aggregate_to_agg_cel
     agg_cells_local_dof_ids
 end
 
-agg_cells_local_dof_ids=
-   compute_agg_cells_local_dof_ids(Ωagg_cell_dof_ids, aggregate_to_local_cells)
-
-# Compute and assemble the bulk penalty stabilization term
-# ∫( (dv-dv_l2_proj_agg_cells)*(du-du_l2_proj_agg_cells))*dΩ_agg_cells
-# ∫( (dv)*(du-du_l2_proj_agg_cells))*dΩ_agg_cells
+U_agg_cells_local_dof_ids=
+   compute_agg_cells_local_dof_ids(U_Ωagg_cell_dof_ids, aggregate_to_local_cells)
+P_agg_cells_local_dof_ids=
+   compute_agg_cells_local_dof_ids(P_Ωagg_cell_dof_ids, aggregate_to_local_cells)
 
 
 function set_up_h_U(aggregates_bounding_box_model,
@@ -387,7 +418,7 @@ function interior_bulk_penalty_stabilization_collect_cell_matrix(agg_cells_to_ag
                                                   agg_cells_to_aggregate)             
 
     du_single_field=_get_single_field_fe_basis(du)                                              
-    agg_cells_rhs_contribs=get_array(∫(dvbb_Ωagg_cells*du_single_field)dΩagg_cells)
+    agg_cells_rhs_contribs=get_array(∫(dvbb_Ωagg_cells⋅du_single_field)dΩagg_cells)
     ass_rhs_map=BulkGhostPenaltyAssembleRhsMap(agg_cells_local_dof_ids,agg_cells_rhs_contribs)
     rhs=lazy_map(ass_rhs_map,aggregate_to_local_cells)
 
@@ -396,50 +427,74 @@ function interior_bulk_penalty_stabilization_collect_cell_matrix(agg_cells_to_ag
     dv_l2_proj_bb_dofs=lazy_map(\,lhs,rhs)
 
     # Generate bb-wise array of fields. For each aggregate's bounding box,
-    # it provides the l2 projection of all basis functions in Ustd 
+    # it provides the l2 projection of all basis functions in du 
     # restricted to the cells included in the bounding box of the aggregate   
     dv_l2_proj_bb_array=lazy_map(Gridap.Fields.linear_combination,
                                 dv_l2_proj_bb_dofs,
                                 Gridap.CellData.get_data(dvbb))
 
-    # Change domain of dv_l2_proj_bb_array from bb to agg_cells
+    # # Change domain of dv_l2_proj_bb_array from bb to agg_cells
     dv_l2_proj_bb_array_agg_cells=lazy_map(Broadcasting(∘),
                                            lazy_map(Reindex(dv_l2_proj_bb_array),agg_cells_to_aggregate),
                                            ref_agg_cell_to_ref_bb_map)
 
+    du_l2_proj_bb_array_agg_cells=lazy_map(transpose, dv_l2_proj_bb_array_agg_cells)
+    
     if (_is_multifield_fe_basis_component(du))
         @assert _is_multifield_fe_basis_component(dv)
         @assert _nfields(du)==_nfields(dv)
         nfields=_nfields(du)
         fieldid=_fieldid(du)
-        dv_l2_proj_bb_array_agg_cells=lazy_map(BlockMap(fieldid,nfields),dv_l2_proj_bb_array_agg_cells)
+        du_l2_proj_bb_array_agg_cells=lazy_map(
+                                    Gridap.Fields.BlockMap((1,nfields),fieldid),
+                                    du_l2_proj_bb_array_agg_cells)
     end 
-                                            
 
-    du_l2_proj_agg_cells=Gridap.CellData.GenericCellField(lazy_map(transpose, dv_l2_proj_bb_array_agg_cells),
-                                                          dΩagg_cells.quad.trian,
-                                                          ReferenceDomain())
+    du_l2_proj_agg_cells = Gridap.CellData.GenericCellField(du_l2_proj_bb_array_agg_cells,
+                                                            dΩagg_cells.quad.trian,
+                                                            ReferenceDomain())
 
     # Manually set up the arrays that collect_cell_matrix would return automatically
     w = []
     r = []
     c = []
 
-    dv_du_mat_contribs=get_array(∫(γ*(1.0/h_U*h_U)*dv*du)*dΩagg_cells)
+    dv_du_mat_contribs=get_array(∫(γ*(1.0/h_U*h_U)*dv⋅du)*dΩagg_cells)
+    if (_is_multifield_fe_basis_component(dv))
+        nfields=_nfields(dv)
+        fieldid=_fieldid(dv)
+        Ωagg_cell_dof_ids=lazy_map(Gridap.Fields.BlockMap(nfields,fieldid),Ωagg_cell_dof_ids)
+    end
     push!(w, dv_du_mat_contribs)
     push!(r, Ωagg_cell_dof_ids)
     push!(c, Ωagg_cell_dof_ids)
 
-    proj_dv_du_mat_contribs=get_array(∫(γ*(1.0/h_U*h_U)*(-1.0)*dv*(du_l2_proj_agg_cells))*dΩagg_cells)
+    # In the MultiField case, I have had to add this change domain 
+    # call before setting up the term right below. Otherwise, we get an error 
+    # when trying to multiply the fields. Not sure why this is happening
+    dvΩagg_cells=Gridap.CellData.change_domain(dv,Ωagg_cells,ReferenceDomain())
+
+    proj_dv_du_mat_contribs=get_array(∫(γ*(1.0/h_U*h_U)*(-1.0)*dvΩagg_cells⋅(du_l2_proj_agg_cells))*dΩagg_cells)
+    
+    if (_is_multifield_fe_basis_component(du))
+        nfields=_nfields(du)
+        fieldid=_fieldid(du)
+        agg_cells_to_aggregate_dof_ids=
+           lazy_map(Gridap.Fields.BlockMap(nfields,fieldid),agg_cells_to_aggregate_dof_ids)
+    end
+    
     push!(w, proj_dv_du_mat_contribs)
     push!(r, Ωagg_cell_dof_ids)
     push!(c, agg_cells_to_aggregate_dof_ids)
 
-    w, r, c 
+    w, r, c
 end
   
-aggregate_dof_ids=compute_aggregate_dof_ids(Ωagg_cell_dof_ids,aggregate_to_cells)
-agg_cells_to_aggregate_dof_ids=lazy_map(Reindex(aggregate_dof_ids),agg_cells_to_aggregate)
+U_aggregate_dof_ids=compute_aggregate_dof_ids(U_Ωagg_cell_dof_ids,aggregate_to_cells)
+U_agg_cells_to_aggregate_dof_ids=lazy_map(Reindex(U_aggregate_dof_ids),agg_cells_to_aggregate)
+
+P_aggregate_dof_ids=compute_aggregate_dof_ids(P_Ωagg_cell_dof_ids,aggregate_to_cells)
+P_agg_cells_to_aggregate_dof_ids=lazy_map(Reindex(P_aggregate_dof_ids),agg_cells_to_aggregate)
 
 γ = 10.0 # Interior bulk-penalty stabilization parameter
          # (@amartinhuertas no idea what a reasonable value is)
@@ -447,42 +502,94 @@ agg_cells_to_aggregate_dof_ids=lazy_map(Reindex(aggregate_dof_ids),agg_cells_to_
 h_U = set_up_h_U(aggregates_bounding_box_model, agg_cells_to_aggregate, Ωagg_cells)         
 
 # Manually set up the arrays that collect_cell_matrix would return automatically
-w,r,c=interior_bulk_penalty_stabilization_collect_cell_matrix(agg_cells_to_aggregate,
+wp,rp,cp=interior_bulk_penalty_stabilization_collect_cell_matrix(agg_cells_to_aggregate,
+                                                        ref_agg_cell_to_ref_bb_map,
+                                                        dΩagg_cells,
+                                                        dq,    # Test basis
+                                                        dp,    # Trial basis (to project)
+                                                        qbb,  # Bounding box space test basis
+                                                        p_lhs,
+                                                        P_Ωagg_cell_dof_ids, 
+                                                        P_agg_cells_local_dof_ids,
+                                                        P_agg_cells_to_aggregate_dof_ids,
+                                                        h_U,
+                                                        γ)
+
+wu,ru,cu=interior_bulk_penalty_stabilization_collect_cell_matrix(agg_cells_to_aggregate,
                                                         ref_agg_cell_to_ref_bb_map,
                                                         dΩagg_cells,
                                                         dv,    # Test basis
                                                         du,    # Trial basis (to project)
                                                         vbb,  # Bounding box space test basis
-                                                        lhs,
-                                                        Ωagg_cell_dof_ids, 
-                                                        agg_cells_local_dof_ids,
-                                                        agg_cells_to_aggregate_dof_ids,
+                                                        u_lhs,
+                                                        U_Ωagg_cell_dof_ids, 
+                                                        U_agg_cells_local_dof_ids,
+                                                        U_agg_cells_to_aggregate_dof_ids,
                                                         h_U,
                                                         γ)
+
 
 # Set up global projection matrix 
 Ωcut = Triangulation(cutdisk,PHYSICAL)
 dΩcut = Measure(Ωcut,degree)
-a(u,v)=∫(v*u)dΩcut 
-wrc=Gridap.FESpaces.collect_cell_matrix(Ustd,Vstd,a(du,dv))
+a((u,p),(v,q))=∫(v⋅u+q*p)dΩcut 
+wrc=Gridap.FESpaces.collect_cell_matrix(X,Y,a(dx,dy))
 
-assem=SparseMatrixAssembler(Ustd,Vstd)
+assem=SparseMatrixAssembler(X,Y)
 Anostab=assemble_matrix(assem, wrc)
 cond(Array(Anostab))
 
 # Add the bulk penalty stabilization term to wrc
-push!(wrc[1], w...)
-push!(wrc[2], r...)
-push!(wrc[3], c...)
+push!(wrc[1], wp...)
+push!(wrc[2], rp...)
+push!(wrc[3], cp...)
+
+push!(wrc[1], wu...)
+push!(wrc[2], ru...)
+push!(wrc[3], cu...)
 
 Awithstab=assemble_matrix(assem, wrc)
 cond(Array(Awithstab))
 
 # Set up rhs global projection 
-l(v)=∫(v*uex)dΩcut
-b = assemble_vector(l, Vstd)
+l((v,q))=∫(v⋅uex+q*pex)dΩcut
+b = assemble_vector(l, Y)
 
 global_l2_proj_dofs = Awithstab\b
-uh = FEFunction(Ustd, global_l2_proj_dofs)
-eh = uex-uh
-@assert sum(∫(eh*eh)*dΩcut) < 1.0e-12
+xh = FEFunction(X, global_l2_proj_dofs)
+uh,ph = xh
+
+euh = uex-uh
+@assert sum(∫(euh⋅euh)*dΩcut) < 1.0e-12
+
+eph = pex-ph
+@assert sum(∫(eph*eph)*dΩcut) < 1.0e-12
+
+
+# Piece of code to generate the divergence of the 
+# velocity space basis in the pressure space in the 
+# same format as returned by dv and du
+
+div_dv=∇⋅(_get_single_field_fe_basis(dv))
+pdofs=Gridap.FESpaces.get_fe_dof_basis(P)
+div_dv_pdofs_values=pdofs(div_dv)
+div_dv_in_pressure_space_cell_array=lazy_map(Gridap.Fields.linear_combination,
+                           div_dv_pdofs_values,
+                           Gridap.CellData.get_data(_get_single_field_fe_basis(dq)))
+
+div_dv_in_pressure_space=
+   Gridap.FESpaces.SingleFieldFEBasis(div_dv_in_pressure_space_cell_array,
+                      get_triangulation(P),
+                      Gridap.FESpaces.TestBasis(),
+                      Gridap.CellData.ReferenceDomain())
+
+div_dv_in_pressure_space=
+   Gridap.MultiField.MultiFieldFEBasisComponent(div_dv_in_pressure_space,1,2)
+
+div_du_in_pressure_space_cell_array=lazy_map(transpose,div_dv_in_pressure_space_cell_array)
+
+div_du_in_pressure_space=Gridap.FESpaces.SingleFieldFEBasis(div_du_in_pressure_space_cell_array,
+                      get_triangulation(P),
+                      Gridap.FESpaces.TrialBasis(),
+                      Gridap.CellData.ReferenceDomain())
+div_du_in_pressure_space=Gridap.MultiField.MultiFieldFEBasisComponent(div_du_in_pressure_space,1,2)
