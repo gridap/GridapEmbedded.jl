@@ -77,8 +77,10 @@ function setup_aggregates_bounding_box_model(bgmodel, aggregate_to_cells)
     
     # Compute coordinates of the nodes defining the bounding boxes
     bounding_box_node_coords=
-         Vector{Point{D,Float64}}(undef,length(aggregate_to_cells)*2^D)
-    current=1
+    Vector{Point{D,Float64}}(undef,length(aggregate_to_cells)*2^D)
+    ptr  = [ (((i-1)*2^D)+1) for i in 1:length(aggregate_to_cells)+1 ]
+    data = collect(1:length(bounding_box_node_coords))
+    bounding_box_node_ids = Gridap.Arrays.Table(data,ptr)
     for (agg,cells) in enumerate(aggregate_to_cells)
         p=first(cell_coords[cells[1]])
         for i in 1:D
@@ -93,24 +95,15 @@ function setup_aggregates_bounding_box_model(bgmodel, aggregate_to_cells)
                 end 
             end 
         end
-        # TO-DO: this nested loop is only valid for D=2.
-        #        Ideally, we should be able to generalize it for 
-        #        arbitrary D
-        for i in (xmin[2],xmax[2])
-            for j in (xmin[1],xmax[1])
-                bounding_box_node_coords[current]=Point(j,i)
-                current+=1
-            end 
-        end
+        bounds         = [(xmin[i], xmax[i]) for i in 1:D]
+        point_iterator = Iterators.product(bounds...)
+        bounding_box_node_coords[bounding_box_node_ids[agg]] = 
+                reshape([Point(p...) for p in point_iterator],2^D)
     end
 
-    # Set up the discrete model of bounding boxes 
-    ptr  = [ (((i-1)*2^D)+1) for i in 1:length(aggregate_to_cells)+1 ]
-    data = collect(1:length(bounding_box_node_coords))
-    bounding_box_node_ids = Gridap.Arrays.Table(data,ptr)
-
-    # TO-DO: this polytope is only valid for D=2
-    polytope=QUAD
+    # Set up the discrete model of bounding boxes
+    HEX_AXIS=1
+    polytope=Polytope(Fill(HEX_AXIS,D)...)
     scalar_reffe=ReferenceFE(polytope,lagrangian,Float64,1)
     cell_types=fill(1,length(bounding_box_node_ids))
     cell_reffes=[scalar_reffe]
