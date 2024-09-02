@@ -204,7 +204,6 @@ bb_to_ref_bb_agg_cells=lazy_map(Reindex(bb_to_ref_bb),agg_cells_to_aggregate)
 ref_agg_cell_to_ref_bb_map=
     lazy_map(Broadcasting(∘),bb_to_ref_bb_agg_cells,ref_agg_cell_to_agg_cell_map)
 
-
 # Compute LHS of L2 projection 
 degree=2*(order+1)
 dΩagg_cells = Measure(Ωagg_cells,degree)
@@ -213,20 +212,6 @@ Vbb=FESpace(aggregates_bounding_box_model,reffe,conformity=:L2) # We need a DG s
 Ubb=TrialFESpace(Vbb)
 ubb=get_trial_fe_basis(Ubb)
 vbb=get_fe_basis(Vbb)
-
-# Change domain of vbb (test) from Ωbb to Ωagg_cells
-vbb_Ωagg_cells=change_domain_bb_to_agg_cells(vbb,
-                                             ref_agg_cell_to_ref_bb_map,
-                                             Ωagg_cells,
-                                             agg_cells_to_aggregate)
-# Change domain of ubb (trial) from Ωbb to Ωagg_cells                                             
-ubb_Ωagg_cells=change_domain_bb_to_agg_cells(ubb,
-                                             ref_agg_cell_to_ref_bb_map,
-                                             Ωagg_cells,
-                                             agg_cells_to_aggregate)
-
-# Compute contributions to LHS of L2 projection
-agg_cells_to_lhs_contribs=get_array(∫(vbb_Ωagg_cells*ubb_Ωagg_cells)dΩagg_cells)
 
 aggregate_to_local_cells=copy(aggregate_to_cells)
 current_local_cell=1
@@ -237,10 +222,40 @@ for (i,cells) in enumerate(aggregate_to_local_cells)
     end
 end
 
+function set_up_bulk_ghost_penalty_lhs(aggregates_bounding_box_model,
+                                       agg_cells_to_aggregate,
+                                       ref_agg_cell_to_ref_bb_map,
+                                       dΩagg_cells,
+                                       ubb, 
+                                       vbb)
+    Ωagg_cells=dΩagg_cells.quad.trian
 
-# Finally assemble LHS contributions
-ass_lhs_map=BulkGhostPenaltyAssembleLhsMap(agg_cells_to_lhs_contribs)
-lhs=lazy_map(ass_lhs_map,aggregate_to_local_cells)
+    # Change domain of vbb (test) from Ωbb to Ωagg_cells
+    vbb_Ωagg_cells=change_domain_bb_to_agg_cells(vbb,
+                                                 ref_agg_cell_to_ref_bb_map,
+                                                 Ωagg_cells,
+                                                 agg_cells_to_aggregate)
+
+    # Change domain of ubb (trial) from Ωbb to Ωagg_cells                                             
+    ubb_Ωagg_cells=change_domain_bb_to_agg_cells(ubb,
+                                                ref_agg_cell_to_ref_bb_map,
+                                                Ωagg_cells,
+                                                agg_cells_to_aggregate)
+
+    # Compute contributions to LHS of L2 projection
+    agg_cells_to_lhs_contribs=get_array(∫(vbb_Ωagg_cells*ubb_Ωagg_cells)dΩagg_cells)
+
+    # Finally assemble LHS contributions
+    ass_lhs_map=BulkGhostPenaltyAssembleLhsMap(agg_cells_to_lhs_contribs)
+    lazy_map(ass_lhs_map,aggregate_to_local_cells)
+end 
+
+lhs=set_up_bulk_ghost_penalty_lhs(aggregates_bounding_box_model,
+                                  agg_cells_to_aggregate,
+                                  ref_agg_cell_to_ref_bb_map,
+                                  dΩagg_cells,
+                                  ubb, 
+                                  vbb)
 
 # Compute contributions to the RHS of the L2 projection
 du    = get_trial_fe_basis(Ustd)
