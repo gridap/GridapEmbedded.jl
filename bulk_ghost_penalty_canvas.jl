@@ -96,17 +96,14 @@ function setup_aggregates_bounding_box_model(bgmodel, aggregate_to_cells)
             end 
         end
         bounds         = [(xmin[i], xmax[i]) for i in 1:D]
-        point_iterator = Iterators.product([bounds[i] for i in 1:D]...)
+        point_iterator = Iterators.product(bounds...)
         bounding_box_node_coords[bounding_box_node_ids[agg]] = 
-                reduce(vcat,[Point(p...) for p in point_iterator])
+                reshape([Point(p...) for p in point_iterator],2^D)
     end
 
     # Set up the discrete model of bounding boxes
-    if D==2
-        polytope=QUAD
-    elseif D==3
-        polytope=HEX
-    end 
+    HEX_AXIS=1
+    polytope=Polytope(Fill(HEX_AXIS,D)...)
     scalar_reffe=ReferenceFE(polytope,lagrangian,Float64,1)
     cell_types=fill(1,length(bounding_box_node_ids))
     cell_reffes=[scalar_reffe]
@@ -119,7 +116,7 @@ function setup_aggregates_bounding_box_model(bgmodel, aggregate_to_cells)
 end 
 
 aggregate_to_cells=setup_aggregate_to_cells(aggregates)
-aggregates_bounding_box_model =
+aggregates_bounding_box_model=
        setup_aggregates_bounding_box_model(bgmodel,aggregate_to_cells)
 
 colors = color_aggregates(aggregates,bgmodel)
