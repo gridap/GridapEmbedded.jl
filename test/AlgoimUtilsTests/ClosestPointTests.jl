@@ -16,7 +16,7 @@ const CUT = 0
 function run_case(distribute,parts,degree)
 
   ranks = distribute(LinearIndices((prod(parts),)))
-  cells = Int32[4,4,4]
+  cells = Int32[32,32,32]
   
   domain = (-1.1,1.1,-1.1,1.1,-1.1,1.1)
   bgmodel = CartesianDiscreteModel(ranks,parts,domain,cells)
@@ -38,9 +38,9 @@ function run_case(distribute,parts,degree)
     [ p-f(p)*∇f(p) for p in c ]
   end
   cpps = compute_closest_point_projections(bgmodel,phi,cppdegree=degree)
-  map(coords,cpps,_cpps,ranks) do c,p,_p,i
-    writevtk(c,"cpps_$i",nodaldata=["f"=>f.(p),"cp1"=>p,"cp2"=>_p])
-  end
+  # map(coords,cpps,_cpps,ranks) do c,p,_p,i
+  #   writevtk(c,"cpps_$i",nodaldata=["f"=>f.(p),"cp1"=>p,"cp2"=>_p])
+  # end
 
   partials = map(cpps) do c
     maximum(f.(c))

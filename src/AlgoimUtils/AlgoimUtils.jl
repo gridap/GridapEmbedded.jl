@@ -333,11 +333,14 @@ function compute_closest_point_projections(model::DistributedCartesianDiscreteMo
   cpps = map(local_views(model)) do m
     cdesc = get_cartesian_descriptor(m)
     cmin = ( cdesc.origin - gdesc.origin )
-    cmin = round.(cmin.data ./ gdesc.sizes) .+ 1
+    cmin = round.(cmin.data ./ gdesc.sizes)
     cmin = Int32[cmin...]
     cpartition = Int32[cdesc.partition...]
     cmax = cmin + cpartition
-    fill_cpp_data(φ,gpartition,xmin,xmax,cppdegree,trim,limitstol,cmin,cmax)
+    fill_cpp_data(φ,gpartition,
+                  xmin,xmax,
+                  cppdegree,trim,limitstol,
+                  rmin=cmin,rmax=cmax)
   end
   node_gids = get_face_gids(model,0)
   PVector(cpps,partition(node_gids)) |> consistent! |> wait
@@ -360,7 +363,7 @@ function compute_closest_point_projections(model::DistributedCartesianDiscreteMo
     cmin = Int32[cmin...]
     cpartition = Int32[cdesc.partition...]
     cmax = cmin + cpartition
-    fill_cpp_data(f,gpartition,xmin,xmax,cppdegree,trim,limitstol,cmin,cmax)
+    fill_cpp_data(f,gpartition,xmin,xmax,cppdegree,trim,limitstol)
   end
   node_gids = get_face_gids(model,0)
   PVector(cpps,partition(node_gids)) |> consistent! |> wait
