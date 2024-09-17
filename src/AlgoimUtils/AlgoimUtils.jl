@@ -474,28 +474,7 @@ function compute_normal_displacement(
     fun,
     dt::Float64,
     Ω::Triangulation)
-  # Note that cps must be (scalar) DoF-numbered, not lexicographic-numbered
-  searchmethod = KDTreeSearch()
-  cache1 = _point_to_cell_cache(searchmethod,Ω)
-  x_to_cell(x) = _point_to_cell!(cache1, x)
-  point_to_cell = lazy_map(x_to_cell, cps)
-  cell_to_points, _ = make_inverse_table(point_to_cell, num_cells(Ω))
-  cell_to_xs = lazy_map(Broadcasting(Reindex(cps)), cell_to_points)
-  cell_point_xs = CellPoint(cell_to_xs, Ω, PhysicalDomain())
-  fun_xs = evaluate(fun,cell_point_xs)
-  nΓ_xs = evaluate(normal(phi,Ω),cell_point_xs)
-  cell_point_disp = lazy_map(Broadcasting(⋅),fun_xs,nΓ_xs)
-  cache_vals = array_cache(cell_point_disp)
-  cache_ctop = array_cache(cell_to_points)
-  disps = zeros(Float64,length(cps))
-  for cell in 1:length(cell_to_points)
-    pts = getindex!(cache_ctop,cell_to_points,cell)
-    vals = getindex!(cache_vals,cell_point_disp,cell)
-    for (i,pt) in enumerate(pts)
-      val = vals[i]
-      disps[pt] = dt * val
-    end
-  end
+  disps, _ = compute_normal_displacement!(nothing,cps,phi,fun,dt,Ω)
   disps
 end
 
