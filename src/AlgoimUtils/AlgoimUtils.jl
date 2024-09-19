@@ -24,9 +24,11 @@ using PartitionedArrays
 using GridapDistributed
 using GridapDistributed: DistributedDiscreteModel
 using GridapDistributed: DistributedCartesianDiscreteModel
+using GridapDistributed: DistributedAdaptedDiscreteModel
 using GridapDistributed: DistributedTriangulation
 using GridapDistributed: DistributedMeasure
 using GridapDistributed: DistributedCellField
+using GridapDistributed: DistributedFESpace
 import GridapDistributed: local_views
 
 using GridapEmbedded.Interfaces
@@ -305,7 +307,7 @@ using Gridap.CellData: get_cell_quadrature
 
 function compute_closest_point_projections(Ω::Triangulation,φ;
     cppdegree::Int=2,trim::Bool=false,limitstol::Float64=1.0e-8)
-  compute_closest_point_projections(get_active_model(Ω),φ,
+  compute_closest_point_projections(get_background_model(Ω),φ,
     cppdegree=cppdegree,trim=trim,limitstol=limitstol)
 end
 
@@ -352,22 +354,24 @@ function compute_closest_point_projections(model::DistributedCartesianDiscreteMo
                                            cppdegree::Int=2,
                                            trim::Bool=false,
                                            limitstol::Float64=1.0e-8)
-  gdesc = model.metadata.descriptor
-  xmin = gdesc.origin
-  gpartition = Int32[gdesc.partition...]
-  xmax = xmin + Point(gdesc.sizes .* gpartition)
-  cpps = map(local_views(model),local_views(φ)) do m,f
-    cdesc = get_cartesian_descriptor(m)
-    cmin = ( cdesc.origin - gdesc.origin )
-    cmin = round.(cmin.data ./ gdesc.sizes) .+ 1
-    cmin = Int32[cmin...]
-    cpartition = Int32[cdesc.partition...]
-    cmax = cmin + cpartition
-    fill_cpp_data(f,gpartition,xmin,xmax,cppdegree,trim,limitstol)
-  end
-  node_gids = get_face_gids(model,0)
-  PVector(cpps,partition(node_gids)) |> consistent! |> wait
-  cpps
+  
+  @notimplemented
+  # gdesc = model.metadata.descriptor
+  # xmin = gdesc.origin
+  # gpartition = Int32[gdesc.partition...]
+  # xmax = xmin + Point(gdesc.sizes .* gpartition)
+  # cpps = map(local_views(model),local_views(φ)) do m,f
+  #   cdesc = get_cartesian_descriptor(m)
+  #   cmin = ( cdesc.origin - gdesc.origin )
+  #   cmin = round.(cmin.data ./ gdesc.sizes) .+ 1
+  #   cmin = Int32[cmin...]
+  #   cpartition = Int32[cdesc.partition...]
+  #   cmax = cmin + cpartition
+  #   fill_cpp_data(f,gpartition,xmin,xmax,cppdegree,trim,limitstol)
+  # end
+  # node_gids = get_face_gids(model,0)
+  # PVector(cpps,partition(node_gids)) |> consistent! |> wait
+  # cpps
 end
 
 function compute_closest_point_projections(fespace::FESpace,
@@ -377,64 +381,98 @@ function compute_closest_point_projections(fespace::FESpace,
                                            trim::Bool=false,
                                            limitstol::Float64=1.0e-8)
   trian = get_triangulation(fespace)
-  model = get_active_model(trian)
-  # TO-ANSWER: Do I need the rmodel in this scope or not?
-  rmodel = refine(model,order)
+  model = get_background_model(trian)
   cps = compute_closest_point_projections(
-    rmodel,φ,order,cppdegree=cppdegree,trim=trim,limitstol=limitstol)
-  msg = "Is the FE space order the same as the input order?"
-  @assert length(cps) == num_free_dofs(fespace) msg
-  cps = node_to_dof_order(cps,fespace,rmodel,order)
+    model,φ,order,cppdegree=cppdegree,trim=trim,limitstol=limitstol)
+  node_to_dof_order(cps,fespace,model,order)
 end
 
-function compute_closest_point_projections(model::AdaptedDiscreteModel,
+function compute_closest_point_projections(model::CartesianDiscreteModel,
                                            φ::AlgoimCallLevelSetFunction,
                                            order::Int;
                                            cppdegree::Int=2,
                                            trim::Bool=false,
                                            limitstol::Float64=1.0e-8)
-  reffe = ReferenceFE(lagrangian,Float64,order)
-  rfespace = TestFESpace(model,reffe)
-  _rφ = interpolate_everywhere(φ.φ,rfespace)
-  rφ = AlgoimCallLevelSetFunction(_rφ,∇(_rφ))
-  cdesc = get_cartesian_descriptor(get_model(model))
-  partition = Int32[cdesc.partition...]
+  cdesc = get_cartesian_descriptor(model)
   xmin = cdesc.origin
-  xmax = xmin + Point(cdesc.sizes .* partition)
-  fill_cpp_data(rφ,partition,xmin,xmax,cppdegree,trim,limitstol)
+  xmax = xmin + Point(cdesc.sizes .* cdesc.partition)
+  partition = Int32[cdesc.partition...] .* Int32(order)
+  fill_cpp_data(φ,partition,xmin,xmax,cppdegree,trim,limitstol)
 end
 
-function node_to_dof_order(cps,
+function compute_closest_point_projections(model::DistributedCartesianDiscreteModel,
+                                           φ::AlgoimCallLevelSetFunction,
+                                           order::Int;
+                                           cppdegree::Int=2,
+                                           trim::Bool=false,
+                                           limitstol::Float64=1.0e-8)
+  gdesc = model.metadata.descriptor
+  xmin = gdesc.origin
+  xmax = xmin + Point(gdesc.sizes .* gdesc.partition)
+  gpartition = Int32[gdesc.partition...] .* Int32(order)
+  map(local_views(model)) do m
+    cdesc = get_cartesian_descriptor(m)
+    cmin = ( cdesc.origin - gdesc.origin )
+    cmin = Int.(round.(cmin.data ./ gdesc.sizes) .* order)
+    cpartition = cdesc.partition .* order
+    cmax = cmin .+ cpartition
+    fill_cpp_data(φ,gpartition,
+                  xmin,xmax,
+                  cppdegree,trim,limitstol,
+                  rmin=Int32[cmin...],rmax=Int32[cmax...])
+  end
+end
+
+function node_to_dof_order(ncps,
                            fespace::FESpace,
-                           rmodel::AdaptedDiscreteModel,
+                           model::CartesianDiscreteModel,
                            order::Int)
-  D = num_dims(rmodel)
-  cdesc = get_cartesian_descriptor(get_model(rmodel))
+
+  msg = "Is the FE space order the same as the input order?"
+  @assert length(ncps) == num_free_dofs(fespace) msg
+
+  D = num_dims(model)
+  ncells = num_cells(model)
+  cdesc = get_cartesian_descriptor(model)
   partition = cdesc.partition
+  rpartition = partition .* order
+
   orders = tfill(order,Val{D}())
   ones = tfill(1,Val{D}())
   range = CartesianIndices(orders.+1) .- CartesianIndex(ones) # 0-based
   ldof_to_lnode = get_ldof_to_lnode(orders,D)
-  o2n_faces_map = rmodel.glue.o2n_faces_map
-  node_partition = partition .+ 1
-  ncells = num_cells(rmodel.parent)
+  node_partition = rpartition .+ 1
+
   cell_node_ids = lazy_map(1:ncells) do cellid
-    anchor_node = o2n_faces_map[cellid][1]
-    node_ijk = CartesianIndices(partition)[anchor_node]
+    cell_ijk = CartesianIndices(partition)[cellid]
+    anchor_node = ( cell_ijk .- CartesianIndex(ones) ) .* order .+ CartesianIndex(ones)
+    node_ijk = CartesianIndices(rpartition)[anchor_node] 
     range_cis = node_ijk .+ range
     node_ids = LinearIndices(node_partition)[range_cis]
     node_ids[ldof_to_lnode]
   end
+  
   cell_dofs_ids = fespace.cell_dofs_ids
   c1 = array_cache(fespace.cell_dofs_ids)
   c2 = array_cache(cell_node_ids)
-  ncps = similar(cps)
+  dcps = similar(ncps)
   for cellid in 1:ncells
     dof_ids = getindex!(c1,cell_dofs_ids,cellid)
     node_ids = getindex!(c2,cell_node_ids,cellid)
-    ncps[dof_ids] = cps[node_ids]
+    dcps[dof_ids] = ncps[node_ids]
   end
-  ncps
+  dcps
+end
+
+function node_to_dof_order(ncps,
+                           fespace::DistributedFESpace,
+                           model::DistributedCartesianDiscreteModel,
+                           order::Int)
+  dcps = map(ncps,local_views(fespace),local_views(model)) do cp,fs,m
+    node_to_dof_order(cp,fs,m,order)
+  end
+  PVector(dcps,partition(fespace.gids)) |> consistent! |> wait
+  dcps
 end
 
 function get_ldof_to_lnode(orders,D)
@@ -608,11 +646,30 @@ function compute_distance_fe_function(
 end
 
 function compute_distance_fe_function(
+    bgmodel::DistributedCartesianDiscreteModel,
+    fespace::FESpace,
+    φ::AlgoimCallLevelSetFunction,
+    order::Int;
+    cppdegree::Int=2)
+  cps = compute_closest_point_projections(
+    fespace,φ,order,cppdegree=cppdegree)
+  _dists = map(cps,local_views(fespace),local_views(bgmodel)) do cp,fs,bg
+    rm = refine(bg,order)
+    cos = get_node_coordinates(rm)
+    cos = node_to_dof_order(cos,fs,bg,order)
+    _compute_signed_distance(φ,cp,cos)
+  end
+  dists = PVector(_dists,partition(fespace.gids)) 
+  consistent!(dists) |> wait
+  FEFunction(fespace,dists)
+end
+
+function compute_distance_fe_function(
     fespace_scalar_type::FESpace,
     fespace_vector_type::FESpace,
     closest_point_projections::FEFunction,
     φ::AlgoimCallLevelSetFunction)
-  model = get_active_model(get_triangulation(fespace_scalar_type))
+  model = get_background_model(get_triangulation(fespace_scalar_type))
   D = num_dims(model)
   cos = get_free_dof_values(interpolate(identity,fespace_vector_type))
   cps = get_free_dof_values(closest_point_projections)
