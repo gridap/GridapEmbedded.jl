@@ -10,6 +10,7 @@ using Gridap.CellData
 using Gridap.Geometry
 using Gridap.Helpers
 using Gridap.ReferenceFEs
+using Gridap.FESpaces
 
 using PartitionedArrays: VectorFromDict
 
@@ -27,6 +28,7 @@ using GridapEmbedded.AgFEM: AggregateCutCellsByThreshold
 using GridapEmbedded.MomentFittedQuadratures: MomentFitted
 using Gridap.Geometry: AppendedTriangulation
 using Gridap.Geometry: get_face_to_parent_face
+using Gridap.Arrays: find_inverse_index_map, testitem, return_type
 using Gridap.FESpaces: FESpaceWithLinearConstraints
 using Gridap.FESpaces: _dof_to_DOF, _DOF_to_dof
 using GridapDistributed: DistributedDiscreteModel
@@ -47,6 +49,7 @@ import GridapEmbedded.Interfaces: EmbeddedBoundary
 import GridapEmbedded.Interfaces: compute_bgfacet_to_inoutcut
 import GridapEmbedded.Interfaces: compute_bgcell_to_inoutcut
 import GridapEmbedded.CSG: get_geometry
+import GridapEmbedded.LevelSetCutters: discretize, DiscreteGeometry
 import Gridap.Geometry: Triangulation
 import Gridap.Geometry: SkeletonTriangulation
 import Gridap.Geometry: BoundaryTriangulation
@@ -55,6 +58,8 @@ import GridapDistributed: local_views
 import GridapDistributed: remove_ghost_cells
 
 include("DistributedDiscretizations.jl")
+
+include("DistributedDiscreteGeometries.jl")
 
 include("DistributedAgFEM.jl")
 
