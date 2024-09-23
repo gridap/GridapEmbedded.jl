@@ -516,6 +516,22 @@ function compute_normal_displacement(
   disps
 end
 
+function compute_normal_displacement(
+    cps::AbstractArray,
+    phi::AlgoimCallLevelSetFunction,
+    fun::DistributedCellField,
+    dt::Float64,
+    Ω::DistributedTriangulation)
+  # TO-DO: Optimize this function such that it reuses caches
+  map(cps) do cp
+    fun_xs = evaluate(fun,cp)
+    nΓ_xs = evaluate(normal(phi,Ω),cp)
+    lazy_map(fun_xs,nΓ_xs) do fun_x,nΓ_x
+      dt * ( fun_x ⋅ nΓ_x )
+    end
+  end
+end
+
 function compute_normal_displacement!(
     cache,
     cps::AbstractVector{<:Point},
