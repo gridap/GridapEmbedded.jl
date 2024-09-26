@@ -121,18 +121,23 @@ function main_algoim(distribute,parts;
   ranks = distribute(LinearIndices((prod(parts),)))
 
   φ(x) = x[1]-x[2]+0.01
-  ∇φ(x) = VectorValue(1.0,-1.0) # ,0.0)
-  phi = AlgoimCallLevelSetFunction(φ,∇φ)
+  ∇φ(x) = VectorValue(1.0,-1.0,0.0)
   # phi = AlgoimCallLevelSetFunction(
   #   x -> ( x[1]*x[1] + x[2]*x[2] + x[3]*x[3] ) - 1.0,
   #   x -> VectorValue( 2.0 * x[1], 2.0 * x[2], 2.0 * x[3] ) )
-
+ 
   u(x) = sum(x)^solution_degree
   f(x) = -Δ(u)(x)
   ud(x) = u(x)
 
-  domain = (-1.1,1.1,-1.1,1.1) # ,-1.1,1.1)
+  domain = (-1.1,1.1,-1.1,1.1,-1.1,1.1)
   model = CartesianDiscreteModel(ranks,parts,domain,cells)
+
+  Ω₀ = Triangulation(model)
+  reffe = ReferenceFE(lagrangian,Float64,order)
+  V = TestFESpace(Ω₀,reffe,conformity=:H1)
+  φₕ = interpolate_everywhere(φ,V)
+  phi = AlgoimCallLevelSetFunction(φₕ,∇(φₕ))
 
   degree = order == 1 ? 3 : 2*order
   vquad = Quadrature(algoim,phi,degree,phase=IN)
@@ -151,9 +156,9 @@ function main_algoim(distribute,parts;
 
   n_Γ = normal(phi,Ω)
 
-  writevtk(model,"bgmodel")
-  writevtk(Ω,"trian")
-  writevtk(Ωᵃ,"atrian")
+  # writevtk(model,"bgmodel")
+  # writevtk(Ω,"trian")
+  # writevtk(Ωᵃ,"atrian")
 
   # colors = map(color_aggregates,aggregates,local_views(model))
   # gids = get_cell_gids(model)
@@ -173,8 +178,6 @@ function main_algoim(distribute,parts;
   #     "aggregate"=>own_aggregates,
   #     "color"=>own_colors,
   #     "gid"=>own_to_global(gids)])
-
-  reffe = ReferenceFE(lagrangian,Float64,order)
   
   Vstd = TestFESpace(Ωᵃ,reffe,conformity=:H1,dirichlet_tags="boundary")
   

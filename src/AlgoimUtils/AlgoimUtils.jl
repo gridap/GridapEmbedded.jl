@@ -189,23 +189,37 @@ function is_cell_active(meas::Measure)
   is_cell_active(get_data(meas.quad))
 end
 
-function _cell_quadrature_and_active_mask(trian::Grid,::Algoim,args;kwargs)
+function _cell_quadrature_and_active_mask(trian::Grid,
+                                          ::Algoim,phi,args;kwargs)
   cell_quad = Quadrature(trian,algoim,args...;kwargs...)
   cell_to_is_active = is_cell_active(cell_quad)
   cell_quad, cell_to_is_active
 end
 
 function _cell_quadrature_and_active_mask(trian::DistributedTriangulation,
-                                          ::Algoim,args;kwargs)
+    ::Algoim,
+    phi::AlgoimCallLevelSetFunction,
+    args;kwargs)
   ltrians = local_views(trian)
-  cell_quad = map(t->Quadrature(t,algoim,args...;kwargs...),ltrians)
+  cell_quad = map(t->Quadrature(t,algoim,phi,args...;kwargs...),ltrians)
+  cell_to_is_active = map(cq->is_cell_active(cq),cell_quad)
+  cell_quad, cell_to_is_active
+end
+
+function _cell_quadrature_and_active_mask(trian::DistributedTriangulation,
+    ::Algoim,
+    phi::DistributedAlgoimCallLevelSetFunction,
+    args;kwargs)
+  ltrians = local_views(trian); lphis = local_views(phi)
+  cell_quad = map((t,p)->Quadrature(t,algoim,p,args...;kwargs...),ltrians,lphis)
   cell_to_is_active = map(cq->is_cell_active(cq),cell_quad)
   cell_quad, cell_to_is_active
 end
 
 function CellQuadratureAndActiveMask(trian,quad::Tuple{<:QuadratureName,Any,Any})
-  name, args, kwargs = quad
-  _cell_quadrature_and_active_mask(trian,name,args;kwargs)
+  name, _args, kwargs = quad
+  phi, args = _args
+  _cell_quadrature_and_active_mask(trian,name,phi,args;kwargs)
 end
 
 function CellQuadratureAndActiveMask(
@@ -240,8 +254,8 @@ end
 function restrict_measure(meas::Measure,trian::Triangulation,gids::AbstractLocalIndices)
   oquad = meas.quad
   tface_to_own_mface = local_to_own(gids)[trian.tface_to_mface]
-  cell_quad = lazy_map(Reindex(oquad.cell_quad),tface_to_own_mface)
-  cell_point = lazy_map(Reindex(oquad.cell_point),tface_to_own_mface)
+  cell_quad   = lazy_map(Reindex(oquad.cell_quad),tface_to_own_mface)
+  cell_point  = lazy_map(Reindex(oquad.cell_point),tface_to_own_mface)
   cell_weight = lazy_map(Reindex(oquad.cell_weight),tface_to_own_mface)
   dds = oquad.data_domain_style
   ids = oquad.integration_domain_style
@@ -261,12 +275,23 @@ function _triangulation_and_measure(Ωbg::Triangulation,quad::Tuple)
   Ωᵃ,dΩᵃ,cell_to_is_active
 end
 
+@inline _measure(Ωbg,quad,phi::AlgoimCallLevelSetFunction) =
+  map(lt->Measure(lt,quad,data_domain_style=PhysicalDomain()),local_views(Ωbg))
+
+@inline function _measure(Ωbg,quad,phi::DistributedAlgoimCallLevelSetFunction)
+  name, _args, kwargs = quad
+  _, args = _args
+  ltrians = local_views(Ωbg); lphis = local_views(phi)
+  map((lt,lp)->Measure(lt,(name,(lp,args),kwargs),data_domain_style=PhysicalDomain()),ltrians,lphis)
+end
+
 function _triangulation_and_measure(Ωbg::DistributedTriangulation,quad::Tuple)
-  ltrians = local_views(Ωbg)
-  dΩbg = map(lt->Measure(lt,quad,data_domain_style=PhysicalDomain()),ltrians)
+  name, _args, kwargs = quad
+  phi, args = _args
+  dΩbg = _measure(Ωbg,quad,phi)
   cell_to_is_active = map(meas->is_cell_active(meas),dΩbg)
   gids = local_views(get_cell_gids(get_background_model(Ωbg)))
-  Ωᵃ = map((lt,ca)->Triangulation(lt,ca),ltrians,cell_to_is_active)
+  Ωᵃ = map((lt,ca)->Triangulation(lt,ca),local_views(Ωbg),cell_to_is_active)
   dΩᵃ = map((db,at,gs)->restrict_measure(db,at,gs),dΩbg,Ωᵃ,gids)
   Mbg = get_background_model(Ωbg)
   DΩᵃ = DistributedTriangulation(Ωᵃ,Mbg)
