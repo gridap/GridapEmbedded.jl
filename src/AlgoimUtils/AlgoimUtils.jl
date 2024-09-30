@@ -716,7 +716,7 @@ function compute_distance_fe_function(
     fespace,φ,order,cppdegree=cppdegree)
   rmodel = refine(bgmodel,order)
   cos = get_node_coordinates(rmodel)
-  cos = node_to_dof_order(cos,fespace,rmodel,order)
+  cos = node_to_dof_order(cos,fespace,bgmodel,order)
   dists = _compute_signed_distance(φ,cps,cos) 
   FEFunction(fespace,dists)
 end
