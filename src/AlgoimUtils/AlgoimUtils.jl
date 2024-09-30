@@ -138,6 +138,21 @@ function Quadrature(trian::Grid,::Algoim,phi::LevelSetFunction,degree::Int;kwarg
   CompressedArray(cell_to_quad,1:length(cell_to_quad))
 end
 
+function Quadrature(trian::Grid,::Algoim,phi::LevelSetFunction,
+                    own_to_local::AbstractVector,degree::Int;kwargs...)
+  ctype_polytope = map(get_polytope,get_reffes(trian))
+  @notimplementedif !all(map(is_n_cube,ctype_polytope))
+  cell_to_coords = get_cell_coordinates(trian)
+  cell_to_bboxes = collect1d(lazy_map(a->(a[1],a[end]),cell_to_coords))
+  jls = JuliaFunctionLevelSet(phi,Val{num_dims(trian)}())
+  cell_to_quad = map(enumerate(cell_to_bboxes)) do (own_cell_id,bbox)
+    bbmin, bbmax = bbox
+    cell_id = own_to_local[own_cell_id]
+    Quadrature(cell_id,bbmin,bbmax,jls,phi,degree;kwargs...)
+  end
+  CompressedArray(cell_to_quad,1:length(cell_to_quad))
+end
+
 function Quadrature(trian::Grid,::Algoim,
                     phi1::LevelSetFunction,phi2::LevelSetFunction,
                     degree::Int;kwargs...)
@@ -211,7 +226,13 @@ function _cell_quadrature_and_active_mask(trian::DistributedTriangulation,
     phi::DistributedAlgoimCallLevelSetFunction,
     args;kwargs)
   ltrians = local_views(trian); lphis = local_views(phi)
-  cell_quad = map((t,p)->Quadrature(t,algoim,p,args...;kwargs...),ltrians,lphis)
+  phitrian = get_triangulation(phi.values)
+  gids = get_cell_gids(get_background_model(phitrian))
+  own_to_local = map(local_views(phitrian),local_views(gids)) do t,g
+    findall(!iszero,local_to_own(g)[t.tface_to_mface])
+  end
+  cell_quad = map(
+    (t,p,otl)->Quadrature(t,algoim,p,otl,args...;kwargs...),ltrians,lphis,own_to_local)
   cell_to_is_active = map(cq->is_cell_active(cq),cell_quad)
   cell_quad, cell_to_is_active
 end
@@ -736,7 +757,6 @@ function compute_distance_fe_function(
     _compute_signed_distance(φ,cp,cos)
   end
   dists = PVector(_dists,partition(fespace.gids)) 
-  consistent!(dists) |> wait
   FEFunction(fespace,dists)
 end
 
@@ -758,7 +778,6 @@ function compute_distance_fe_function(
     _compute_signed_distance(φl,cp,cos)
   end
   dists = PVector(_dists,partition(fespace.gids)) 
-  consistent!(dists) |> wait
   FEFunction(fespace,dists)
 end
 
