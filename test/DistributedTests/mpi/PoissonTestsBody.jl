@@ -5,7 +5,6 @@ const PArrays = PartitionedArrays
 using MPI
 
 include("../PoissonTests.jl")
-# include("../AggregatesTests.jl")
 
 if ! MPI.Initialized()
   MPI.Init()
