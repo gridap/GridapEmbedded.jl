@@ -29,6 +29,7 @@ using GridapDistributed: DistributedTriangulation
 using GridapDistributed: DistributedMeasure
 using GridapDistributed: DistributedCellField
 using GridapDistributed: DistributedFESpace
+using GridapDistributed: DistributedVisualizationData
 import GridapDistributed: local_views
 
 using GridapEmbedded.Interfaces
@@ -206,7 +207,7 @@ end
 
 function _cell_quadrature_and_active_mask(trian::Grid,
                                           ::Algoim,phi,args;kwargs)
-  cell_quad = Quadrature(trian,algoim,args...;kwargs...)
+  cell_quad = Quadrature(trian,algoim,phi,args...;kwargs...)
   cell_to_is_active = is_cell_active(cell_quad)
   cell_quad, cell_to_is_active
 end
@@ -854,7 +855,9 @@ get_dimension(::QhullType,dim) = @abstractmethod
 get_dimension(::DelaunayTrian,dim) = dim
 get_dimension(::ConvexHull,dim) = dim-1
 
+using Gridap.Visualization
 import Gridap.Visualization: visualization_data
+import Gridap.Visualization: writevtk
 
 function visualization_data(meas::Measure,filename;cellfields=Dict(),qhulltype=DelaunayTrian())
   node_coordinates = collect(Iterators.flatten(meas.quad.cell_point.values))
@@ -882,11 +885,54 @@ end
 
 function _to_grid(node_coordinates::Vector{<:Point{Dp,Tp}},qhulltype) where {Dp,Tp}
   d = get_dimension(qhulltype,Dp)
-  connectivity = delaunay(reinterpret(node_coordinates),get_flags(qhulltype))[1:(d+1),:]
+  connectivity = length(node_coordinates) == 0 ? Matrix{Int32}(undef,0,0) :
+    delaunay(reinterpret(node_coordinates),get_flags(qhulltype))[1:(d+1),:]
   cell_node_ids = Table(collect(eachcol(connectivity)))
   reffes = [LagrangianRefFE(Float64,Simplex(Val{d}()),1)]
   cell_types = collect(Fill(Int8(1),length(cell_node_ids)))
   UnstructuredGrid(node_coordinates,cell_node_ids,reffes,cell_types)
+end
+
+function visualization_data(meas::DistributedMeasure,
+                            filename;
+                            cellfields=Dict(),
+                            qhulltype=DelaunayTrian())
+  trian = meas.trian
+  cell_gids = get_cell_gids(trian.model)
+  vd = map(
+    partition(cell_gids),local_views(meas)) do lindices,meas
+    node_coordinates = collect(Iterators.flatten(meas.quad.cell_point.values))
+    grid = _to_grid(node_coordinates,qhulltype)
+    part = part_id(lindices)
+    celldata = Dict{Any,Any}()
+    # we do not use "part" since it is likely to be used by the user
+    if haskey(celldata,"piece")
+      @unreachable "piece is a reserved cell data name"
+    end
+    celldata["piece"] = fill(part,num_cells(grid))
+    # ndata = Dict()
+    # for (k,v) in cellfields
+    #   pts = get_cell_points(meas)
+    #   eval = evaluate(v,pts)
+    #   ndata[k] = collect(Iterators.flatten(eval))
+    # end
+    vd = visualization_data(grid,filename,celldata=celldata) # ,nodaldata=ndata)
+    @assert length(vd) == 1
+    vd[1]
+  end
+  [DistributedVisualizationData(vd)]
+end
+
+function writevtk(
+    arg::DistributedMeasure,args...;
+    compress=false,append=true,ascii=false,vtkversion=:default,kwargs...)
+  parts=get_parts(arg.trian)
+  map(visualization_data(arg,args...;kwargs...)) do visdata
+    write_vtk_file(
+      parts,visdata.grid,visdata.filebase,celldata=visdata.celldata,nodaldata=visdata.nodaldata,
+      compress=compress, append=append, ascii=ascii, vtkversion=vtkversion
+    )
+  end
 end
 
 end # module
