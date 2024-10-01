@@ -57,6 +57,7 @@ export compute_closest_point_projections
 export compute_normal_displacement
 export compute_normal_displacement!
 export compute_distance_fe_function
+export active_triangulation
 export narrow_band_triangulation
 export delaunaytrian
 export convexhull
@@ -804,39 +805,59 @@ function compute_distance_fe_function(
   FEFunction(fespace_scalar_type,dists)
 end
 
-function narrow_band_mask(υₕ::DistributedSingleFieldFEFunction)
+function apply_mask(υₕ::DistributedSingleFieldFEFunction,mask::Function)
   trian = get_triangulation(υₕ)
   gids  = get_cell_gids(get_background_model(trian))
   map(local_views(υₕ),local_views(trian),local_views(gids)) do lυₕ,t,g
     own_to_local = findall(!iszero,local_to_own(g)[t.tface_to_mface])
     cv = lazy_map(Reindex(get_cell_dof_values(lυₕ)),own_to_local)
-    _narrow_band_mask(cv)
+    mask(cv)
   end
 end
 
-function narrow_band_mask(υₕ::SingleFieldFEFunction)
+function apply_mask(υₕ::SingleFieldFEFunction,mask::Function)
   cv = get_cell_dof_values(υₕ)
-  _narrow_band_mask(cv)
+  mask(cv)
 end
 
-@inline _narrow_band_mask(cv) =
+@inline active_mask(cv) =
+  lazy_map(cv) do ccv
+    all(ccv .> 0.0) ? false : true
+  end
+
+@inline narrow_band_mask(cv) =
   lazy_map(cv) do ccv
     maximum(ccv) * minimum(ccv) < 0.0 ? true : false
   end
 
+function active_triangulation(Ω::DistributedTriangulation,
+                              φ::DistributedSingleFieldFEFunction,
+                              Vbg::DistributedFESpace,
+                              is_a::AbstractArray,
+                              δ::Float64)
+  φʳ = interpolate_everywhere(φ-δ,Vbg)
+  is_aʳ = apply_mask(φʳ,active_mask)
+  is_nᵃ = map(local_views(is_a),local_views(is_aʳ)) do is_a,is_aʳ
+    lazy_map((a,aʳ)->a|aʳ,is_a,is_aʳ)
+  end
+  Ωˡ = map((lt,ca)->Triangulation(lt,ca),local_views(Ω),is_nᵃ)
+  Mbg = get_background_model(Ω)
+  DistributedTriangulation(Ωˡ,Mbg),is_nᵃ
+end
+
 function narrow_band_triangulation(Ω::DistributedTriangulation,
-                           φ::DistributedSingleFieldFEFunction,
-                           Vbg::DistributedFESpace,
-                           is_c::AbstractArray,
-                           δ::Float64)
+                                   φ::DistributedSingleFieldFEFunction,
+                                   Vbg::DistributedFESpace,
+                                   is_c::AbstractArray,
+                                   δ::Float64)
   φʳ = interpolate_everywhere(φ-δ,Vbg)
   φˡ = interpolate_everywhere(φ+δ,Vbg)
-  is_cʳ = narrow_band_mask(φʳ)
-  is_cˡ = narrow_band_mask(φˡ)    
+  is_cʳ = apply_mask(φʳ,narrow_band_mask)
+  is_cˡ = apply_mask(φˡ,narrow_band_mask)    
   is_nᶜ = map(local_views(is_c),
               local_views(is_cʳ),
               local_views(is_cˡ)) do is_c,is_cʳ,is_cˡ
-    lazy_map((c₋,cʳ,cˡ)->c₋|cʳ|cˡ,is_c,is_cʳ,is_cˡ)
+    lazy_map((c,cʳ,cˡ)->c|cʳ|cˡ,is_c,is_cʳ,is_cˡ)
   end
   Ωᶜ = map((lt,ca)->Triangulation(lt,ca),local_views(Ω),is_nᶜ)
   Mbg = get_background_model(Ω)
