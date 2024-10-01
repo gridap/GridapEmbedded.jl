@@ -27,7 +27,7 @@ function run_poisson(domain,cells,order,solution_degree)
   n_Γ = normal(phi,Ω)
 
   aggregates = aggregate(model,is_a,is_c,IN)
-  @show aggregates
+  # @show aggregates
 
   reffe = ReferenceFE(lagrangian,Float64,order)
   Vstd = TestFESpace(Ωᵃ,reffe,conformity=:H1,dirichlet_tags="boundary")
@@ -36,10 +36,10 @@ function run_poisson(domain,cells,order,solution_degree)
   U = TrialFESpace(V,ud)
 
   cell_to_dofs = get_cell_dof_ids(Vstd)
-  @show cell_to_dofs
+  # @show cell_to_dofs
 
   cell_to_dofs = get_cell_dof_ids(V)
-  @show cell_to_dofs
+  # @show cell_to_dofs
 
   # Nitsche method
   γᵈ = 2.0*order^2

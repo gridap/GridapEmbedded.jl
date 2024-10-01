@@ -19,6 +19,7 @@ using Gridap.CellData
 using Gridap.CellData: GenericField, GenericCellField, get_data
 using Gridap.CellData: _point_to_cell_cache, _point_to_cell!
 using Gridap.Geometry
+using Gridap.FESpaces
 
 using PartitionedArrays
 using GridapDistributed
@@ -29,6 +30,7 @@ using GridapDistributed: DistributedTriangulation
 using GridapDistributed: DistributedMeasure
 using GridapDistributed: DistributedCellField
 using GridapDistributed: DistributedFESpace
+using GridapDistributed: DistributedSingleFieldFEFunction
 using GridapDistributed: DistributedVisualizationData
 import GridapDistributed: local_views
 
@@ -203,6 +205,12 @@ end
 
 function is_cell_active(meas::Measure)
   is_cell_active(get_data(meas.quad))
+end
+
+function is_cell_active(meas::DistributedMeasure)
+  map(local_views(meas)) do meas
+    is_cell_active(get_data(meas.quad))
+  end
 end
 
 function _cell_quadrature_and_active_mask(trian::Grid,
@@ -794,6 +802,45 @@ function compute_distance_fe_function(
   ndists = num_free_dofs(fespace_scalar_type)
   dists = _compute_signed_distance(φ,cps,cos,ndists,D)
   FEFunction(fespace_scalar_type,dists)
+end
+
+function narrow_band_mask(υₕ::DistributedSingleFieldFEFunction)
+  trian = get_triangulation(υₕ)
+  gids  = get_cell_gids(get_background_model(trian))
+  map(local_views(υₕ),local_views(trian),local_views(gids)) do lυₕ,t,g
+    own_to_local = findall(!iszero,local_to_own(g)[t.tface_to_mface])
+    cv = lazy_map(Reindex(get_cell_dof_values(lυₕ)),own_to_local)
+    _narrow_band_mask(cv)
+  end
+end
+
+function narrow_band_mask(υₕ::SingleFieldFEFunction)
+  cv = get_cell_dof_values(υₕ)
+  _narrow_band_mask(cv)
+end
+
+@inline _narrow_band_mask(cv) =
+  lazy_map(cv) do ccv
+    maximum(ccv) * minimum(ccv) < 0.0 ? true : false
+  end
+
+function narrow_band_triangulation(Ω::DistributedTriangulation,
+                           φ::DistributedSingleFieldFEFunction,
+                           Vbg::DistributedFESpace,
+                           is_c::AbstractArray,
+                           δ::Float64)
+  φʳ = interpolate_everywhere(φ-δ,Vbg)
+  φˡ = interpolate_everywhere(φ+δ,Vbg)
+  is_cʳ = narrow_band_mask(φʳ)
+  is_cˡ = narrow_band_mask(φˡ)    
+  is_nᶜ = map(local_views(is_c),
+              local_views(is_cʳ),
+              local_views(is_cˡ)) do is_c,is_cʳ,is_cˡ
+    lazy_map((c₋,cʳ,cˡ)->c₋|cʳ|cˡ,is_c,is_cʳ,is_cˡ)
+  end
+  Ωᶜ = map((lt,ca)->Triangulation(lt,ca),local_views(Ω),is_nᶜ)
+  Mbg = get_background_model(Ω)
+  DistributedTriangulation(Ωᶜ,Mbg),is_nᶜ
 end
 
 function narrow_band_triangulation(Ωⁿ::Triangulation,

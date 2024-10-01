@@ -306,16 +306,21 @@ end
 
 # Specialised methods for Algoim quadratures
 
-function aggregate(bgmodel::DiscreteModel,cell_to_is_active,cell_to_is_cut,in_or_out)
-  n_cells = length(cell_to_is_active)
+function aggregate(bgmodel::DiscreteModel,
+                   cell_to_is_active,
+                   cell_to_is_cut,
+                   in_or_out,
+                   cell_to_is_in_narrow=cell_to_is_active)
+  n_cells = length(cell_to_is_in_narrow)
+  @assert n_cells == length(cell_to_is_active)
   @assert n_cells == length(cell_to_is_cut)
 
   cell_to_unit_cut_meas = lazy_map(cell_to_is_active,cell_to_is_cut) do isa, isc
-    !isa ? 0.0 : (isc ? 0.0 : 1.0)
+    ( isa & !isc ) ? 1.0 : 0.0
   end
 
-  cell_to_inoutcut = lazy_map(cell_to_is_active,cell_to_is_cut) do isa, isc
-    !isa ? OUT : (isc ? CUT : IN)
+  cell_to_inoutcut = lazy_map(cell_to_is_in_narrow,cell_to_is_active,cell_to_is_cut) do isn, isa, isc
+    !isn ? OUT : ( ( isa & !isc ) ? IN : CUT )
   end
 
   cell_to_coords = get_cell_coordinates(bgmodel)
@@ -332,39 +337,15 @@ function aggregate(bgmodel::DiscreteModel,cell_to_is_active,cell_to_is_cut,in_or
     in_or_out,cell_to_coords,cell_to_faces,face_to_cells)
 end
 
-function aggregate(bgtrian::Triangulation,cell_to_is_active,cell_to_is_cut,in_or_out)
+function aggregate(bgtrian::Triangulation,
+                   cell_to_is_active,
+                   cell_to_is_cut,
+                   in_or_out,
+                   cell_to_is_in_narrow=cell_to_is_active)
   bgmodel = get_background_model(bgtrian)
-  aggregate(bgmodel,cell_to_is_active,cell_to_is_cut,in_or_out)
-end
-
-function aggregate_narrow_band(bgtrian::Triangulation,
-                               cell_to_is_in_narrow,
-                               cell_to_is_active,
-                               cell_to_is_cut,
-                               in_or_out)
-  n_cells = length(cell_to_is_in_narrow)
-  @assert n_cells == length(cell_to_is_active)
-  @assert n_cells == length(cell_to_is_cut)
-
-  cell_to_unit_cut_meas = lazy_map(cell_to_is_active,cell_to_is_cut) do isa, isc
-    ( isa & !isc ) ? 1.0 : 0.0
-  end
-
-  cell_to_inoutcut = lazy_map(cell_to_is_in_narrow,cell_to_is_active,cell_to_is_cut) do isn, isa, isc
-    !isn ? OUT : ( ( isa & !isc ) ? IN : CUT )
-  end
-
-  cell_to_coords = get_cell_coordinates(bgtrian)
-  model = get_background_model(bgtrian)
-  topo = get_grid_topology(model)
-  D = num_cell_dims(model)
-  cell_to_faces = get_faces(topo,D,D-1)
-  face_to_cells = get_faces(topo,D-1,D)
-  # A hack follows to avoid constructing the actual facet_to_inoutcut array
-  facet_to_inoutcut = fill(in_or_out,num_faces(model,D-1)) 
-
-  threshold = 1.0
-  _aggregate_by_threshold_barrier(
-    threshold,cell_to_unit_cut_meas,facet_to_inoutcut,cell_to_inoutcut,
-    in_or_out,cell_to_coords,cell_to_faces,face_to_cells)
+  aggregate(bgmodel,
+            cell_to_is_active,
+            cell_to_is_cut,
+            in_or_out,
+            cell_to_is_in_narrow)
 end

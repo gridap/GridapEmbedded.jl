@@ -576,8 +576,10 @@ end
 function aggregate(bgmodel::DistributedDiscreteModel,
                    cell_to_is_active,
                    cell_to_is_cut,
-                   in_or_out)
+                   in_or_out,
+                   cell_to_is_in_narrow=cell_to_is_active)
   aggregates,aggregate_owner = distributed_aggregate(bgmodel,
+                                                     cell_to_is_in_narrow,
                                                      cell_to_is_active,
                                                      cell_to_is_cut,
                                                      in_or_out)
@@ -592,7 +594,8 @@ end
 function aggregate(bgtrian::DistributedTriangulation,
                    cell_to_is_active,
                    cell_to_is_cut,
-                   in_or_out)
+                   in_or_out,
+                   cell_to_is_in_narrow=cell_to_is_active)
   msg = """
   This is not implemented, because the aggregation might need
   to extend the background model with the remote aggregates.
@@ -601,21 +604,25 @@ function aggregate(bgtrian::DistributedTriangulation,
 end
 
 function distributed_aggregate(bgmodel::DistributedDiscreteModel,
+                               cell_to_is_in_narrow,
                                cell_to_is_active,
                                cell_to_is_cut,
                                in_or_out)
-  n_cells = length(cell_to_is_active)
-  @assert n_cells == length(cell_to_is_cut)
+  map(cell_to_is_in_narrow,cell_to_is_active,cell_to_is_cut) do visn, visa, visc
+    @assert length(visn) == length(visa) == length(visc)
+  end
 
   cell_to_unit_cut_meas = map(cell_to_is_active,cell_to_is_cut) do visa, visc
     lazy_map(visa,visc) do isa, isc
-      !isa ? 0.0 : (isc ? 0.0 : 1.0)
+      ( isa & !isc ) ? 1.0 : 0.0
     end
   end
 
-  ocell_to_inoutcut = map(cell_to_is_active,cell_to_is_cut) do visa, visc
-    lazy_map(visa,visc) do isa, isc
-      !isa ? OUT : (isc ? CUT : IN)
+  ocell_to_inoutcut = map(cell_to_is_in_narrow,
+                          cell_to_is_active,
+                          cell_to_is_cut) do visn, visa, visc
+    lazy_map(visn,visa,visc) do isn, isa, isc
+      !isn ? OUT : ( ( isa & !isc ) ? IN : CUT )
     end
   end
 
