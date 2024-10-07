@@ -607,14 +607,108 @@ function compute_normal_displacement(
     fun::DistributedCellField,
     dt::Float64,
     Ω::DistributedTriangulation)
-  # TO-DO: Optimize this function such that it reuses caches
-  map(cps) do cp
-    fun_xs = evaluate(fun,cp)
-    nΓ_xs = evaluate(normal(phi,Ω),cp)
-    map(fun_xs,nΓ_xs) do fun_x,nΓ_x
-      dt * ( fun_x ⋅ nΓ_x )
+
+  # 1. CPP -> Global cell ID
+  model = get_background_model(Ω)
+  d_desc = model.metadata.descriptor
+  xmin = d_desc.origin
+  cell_partition = d_desc.partition
+  _cell_ci(x) = CartesianIndex(
+    Int.(floor.((x.data.-xmin.data)./d_desc.sizes)).+1)
+  _cell_id(x) = LinearIndices(cell_partition)[x]
+  cp_gids = map(cps) do cp
+    map(_cell_id,map(_cell_ci,cp))
+  end
+  
+  # 2. CPP -> Owner rank ID
+  ranks = model.metadata.ranks
+  mesh_partition = model.metadata.mesh_partition
+  ghost = map(i->true,mesh_partition)
+  upartition = uniform_partition(ranks,
+                                 mesh_partition,
+                                 cell_partition,
+                                 ghost)
+  cp_owner_ids = find_owner(upartition,cp_gids)
+
+  # 3. Exchange graph
+  snd_ids = map(i->sort(unique(i)),cp_owner_ids)
+  graph = ExchangeGraph(snd_ids)
+
+  # 4. Exchange local indices
+  snd_indices = map(snd_ids,cp_owner_ids) do snd_ids,cp_owner_ids
+    snd_indices = map(snd_ids) do s
+      findall(i->i==s,cp_owner_ids)
+    end
+    JaggedArray(snd_indices)
+  end
+
+  # 5. Exchange CPPs
+  snd_cpps = map(cps,snd_indices) do cps,snd_indices
+    map(snd_indices) do indices
+      map(Reindex(cps),indices)
     end
   end
+  rcv_cpps = allocate_exchange(snd_cpps,graph)
+  exchange!(rcv_cpps,snd_cpps,graph) |> wait
+  
+  # 6. Exchange Global cell IDs
+  snd_gids = map(cp_gids,snd_indices) do cp_gids,snd_indices
+    map(snd_indices) do indices
+      map(Reindex(cp_gids),indices)
+    end
+  end
+  rcv_gids = allocate_exchange(snd_gids,graph)
+  exchange!(rcv_gids,snd_gids,graph) |> wait
+
+  # 7. Compute local cell IDs
+  gids = get_cell_gids(model)
+  rcv_lids = map(global_to_local(gids),rcv_gids) do g_to_l,rcv_gids
+    map(Reindex(g_to_l),rcv_gids.data)
+  end
+
+  # 8. Evaluate displacements
+  normal_phi = normal(phi,Ω)
+  snd_disps = map(rcv_lids,
+      rcv_cpps,
+      local_views(Ω),
+      local_views(fun),
+      local_views(normal_phi)) do point_to_cell,cpps,Ω,fun,normal_phi
+    T = eltype(eltype(eltype(cpps)))
+    length(cpps) == 0 && return JaggedArray(zeros(T,0),cpps.ptrs)
+    cell_to_points, _ = make_inverse_table(point_to_cell,num_cells(Ω))
+    cell_to_xs = lazy_map(Broadcasting(Reindex(cpps.data)),cell_to_points)
+    cell_point_xs = CellPoint(cell_to_xs,Ω,PhysicalDomain())
+    fun_xs = evaluate(fun,cell_point_xs)
+    nΓ_xs = evaluate(normal_phi,cell_point_xs)
+    cell_point_disp = lazy_map(Broadcasting(⋅),fun_xs,nΓ_xs)
+    cache_vals = array_cache(cell_point_disp)
+    cache_ctop = array_cache(cell_to_points)
+    disps = zeros(Float64,length(cpps.data))
+    for cell in 1:length(cell_to_points)
+      pts = getindex!(cache_ctop,cell_to_points,cell)
+      vals = getindex!(cache_vals,cell_point_disp,cell)
+      for (i,pt) in enumerate(pts)
+        val = vals[i]
+        disps[pt] = dt * val
+      end
+    end
+    JaggedArray(disps,cpps.ptrs)
+  end
+
+  # 9. Exchange displacements
+  rgraph = reverse(graph)
+  rcv_disps = allocate_exchange(snd_disps,rgraph)
+  exchange!(rcv_disps,snd_disps,rgraph) |> wait
+
+  # 10. Merge displacements
+  disps = map(rcv_disps,snd_indices) do rcv_disps,snd_indices
+    disps = zeros(eltype(eltype(rcv_disps)),length(snd_indices.data))
+    map(rcv_disps,snd_indices) do d,s
+      disps[s] .= d
+    end
+    disps
+  end
+
 end
 
 function compute_normal_displacement!(
