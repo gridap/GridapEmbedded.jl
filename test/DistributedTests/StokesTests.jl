@@ -13,7 +13,7 @@ p(x) = x[1] - x[2]
 f(x) = - Δ(u)(x) + ∇(p)(x)
 g(x) = (∇⋅u)(x)
 
-function main(distribute,parts;n=4,cells=(n,n),order=2,name="a")
+function main(distribute,parts;n=4,cells=(n,n),order=2)
 
   @show parts
   ranks = distribute(LinearIndices((prod(parts),)))
@@ -36,92 +36,79 @@ function main(distribute,parts;n=4,cells=(n,n),order=2,name="a")
   degree = order == 1 ? 3 : 2*order
   vquad = Quadrature(algoim,phi,degree,phase=IN)
   v_cell_quad,is_a = CellQuadratureAndActiveMask(model₀,vquad)
-  # squad = Quadrature(algoim,phi,degree)
-  # s_cell_quad,is_c = CellQuadratureAndActiveMask(model₀,squad)
+  squad = Quadrature(algoim,phi,degree)
+  s_cell_quad,is_c = CellQuadratureAndActiveMask(model₀,squad)
   
-  # model,aggregates = aggregate(model₀,is_a,is_c,IN)
-  model = model₀
-  # map(aggregates) do agg
-  #   @show agg
-  # end
+  model,aggregates = aggregate(model₀,is_a,is_c,IN)
 
   Ω = Triangulation(model)
   Ωᵃ,dΩᵃ = TriangulationAndMeasure(Ω,v_cell_quad,is_a)
-  # map(local_views(dΩᵃ)) do dΩᵃ
-  #   @show dΩᵃ.quad.cell_point.ptrs
-  # end
-  # map(local_views(dΩᵃ)) do dΩᵃ
-  #   @show dΩᵃ.quad.cell_weight.ptrs
-  # end
 
-  # _,dΓ = TriangulationAndMeasure(Ω,s_cell_quad,is_c)
-  # n_Γ = normal(phi,Ω)
+  _,dΓ = TriangulationAndMeasure(Ω,s_cell_quad,is_c)
+  n_Γ = normal(phi,Ω)
 
-  @show √(∑( ∫( 1.0 )dΩᵃ ))
+  dbg = parts[1]
+  writevtk(dΓ,"cut_quad_$dbg")
+
+  # @show √(∑( ∫( 1.0 )dΩᵃ ))
   # @show √(∑( ∫( 1.0 )dΓ  ))
 
-  # return
+  reffeᵘ = ReferenceFE(lagrangian,VectorValue{2,Float64},order)
+  reffeᵖ = ReferenceFE(lagrangian,Float64,order-1,space=:P)
 
-  # # reffeᵘ = ReferenceFE(lagrangian,VectorValue{2,Float64},order)
-  # # reffeᵖ = ReferenceFE(lagrangian,Float64,order-1,space=:P)
-
-  # # Vstdᵘ = TestFESpace(Ωᵃ,reffeᵘ)
-  # # Vstdᵖ = TestFESpace(Ωᵃ,reffeᵖ)
+  Vstdᵘ = TestFESpace(Ωᵃ,reffeᵘ)
+  Vstdᵖ = TestFESpace(Ωᵃ,reffeᵖ)
   
-  # # Vᵘ = AgFEMSpace(model,Vstdᵘ,aggregates)
-  # # Vᵖ = AgFEMSpace(model,Vstdᵖ,aggregates)
-  # # Vˡ = ConstantFESpace(model)
+  Vᵘ = AgFEMSpace(model,Vstdᵘ,aggregates)
+  Vᵖ = AgFEMSpace(model,Vstdᵖ,aggregates)
+  Vˡ = ConstantFESpace(model)
 
-  # # Uᵘ = TrialFESpace(Vᵘ)
-  # # Uᵖ = TrialFESpace(Vᵖ)
-  # # Uˡ = TrialFESpace(Vˡ)
+  Uᵘ = TrialFESpace(Vᵘ)
+  Uᵖ = TrialFESpace(Vᵖ)
+  Uˡ = TrialFESpace(Vˡ)
   
-  # # Y = MultiFieldFESpace([Vᵘ,Vᵖ,Vˡ])
-  # # X = MultiFieldFESpace([Uᵘ,Uᵖ,Uˡ])
+  Y = MultiFieldFESpace([Vᵘ,Vᵖ,Vˡ])
+  X = MultiFieldFESpace([Uᵘ,Uᵖ,Uˡ])
 
-  # # Nitsche method
-  # γᵈ = 2.0*order^2
-  # h = (domain[2]-domain[1])/cells[1]
+  # Nitsche method
+  γᵈ = 2.0*order^2
+  h = (domain[2]-domain[1])/cells[1]
 
-  # a((u,p,l),(v,q,ℓ)) =
-  #   ∫( ∇(u)⊙∇(v) - q*(∇⋅u) - p*(∇⋅v) )dΩᵃ +
-  #   ∫( p*ℓ )dΩᵃ + ∫( q*l )dΩᵃ +
-  #   ∫( (γᵈ/h)*(u⋅v) - 
-  #       v⋅(n_Γ⋅∇(u)) - u⋅(n_Γ⋅∇(v)) + 
-  #       p*(n_Γ⋅v) + q*(n_Γ⋅u) )dΓ
+  a((u,p,l),(v,q,ℓ)) =
+    ∫( ∇(u)⊙∇(v) - q*(∇⋅u) - p*(∇⋅v) )dΩᵃ +
+    ∫( p*ℓ )dΩᵃ + ∫( q*l )dΩᵃ +
+    ∫( (γᵈ/h)*(u⋅v) - 
+        v⋅(n_Γ⋅∇(u)) - u⋅(n_Γ⋅∇(v)) + 
+        p*(n_Γ⋅v) + q*(n_Γ⋅u) )dΓ
 
-  # l((v,q,ℓ)) =
-  #   ∫( v⋅f - q*g )dΩᵃ +
-  #   ∫( (γᵈ/h)*(u⋅v) - u⋅(n_Γ⋅∇(v)) + (q*n_Γ)⋅u )dΓ
+  l((v,q,ℓ)) =
+    ∫( v⋅f - q*g )dΩᵃ +
+    ∫( (γᵈ/h)*(u⋅v) - u⋅(n_Γ⋅∇(v)) + (q*n_Γ)⋅u )dΓ
 
-  # # FE problem
-  # # op = AffineFEOperator(a,l,X,Y)
-  # # uₕ,pₕ,lₕ = solve(op)
-  # # writevtk(Ωᵃ,"stokes",cellfields=["u"=>uₕ,"p"=>pₕ])
+  # FE problem
+  op = AffineFEOperator(a,l,X,Y)
+  uₕ,pₕ,lₕ = solve(op)
 
-  # # uₕ = zero(Uᵘ)
-  # # pₕ = zero(Uᵖ)
+  writevtk(Ωᵃ,"stokes",cellfields=["u"=>uₕ,"p"=>pₕ])
 
-  # euₕ = CellField(u,Ωᵃ) # - uₕ
-  # epₕ = CellField(p,Ωᵃ) # - pₕ
+  euₕ = u - uₕ
+  epₕ = p - pₕ
 
-  # writevtk(Ωᵃ,"stokes_$name",cellfields=["u"=>euₕ,"p"=>epₕ])
+  l2(e) = √(∑( ∫( e⋅e )dΩᵃ ))
+  h1(e) = √(∑( ∫( e⋅e + ∇(e)⊙∇(e) )dΩᵃ ))
 
-  # l2(e) = √(∑( ∫( e⋅e )dΩᵃ ))
-  # h1(e) = √(∑( ∫( e⋅e + ∇(e)⊙∇(e) )dΩᵃ ))
+  el2ᵘ = l2(euₕ)
+  eh1ᵘ = h1(euₕ)
+  el2ᵖ = l2(epₕ)
+  # el2ˡ = l2(lₕ)
 
-  # el2ᵘ = l2(euₕ)
-  # eh1ᵘ = h1(euₕ)
-  # el2ᵖ = l2(epₕ)
-  # # el2ˡ = l2(lₕ)
-
-  # # @test el2ᵘ < 1.0e-014
-  # # @test eh1ᵘ < 1.0e-013
-  # # @test el2ᵖ < 1.0e-014
-  # @show el2ᵘ
-  # @show eh1ᵘ
-  # @show el2ᵖ
-  # # @show el2ˡ
+  # @test el2ᵘ < 1.0e-014
+  # @test eh1ᵘ < 1.0e-013
+  # @test el2ᵖ < 1.0e-014
+  @show el2ᵘ
+  @show eh1ᵘ
+  @show el2ᵖ
+  # @show el2ˡ
 
 end
 
