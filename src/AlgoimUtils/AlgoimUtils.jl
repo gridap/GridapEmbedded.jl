@@ -316,38 +316,28 @@ end
   map((lt,lp)->Measure(lt,(name,(lp,args),kwargs),data_domain_style=PhysicalDomain()),ltrians,lphis)
 end
 
-function _triangulation_and_measure(Ωbg::DistributedTriangulation,quad::Tuple)
-  name, _args, kwargs = quad
-  phi, args = _args
-  dΩbg = _measure(Ωbg,quad,phi)
-  cell_to_is_active = map(meas->is_cell_active(meas),dΩbg)
-  gids = local_views(get_cell_gids(get_background_model(Ωbg)))
-  Ωᵃ = map((lt,ca)->Triangulation(lt,ca),local_views(Ωbg),cell_to_is_active)
-  dΩᵃ = map((db,at,gs)->restrict_measure(db,at,gs),dΩbg,Ωᵃ,gids)
-  Mbg = get_background_model(Ωbg)
-  DΩᵃ = DistributedTriangulation(Ωᵃ,Mbg)
-  DΩᵃ,DistributedMeasure(dΩᵃ,DΩᵃ),cell_to_is_active
-end
-
 function _triangulation_and_measure(Ωbg::Triangulation,
-                                    cell_quad::AbstractArray{<:Quadrature},
-                                    cell_to_is_active::AbstractArray{Bool})
+                cell_quad::AbstractArray{<:Quadrature},
+                cell_to_is_active::AbstractArray{Bool},
+                cell_to_has_non_empty_quad::AbstractArray{Bool})
   dds = PhysicalDomain(); ids = PhysicalDomain()
   dΩbg = Measure(Ωbg,cell_quad,dds,ids)
   Ωᵃ = Triangulation(Ωbg,cell_to_is_active)
-  dΩᵃ = restrict_measure(dΩbg,Ωᵃ)
+  dΩᵃ = restrict_measure(dΩbg,Triangulation(Ωbg,cell_to_has_non_empty_quad))
   Ωᵃ,dΩᵃ,cell_to_is_active
 end
 
 function _triangulation_and_measure(Ωbg::DistributedTriangulation,
-                                    cell_quad::AbstractArray,
-                                    cell_to_is_active::AbstractArray)
+                           cell_quad::AbstractArray,
+                           cell_to_is_active::AbstractArray,
+                           cell_to_has_non_empty_quad::AbstractArray)
   ltrians = local_views(Ωbg)
   dds = PhysicalDomain(); ids = PhysicalDomain()
   dΩbg = map((lt,cq)->Measure(lt,cq,dds,ids),ltrians,cell_quad)
   gids = local_views(get_cell_gids(get_background_model(Ωbg)))
   Ωᵃ = map((lt,ca)->Triangulation(lt,ca),ltrians,cell_to_is_active)
-  dΩᵃ = map((db,at,gs)->restrict_measure(db,at,gs),dΩbg,Ωᵃ,gids)
+  Ωᵖ = map((lt,cp)->Triangulation(lt,cp),ltrians,cell_to_has_non_empty_quad)
+  dΩᵃ = map((db,at,gs)->restrict_measure(db,at,gs),dΩbg,Ωᵖ,gids)
   Mbg = get_background_model(Ωbg)
   DΩᵃ = DistributedTriangulation(Ωᵃ,Mbg)
   DΩᵃ,DistributedMeasure(dΩᵃ,DΩᵃ),cell_to_is_active
@@ -359,10 +349,14 @@ function TriangulationAndMeasure(Ωbg,quad::Tuple)
   _triangulation_and_measure(Ωbg,quad)
 end
 
-function TriangulationAndMeasure(Ωbg,cell_quad,cell_to_is_active)
+function TriangulationAndMeasure(Ωbg,cell_quad,cell_to_is_active,
+      cell_to_has_non_empty_quad=cell_to_is_active)
   msg = "TriangulationAndMeasure can only receive the background triangulation"
   @notimplementedif num_cells(get_background_model(Ωbg)) != num_cells(Ωbg) msg
-  _triangulation_and_measure(Ωbg,cell_quad,cell_to_is_active)
+  _triangulation_and_measure(Ωbg,
+                             cell_quad,
+                             cell_to_is_active,
+                             cell_to_has_non_empty_quad)
 end
 
 using Gridap.Geometry: get_cell_to_parent_cell
