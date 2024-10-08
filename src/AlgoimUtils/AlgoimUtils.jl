@@ -32,6 +32,7 @@ using GridapDistributed: DistributedCellField
 using GridapDistributed: DistributedFESpace
 using GridapDistributed: DistributedSingleFieldFEFunction
 using GridapDistributed: DistributedVisualizationData
+using GridapDistributed: add_ghost_cells
 import GridapDistributed: local_views
 
 using GridapEmbedded.Interfaces
@@ -118,7 +119,8 @@ function normal(phi::AlgoimCallLevelSetFunction,trian::DistributedTriangulation)
   DistributedCellField(normals,trian)
 end
 
-function normal(phi::DistributedAlgoimCallLevelSetFunction,trian::DistributedTriangulation)
+function normal(phi::DistributedAlgoimCallLevelSetFunction,_trian::DistributedTriangulation)
+  trian = add_ghost_cells(_trian)
   normals = map((φ,t)->normal(φ,t),local_views(phi),local_views(trian))
   DistributedCellField(normals,trian)
 end
@@ -875,7 +877,7 @@ function compute_distance_fe_function(
     cos = node_to_dof_order(cos,fs,bg,order)
     _compute_signed_distance(φl,cp,cos)
   end
-  dists = PVector(_dists,partition(fespace.gids)) 
+  dists = PVector(_dists,partition(fespace.gids))
   FEFunction(fespace,dists)
 end
 
