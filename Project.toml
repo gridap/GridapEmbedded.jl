@@ -1,7 +1,7 @@
 name = "GridapEmbedded"
 uuid = "8838a6a3-0006-4405-b874-385995508d5d"
 authors = ["Francesc Verdugo <f.verdugo.rojano@vu.nl>", "Eric Neiva <eric.neiva@college-de-france.fr>", "Pere Antoni Martorell <pere.antoni.martorell@upc.edu>", "Santiago Badia <santiago.badia@monash.edu>"]
-version = "0.9.4"
+version = "0.9.5"
 
 [deps]
 AbstractTrees = "1520ce14-60c1-5f80-bbc7-55ef81b5835c"
@@ -22,9 +22,9 @@ algoimWrapper_jll = "3c43aa7b-5398-51f3-8d75-8f051e6faa4d"
 
 [compat]
 AbstractTrees = "0.3.3, 0.4"
-Algoim = "0.2"
+Algoim = "0.2.2"
 Combinatorics = "1"
-CxxWrap = "0.14"
+CxxWrap = "0.16"
 FillArrays = "0.10, 0.11, 0.12, 0.13, 1"
 Gridap = "0.17, 0.18"
 GridapDistributed = "0.3, 0.4"
