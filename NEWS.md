@@ -12,7 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Updated to Algoim v0.2.2, which runs on Julia 1.11. Since PR [#96](https://github.com/gridap/GridapEmbedded.jl/pull/96).
+- Updated to Algoim v0.2.2, which runs on Julia 1.11. Since PR [#97](https://github.com/gridap/GridapEmbedded.jl/pull/97).
 
 ## [0.9.4] - 2024-07-09
 
