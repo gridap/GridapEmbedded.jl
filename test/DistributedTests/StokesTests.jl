@@ -44,24 +44,29 @@ function main(distribute,parts;n=4,cells=(n,n),order=2)
   Ω = Triangulation(model)
   Ωᵃ,dΩᵃ = TriangulationAndMeasure(Ω,v_cell_quad,is_a)
 
+  Λᵃ = SkeletonTriangulation(model)
+  dΛᵃ = Measure(Λᵃ,2*order)
+
   _,dΓ = TriangulationAndMeasure(Ω,s_cell_quad,is_c)
   n_Γ = normal(phi,Ω)
 
-  dbg = parts[1]
-  writevtk(dΓ,"cut_quad_$dbg")
+  # dbg = parts[1]
+  # writevtk(dΓ,"cut_quad_$dbg")
 
   # @show √(∑( ∫( 1.0 )dΩᵃ ))
   # @show √(∑( ∫( 1.0 )dΓ  ))
 
   reffeᵘ = ReferenceFE(lagrangian,VectorValue{2,Float64},order)
   reffeᵖ = ReferenceFE(lagrangian,Float64,order-1,space=:P)
+  reffeˡ = ReferenceFE(lagrangian,Float64,order-2,space=:P)
 
   Vstdᵘ = TestFESpace(Ωᵃ,reffeᵘ)
   Vstdᵖ = TestFESpace(Ωᵃ,reffeᵖ)
+  Vstdˡ = TestFESpace(model,reffeˡ)
   
   Vᵘ = AgFEMSpace(model,Vstdᵘ,aggregates)
   Vᵖ = AgFEMSpace(model,Vstdᵖ,aggregates)
-  Vˡ = ConstantFESpace(model)
+  Vˡ = Vstdˡ
 
   Uᵘ = TrialFESpace(Vᵘ)
   Uᵖ = TrialFESpace(Vᵖ)
@@ -72,11 +77,13 @@ function main(distribute,parts;n=4,cells=(n,n),order=2)
 
   # Nitsche method
   γᵈ = 2.0*order^2
+  τ₁ = 500.0
   h = (domain[2]-domain[1])/cells[1]
 
   a((u,p,l),(v,q,ℓ)) =
     ∫( ∇(u)⊙∇(v) - q*(∇⋅u) - p*(∇⋅v) )dΩᵃ +
     ∫( p*ℓ )dΩᵃ + ∫( q*l )dΩᵃ +
+    ∫( (τ₁/h)*jump(l)*jump(ℓ) )dΛᵃ +
     ∫( (γᵈ/h)*(u⋅v) - 
         v⋅(n_Γ⋅∇(u)) - u⋅(n_Γ⋅∇(v)) + 
         p*(n_Γ⋅v) + q*(n_Γ⋅u) )dΓ
@@ -89,7 +96,7 @@ function main(distribute,parts;n=4,cells=(n,n),order=2)
   op = AffineFEOperator(a,l,X,Y)
   uₕ,pₕ,lₕ = solve(op)
 
-  writevtk(Ωᵃ,"stokes",cellfields=["u"=>uₕ,"p"=>pₕ])
+  # writevtk(Ωᵃ,"stokes",cellfields=["u"=>uₕ,"p"=>pₕ,"l"=>lₕ])
 
   euₕ = u - uₕ
   epₕ = p - pₕ
