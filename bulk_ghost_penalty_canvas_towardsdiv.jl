@@ -538,9 +538,12 @@ test_div_dv_l2_proj_bb_dofs=lazy_map(\,p_lhs,test_rhs)
 
 # TODO: can be removed if we fix the BulkGhostPenaltyAssembleRhsMap.
 # transposed_test_div_dv_l2_proj_bb_dofs= lazy_map(x->collect(reshape(x,(size(x,1)))),lazy_map(transpose,test_div_dv_l2_proj_bb_dofs))
+# test_div_dv_l2_proj_bb_array=lazy_map(Gridap.Fields.linear_combination,
+#                                 transposed_test_div_dv_l2_proj_bb_dofs,
+#                                 Gridap.CellData.get_data(qbb))
 
 test_div_dv_l2_proj_bb_array=lazy_map(Gridap.Fields.linear_combination,
-                                transposed_test_div_dv_l2_proj_bb_dofs,
+                                test_div_dv_l2_proj_bb_dofs,
                                 Gridap.CellData.get_data(qbb))
 test_div_dv_l2_proj_bb_array_agg_cells=lazy_map(Broadcasting(∘),
                                 lazy_map(Reindex(test_div_dv_l2_proj_bb_array),agg_cells_to_aggregate),

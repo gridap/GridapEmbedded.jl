@@ -57,7 +57,7 @@ function Gridap.Fields.evaluate!(cache,m::BulkGhostPenaltyAssembleRhsMap,aggrega
     Gridap.Arrays.setsize!(result,(size(contrib,1),max_local_dof_id))
   else
     @assert rank==1
-    Gridap.Arrays.setsize!(result,max_local_dof_id)
+    Gridap.Arrays.setsize!(result,(max_local_dof_id,))
   end
   result.array .= 0.0
   for (i,cell) in enumerate(aggregate_local_cells)
