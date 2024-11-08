@@ -278,21 +278,34 @@ for cell in int_cells
     end
 end
 @assert(tester_int_nonagg_cells==int_nonagg_cells)
+# Cut cells
+cut_cells=Vector{Int}()
+tester_root_cells=Vector{Int}()
+for cell in agg_cells
+    if cell ∈ root_cells
+        append!(tester_root_cells,cell)
+    else
+        append!(cut_cells,cell)
+    end
+end
+@assert(tester_root_cells==root_cells)
+
 
 # TODO Potentially useful?:
 # Ω_agg_cells.parent.a.subgrid.cell_node_ids.data == Ω.a.subgrid.cell_node_ids.data # vector containing cell ids 
-
 
 # Subdomains in background mesh (aggegrate cells are already defined)
 Ωbg_int_cells        = view(Ωbg,int_cells)            # cells in interior
 Ωbg_int_nonagg_cells = view(Ωbg,int_nonagg_cells)     # cells in interior but not in aggregate
 Ωbg_root_cells       = view(Ωbg,root_cells)           # root cells: in interior and part of aggregate
+Ωbg_cut_cells        = view(Ωbg,cut_cells)            # cut cells (part of aggregate)
 
 # Subdomains in physical mesh
 Ω_agg_cells        = view(Ω,agg_cells)            # cells in aggregates
 Ω_int_cells        = view(Ω,int_cells)            # cells in interior
 Ω_int_nonagg_cells = view(Ω,int_nonagg_cells)     # cells in interior but not in aggregate
 Ω_root_cells       = view(Ω,root_cells)           # root cells: in interior and part of aggregate
+Ω_cut_cells        = view(Ω,cut_cells)            # cut cells (part of aggregate)
 
 ## VISUALISATION:
 writevtk(Ωbg,"trian_bg")
@@ -300,6 +313,7 @@ writevtk(Ωbg_agg_cells,"trian_bg_agg_cells")
 writevtk(Ωbg_int_cells,"trian_bg_int_cells")
 writevtk(Ωbg_int_nonagg_cells,"trian_bg_int_nonagg_cells")
 writevtk(Ωbg_root_cells,"trian_bg_root_cells")
+writevtk(Ωbg_cut_cells,"trian_bg_cut_cells")
 
 writevtk(Ωact,"trian_act")
 writevtk(Ω,"trian_phys")
@@ -307,7 +321,8 @@ writevtk(Ω,"trian_phys")
 # writevtk(Ω_agg_cells,"trian_phys_agg_cells")
 # writevtk(Ω_int_cells,"trian_phys_int_cells")
 # writevtk(Ω_int_nonagg_cells,"trian_phys_int_nonagg_cells")
-# writevtk(Ω_int_cells,"trian_phys_int_root_cells")
+# writevtk(Ω_root_cells,"trian_phys_root_cells")
+# writevtk(Ω_cut_cells,"trian_phys_cut_coot_cells")
 
 
 # Generate an array with the global IDs of the cells 
