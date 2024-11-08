@@ -323,36 +323,33 @@ writevtk(Ω,"trian_phys")
 # writevtk(Ω_int_nonagg_cells,"trian_phys_int_nonagg_cells")
 # writevtk(Ω_root_cells,"trian_phys_root_cells")
 # writevtk(Ω_cut_cells,"trian_phys_cut_coot_cells")
+degree = 2*2*order
+dΩ    = Measure(Ω,degree)
+dΩact = Measure(Ωact,degree)
+dΩbg_agg_cells  = Measure(Ωbg_agg_cells,degree)
+dΩbg_cut_cells  = Measure(Ωbg_cut_cells,degree)
+dΩbg_root_cells = Measure(Ωbg_root_cells,degree)
 
 
-# Generate an array with the global IDs of the cells 
-# that belong to the cut cells (and are thus also part of an aggregate). From now on, we will 
-# use the terminology "cut_cells" to refer to those 
-# cells of the background model that belong to the cut domain
-interior_cells=Vector{Int}()
-for cell in true_interior_cells
-    if cell ∈ interior_cells
-    append!(interior_cells,cells)
-end
-bgmodel.grid_topology.vertex_coordinates 
+dΩagg_cells  = Measure(Ω_agg_cells,degree)
+dΩcut_cells  = Measure(Ω_cut_cells,degree)
+dΩroot_cells = Measure(Ω_root_cells,degree)
 
-Ω_agg_cells.parent.b.tface_to_mface #what is this (len =24)
+# TESTING
+area_phys_domain = sum(∫(1.0)dΩ)
+area_act_domain  = sum(∫(1.0)dΩact)
+area_agg_cells   = sum(∫(1.0)dΩbg_agg_cells)
+area_cut_cells   = sum(∫(1.0)dΩbg_cut_cells)
+area_root_cells  = sum(∫(1.0)dΩbg_root_cells)
+@assert(area_agg_cells ≈ area_cut_cells + area_root_cells)
 
+# TODO: not possible to integrate over the physical part of the domain, e.g. 
+area_phys_agg_cells  = sum(∫(1.0)dΩ_agg_cells)
+area_phys_cut_cells  = sum(∫(1.0)dΩ_cut_cells)
+area_phys_root_cells = sum(∫(1.0)dΩ_root_cells)
 
-
-intcellstest = filter(!in[interior_cells], Ω_agg_cells.parent.b.tface_to_mface)
-
-dΩ = Measure(Ω,2*order*2)
-dΩ_agg_cells = Measure(Ω_agg_cells,2*order*2)
-
-
-colors = color_aggregates(aggregates,bgmodel)
-unique(colors)
-countmap(colors)
-
-cut_bgtrian = Triangulation(cut,CUT,cutgeo)
-
-# (Q1) WHEN WE DEFINE dΩagg_cells are we intergrating over the entire aggregate or only up to the physical part of it? That is, when we add the stabilization what do we intend to do?
+# colors = color_aggregates(aggregates,bgmodel)
+# TODO: (Q1) WHEN WE DEFINE dΩagg_cells are we intergrating over the entire aggregate or only up to the physical part of it? That is, when we add the stabilization what do we intend to do?
 
 ## Set up global spaces 
 Ωact = Triangulation(cutgeo,ACTIVE)
