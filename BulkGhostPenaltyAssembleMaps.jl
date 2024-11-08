@@ -13,7 +13,7 @@ function Gridap.Fields.return_cache(m::BulkGhostPenaltyAssembleLhsMap,cells)
     evaluate_result=Gridap.Arrays.CachedArray(eltype(T),_get_rank(T))
     cache_unassembled_lhs,evaluate_result
 end
-  
+
 function Gridap.Fields.evaluate!(cache,m::BulkGhostPenaltyAssembleLhsMap,cells)
     cache_unassembled_lhs,result=cache
     contrib = getindex!(cache_unassembled_lhs,m.agg_cells_lhs_contribs,1)
@@ -26,16 +26,17 @@ function Gridap.Fields.evaluate!(cache,m::BulkGhostPenaltyAssembleLhsMap,cells)
     end
     result.array
 end
-
-struct BulkGhostPenaltyAssembleRhsMap{A,B} <: Gridap.Fields.Map 
-    agg_cells_local_dof_ids::A 
+#TODO: add {RANK,A,B}
+struct BulkGhostPenaltyAssembleRhsMap{A,B} <: Gridap.Fields.Map
+    agg_cells_local_dof_ids::A
     agg_cells_rhs_contribs::B
-end 
+end
 
 function Gridap.Fields.return_cache(m::BulkGhostPenaltyAssembleRhsMap,aggregate_local_cells)
   cache_agg_cells_local_dof_ids=array_cache(m.agg_cells_local_dof_ids)
   cache_unassembled_rhs=array_cache(m.agg_cells_rhs_contribs)
-  evaluate_result=Gridap.Arrays.CachedArray(eltype(eltype(m.agg_cells_rhs_contribs)),2)
+  rank=length(size(m.agg_cells_rhs_contribs[1]))
+  evaluate_result=Gridap.Arrays.CachedArray(eltype(eltype(m.agg_cells_rhs_contribs)),rank)
   cache_agg_cells_local_dof_ids,cache_unassembled_rhs,evaluate_result
 end
 
@@ -51,13 +52,23 @@ function Gridap.Fields.evaluate!(cache,m::BulkGhostPenaltyAssembleRhsMap,aggrega
     end
   end
 
-  Gridap.Arrays.setsize!(result,(size(contrib,1),max_local_dof_id))
+  rank=length(size(result))
+  if rank==2
+    Gridap.Arrays.setsize!(result,(size(contrib,1),max_local_dof_id))
+  else
+    @assert rank==1
+    Gridap.Arrays.setsize!(result,max_local_dof_id)
+  end
   result.array .= 0.0
   for (i,cell) in enumerate(aggregate_local_cells)
         current_cell_local_dof_ids = getindex!(cache_agg_cells_local_dof_ids,m.agg_cells_local_dof_ids,cell)
         contrib = getindex!(cache_unassembled_rhs,m.agg_cells_rhs_contribs,cell)
         for (j,local_dof) in enumerate(current_cell_local_dof_ids)
-           result.array[:,local_dof] += contrib[:,j]
+           if rank==2
+              result.array[:,local_dof] += contrib[:,j]
+           else
+              result.array[local_dof] += contrib[j]
+           end
         end
   end
   result.array
