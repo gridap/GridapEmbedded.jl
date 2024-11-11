@@ -34,7 +34,6 @@ function discretize(a::AnalyticalGeometry,point_to_coords::AbstractArray{<:Point
 end
 
 function discretize(a::AnalyticalGeometry,point_to_coords::Vector{<:Point})
-
   tree = get_tree(a)
   j_to_fun, oid_to_j = _find_unique_leaves(tree)
   j_to_ls = [ fun.(point_to_coords) for fun in j_to_fun ]
@@ -48,13 +47,10 @@ function discretize(a::AnalyticalGeometry,point_to_coords::Vector{<:Point})
   end
 
   newtree = replace_data(identity,conversion,tree)
-
   DiscreteGeometry(newtree,point_to_coords)
-
 end
 
 function _find_unique_leaves(tree)
-
   i_to_fun = map(n->first(n.data),collect(Leaves(tree)))
   i_to_oid = map(objectid,i_to_fun)
   j_to_oid = unique(i_to_oid)
@@ -70,4 +66,16 @@ function DiscreteGeometry(
   data = (point_to_value,name,nothing)
   tree = Leaf(data)
   DiscreteGeometry(tree,point_to_coords)
+end
+
+# TODO: This assumes that the level set φh is 1st order, i.e that there is a 1-to-1 correspondence
+# between nodes in the mesh and dofs in φh. 
+# Even if we allowed higher order, the cuts are always linear. Not only it would be a waste
+# of time to use higher order, but cuts could actually be wrong.
+# This might be developped in the future.
+function DiscreteGeometry(
+  φh::CellField,model::DiscreteModel;name::String="")
+  point_to_value = get_free_dof_values(φh)
+  point_to_coords = collect1d(get_node_coordinates(model))
+  DiscreteGeometry(point_to_value,point_to_coords;name)
 end

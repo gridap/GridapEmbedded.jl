@@ -3,11 +3,12 @@ struct DistributedEmbeddedDiscretization{A,B} <: GridapType
   discretizations::A
   model::B
   function DistributedEmbeddedDiscretization(
-    d::AbstractArray{<:AbstractEmbeddedDiscretization},
-    model::DistributedDiscreteModel)
-    A = typeof(d)
+    discretizations::AbstractArray{<:AbstractEmbeddedDiscretization},
+    model::DistributedDiscreteModel
+  )
+    A = typeof(discretizations)
     B = typeof(model)
-    new{A,B}(d,model)
+    new{A,B}(discretizations,model)
   end
 end
 
@@ -16,8 +17,13 @@ local_views(a::DistributedEmbeddedDiscretization) = a.discretizations
 get_background_model(a::DistributedEmbeddedDiscretization) = a.model
 
 function get_geometry(a::DistributedEmbeddedDiscretization)
-  cut = local_views(a) |> PartitionedArrays.getany
-  get_geometry(cut)
+  geometries = map(get_geometry,local_views(a))
+  distributed_geometry(geometries)
+end
+
+# Needed for dispatching between analytical geometries and discrete geometries
+function distributed_geometry(geometries::AbstractArray{<:CSG.Geometry})
+  PartitionedArrays.getany(geometries)
 end
 
 function cut(bgmodel::DistributedDiscreteModel,args...)
@@ -123,8 +129,8 @@ end
 function compute_bgfacet_to_inoutcut(
   cutter::Cutter,
   bgmodel::DistributedDiscreteModel,
-  geo)
-
+  geo
+)
   gids = get_cell_gids(bgmodel)
   bgf_to_ioc = map(local_views(bgmodel),local_views(gids)) do model,gids
     ownmodel = remove_ghost_cells(model,gids)
@@ -239,12 +245,11 @@ function change_bgmodel(
   DistributedEmbeddedDiscretization(cuts,model)
 end
 
-
 function _change_bgmodels(
   cutgeo::DistributedEmbeddedDiscretization,
   model::DistributedDiscreteModel,
-  cell_to_newcell)
-
+  cell_to_newcell
+)
   map(local_views(cutgeo),local_views(model),cell_to_newcell) do c,m,c_to_nc
     change_bgmodel(c,m,c_to_nc)
   end
@@ -252,8 +257,8 @@ end
 
 function _change_bgmodels(
   cutgeo::DistributedEmbeddedDiscretization,
-  model::DistributedDiscreteModel)
-
+  model::DistributedDiscreteModel
+)
   map(local_views(cutgeo),local_views(model)) do c,m
     change_bgmodel(c,m)
   end
@@ -262,8 +267,8 @@ end
 function change_bgmodel(
   cut::EmbeddedDiscretization,
   newmodel::DiscreteModel,
-  cell_to_newcell=1:num_cells(get_background_model(cut)))
-
+  cell_to_newcell=1:num_cells(get_background_model(cut))
+)
   ls_to_bgc_to_ioc = map(cut.ls_to_bgcell_to_inoutcut) do bgc_to_ioc
     new_bgc_to_ioc = Vector{Int8}(undef,num_cells(newmodel))
     new_bgc_to_ioc[cell_to_newcell] = bgc_to_ioc
@@ -285,10 +290,9 @@ end
 function change_bgmodel(
   cut::EmbeddedFacetDiscretization,
   newmodel::DiscreteModel,
-  facet_to_newfacet=1:num_facets(get_background_model(cut)))
-
+  facet_to_newfacet=1:num_facets(get_background_model(cut))
+)
   nfacets = num_facets(newmodel)
-
   ls_to_bgf_to_ioc = map(cut.ls_to_facet_to_inoutcut) do bgf_to_ioc
     new_bgf_to_ioc = Vector{Int8}(undef,nfacets)
     new_bgf_to_ioc[facet_to_newfacet] = bgf_to_ioc
@@ -301,7 +305,8 @@ function change_bgmodel(
     subfacets,
     cut.ls_to_subfacet_to_inout,
     cut.oid_to_ls,
-    cut.geo)
+    cut.geo
+  )
 end
 
 function change_bgmodel(cells::SubCellData,cell_to_newcell)
