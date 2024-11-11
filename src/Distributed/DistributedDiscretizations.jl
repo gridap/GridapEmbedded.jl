@@ -21,7 +21,7 @@ function get_geometry(a::DistributedEmbeddedDiscretization)
   distributed_geometry(geometries)
 end
 
-# Neeed for dispatching between analytical geometries and distributed geometries
+# Needed for dispatching between analytical geometries and discrete geometries
 function distributed_geometry(geometries::AbstractArray{<:CSG.Geometry})
   PartitionedArrays.getany(geometries)
 end
