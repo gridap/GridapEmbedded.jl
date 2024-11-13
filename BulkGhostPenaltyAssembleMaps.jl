@@ -26,7 +26,6 @@ function Gridap.Fields.evaluate!(cache,m::BulkGhostPenaltyAssembleLhsMap,cells)
     end
     result.array
 end
-#TODO: add {RANK,A,B}
 struct BulkGhostPenaltyAssembleRhsMap{A,B} <: Gridap.Fields.Map
     agg_cells_local_dof_ids::A
     agg_cells_rhs_contribs::B
@@ -35,8 +34,7 @@ end
 function Gridap.Fields.return_cache(m::BulkGhostPenaltyAssembleRhsMap,aggregate_local_cells)
   cache_agg_cells_local_dof_ids=array_cache(m.agg_cells_local_dof_ids)
   cache_unassembled_rhs=array_cache(m.agg_cells_rhs_contribs)
-  rank=length(size(m.agg_cells_rhs_contribs[1]))
-  evaluate_result=Gridap.Arrays.CachedArray(eltype(eltype(m.agg_cells_rhs_contribs)),rank)
+  evaluate_result=Gridap.Arrays.CachedArray(eltype(eltype(m.agg_cells_rhs_contribs)),2)
   cache_agg_cells_local_dof_ids,cache_unassembled_rhs,evaluate_result
 end
 
@@ -52,24 +50,37 @@ function Gridap.Fields.evaluate!(cache,m::BulkGhostPenaltyAssembleRhsMap,aggrega
     end
   end
 
-  rank=length(size(result))
-  if rank==2
-    Gridap.Arrays.setsize!(result,(size(contrib,1),max_local_dof_id))
-  else
-    @assert rank==1
-    Gridap.Arrays.setsize!(result,(max_local_dof_id,))
-  end
+  Gridap.Arrays.setsize!(result,(size(contrib,1),max_local_dof_id))
+
   result.array .= 0.0
   for (i,cell) in enumerate(aggregate_local_cells)
         current_cell_local_dof_ids = getindex!(cache_agg_cells_local_dof_ids,m.agg_cells_local_dof_ids,cell)
         contrib = getindex!(cache_unassembled_rhs,m.agg_cells_rhs_contribs,cell)
         for (j,local_dof) in enumerate(current_cell_local_dof_ids)
-           if rank==2
-              result.array[:,local_dof] += contrib[:,j]
-           else
-              result.array[local_dof] += contrib[j]
-           end
+          result.array[:,local_dof] += contrib[:,j]
         end
+  end
+  result.array
+end
+
+struct BulkGhostPenaltyAssembleRhsFEFunctionMap{A} <: Gridap.Fields.Map
+    agg_cells_rhs_contribs::A
+end
+
+function Gridap.Fields.return_cache(m::BulkGhostPenaltyAssembleRhsFEFunctionMap,aggregate_local_cells)
+  cache_unassembled_rhs=array_cache(m.agg_cells_rhs_contribs)
+  evaluate_result=Gridap.Arrays.CachedArray(eltype(eltype(m.agg_cells_rhs_contribs)),1)
+  cache_unassembled_rhs,evaluate_result
+end
+
+function Gridap.Fields.evaluate!(cache,m::BulkGhostPenaltyAssembleRhsFEFunctionMap,aggregate_local_cells)
+  cache_unassembled_rhs,result=cache
+  contrib = getindex!(cache_unassembled_rhs,m.agg_cells_rhs_contribs,1)
+  Gridap.Arrays.setsize!(result,(size(contrib,1),))
+  result.array .= 0.0
+  for (i,cell) in enumerate(aggregate_local_cells)
+        contrib = getindex!(cache_unassembled_rhs,m.agg_cells_rhs_contribs,cell)
+        result.array .+= contrib
   end
   result.array
 end

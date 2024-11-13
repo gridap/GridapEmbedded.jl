@@ -489,9 +489,9 @@ function divergence_in_pressure_space_fe_function(uh::Gridap.FESpaces.SingleFiel
 end
 testxh=FEFunction(X, rand(num_free_dofs(X)))
 testuh,testph = testxh
-testFEfunction = divergence_in_pressure_space_fe_function(testuh,P, dq)
-eh = testFEfunction-(∇⋅testuh)
-norm_testFEfunction = sum(∫(eh⋅eh)dΩhact)
+testdivuh_pressure = divergence_in_pressure_space_fe_function(testuh,P, dq)
+eh = testdivuh_pressure-(∇⋅testuh)
+@assert sum(∫(eh⋅eh)dΩhact) < 1.0e-12
 
 # TODO: the following functions should be tested and can then replace the lines below these commented lines.
 # function divergence_in_pressure_space_basis(uh::FEBasis,P,dq)
@@ -530,17 +530,11 @@ dqbb_Ωagg_cells =change_domain_bb_to_agg_cells(qbb,ref_agg_cell_to_ref_bb_map,�
 # agg_cells_rhs_contribs=get_array(∫(dqbb_Ωagg_cells⋅div_du_in_pressure_space_single_field)dΩagg_cells)
 # ass_rhs_map=BulkGhostPenaltyAssembleRhsMap(P_agg_cells_local_dof_ids,agg_cells_rhs_contribs) ## TODO: prep to assemble vectors
 # rhs=lazy_map(ass_rhs_map,aggregate_to_local_cells)
-test_agg_cells_rhs_contribs=get_array(∫(dqbb_Ωagg_cells⋅testFEfunction)dΩagg_cells)
-test_ass_rhs_map=BulkGhostPenaltyAssembleRhsMap(P_agg_cells_local_dof_ids,test_agg_cells_rhs_contribs)
+test_agg_cells_rhs_contribs=get_array(∫(dqbb_Ωagg_cells⋅testdivuh_pressure)dΩagg_cells)
+test_ass_rhs_map=BulkGhostPenaltyAssembleRhsFEFunctionMap(test_agg_cells_rhs_contribs)
 test_rhs=lazy_map(test_ass_rhs_map,aggregate_to_local_cells)
 
 test_div_dv_l2_proj_bb_dofs=lazy_map(\,p_lhs,test_rhs)
-
-# TODO: can be removed if we fix the BulkGhostPenaltyAssembleRhsMap.
-# transposed_test_div_dv_l2_proj_bb_dofs= lazy_map(x->collect(reshape(x,(size(x,1)))),lazy_map(transpose,test_div_dv_l2_proj_bb_dofs))
-# test_div_dv_l2_proj_bb_array=lazy_map(Gridap.Fields.linear_combination,
-#                                 transposed_test_div_dv_l2_proj_bb_dofs,
-#                                 Gridap.CellData.get_data(qbb))
 
 test_div_dv_l2_proj_bb_array=lazy_map(Gridap.Fields.linear_combination,
                                 test_div_dv_l2_proj_bb_dofs,
@@ -548,10 +542,13 @@ test_div_dv_l2_proj_bb_array=lazy_map(Gridap.Fields.linear_combination,
 test_div_dv_l2_proj_bb_array_agg_cells=lazy_map(Broadcasting(∘),
                                 lazy_map(Reindex(test_div_dv_l2_proj_bb_array),agg_cells_to_aggregate),
                                 ref_agg_cell_to_ref_bb_map)
-div_uh_proj_bb=Gridap.CellData.GenericCellField(test_div_dv_l2_proj_bb_array_agg_cells,dΩagg_cells.quad.trian,ReferenceDomain())
+div_uh_proj_bb=Gridap.CellData.GenericCellField(test_div_dv_l2_proj_bb_array_agg_cells,
+                                                dΩagg_cells.quad.trian,
+                                                ReferenceDomain())
 
 x=get_cell_points(dΩagg_cells.quad.trian)
-div_uh_proj_bb(x)[1]
+div_uh_proj_bb(x)[8]
+testdivuh_pressure(x)[7]
 
-res = testFEfunction - div_uh_proj_bb
-norm = sum(∫((res)*(res))*dΩagg_cells)
+res = testdivuh_pressure - div_uh_proj_bb
+sum(∫(res*res)*dΩagg_cells)
