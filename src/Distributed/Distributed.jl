@@ -31,14 +31,11 @@ using Gridap.Geometry: get_face_to_parent_face
 using Gridap.Arrays: find_inverse_index_map, testitem, return_type
 using Gridap.FESpaces: FESpaceWithLinearConstraints
 using Gridap.FESpaces: _dof_to_DOF, _DOF_to_dof
-using GridapDistributed: DistributedDiscreteModel
-using GridapDistributed: DistributedTriangulation
-using GridapDistributed: DistributedFESpace
-using GridapDistributed: DistributedSingleFieldFESpace
-using GridapDistributed: DistributedMeasure
-using GridapDistributed: add_ghost_cells
-using GridapDistributed: generate_gids
-using GridapDistributed: generate_cell_gids
+
+using GridapDistributed: DistributedDiscreteModel, DistributedTriangulation, DistributedMeasure
+using GridapDistributed: DistributedFESpace, DistributedSingleFieldFESpace
+using GridapDistributed: NoGhost, WithGhost, filter_cells_when_needed, add_ghost_cells
+using GridapDistributed: generate_gids, generate_cell_gids
 using GridapDistributed: _find_vector_type
 
 import GridapEmbedded.AgFEM: aggregate
