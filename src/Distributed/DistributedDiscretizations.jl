@@ -52,15 +52,13 @@ function cut_facets(cutter::Cutter,bgmodel::DistributedDiscreteModel{Dc},args...
   DistributedEmbeddedDiscretization(cuts,bgmodel)
 end
 
-"""
-Note on distributed triangulations: 
-
-- We allow for more one argument, `portion`, which allows the user to filter 
-some of the cells/faces. In particular, this is used to remove ghosts from the 
-local triangulations. 
-- The default for `portion` is `NoGhost()`, wich filters out all ghost cells, except 
-when we have the argument `in_or_out`. 
-"""
+# Note on distributed triangulations: 
+# 
+# - We allow for more one argument, `portion`, which allows the user to filter 
+# some of the cells/faces. In particular, this is used to remove ghosts from the 
+# local triangulations. 
+# - The default for `portion` is `NoGhost()`, wich filters out all ghost cells, except 
+# when we have the argument `in_or_out`.
 
 function Triangulation(
   cutgeo::DistributedEmbeddedDiscretization,in_or_out::ActiveInOrOut,args...
@@ -90,6 +88,7 @@ for TT in (:Triangulation,:SkeletonTriangulation,:BoundaryTriangulation,:Embedde
   end
 end
 
+# TODO: This should go to GridapDistributed
 function remove_ghost_cells(trian::AppendedTriangulation,gids)
   a = remove_ghost_cells(trian.a,gids)
   b = remove_ghost_cells(trian.b,gids)

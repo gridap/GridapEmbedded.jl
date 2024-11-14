@@ -1,3 +1,4 @@
+
 struct DistributedDiscreteGeometry{A} <: GridapType
   geometries::A
 end

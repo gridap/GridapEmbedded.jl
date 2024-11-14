@@ -58,6 +58,8 @@ include("DistributedDiscretizations.jl")
 
 include("DistributedDiscreteGeometries.jl")
 
+include("DistributedSubFacetTriangulations.jl")
+
 include("DistributedAgFEM.jl")
 
 include("DistributedQuadratures.jl")
