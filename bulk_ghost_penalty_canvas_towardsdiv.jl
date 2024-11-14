@@ -487,7 +487,11 @@ function divergence_in_pressure_space_fe_function(uh::Gridap.FESpaces.SingleFiel
     # free_dof_values is actually a global DoFs vector (!!!)
     FEFunction(P,div_dv_pdofs_values)
 end
-testxh=FEFunction(X, rand(num_free_dofs(X)))
+
+uex(x)=VectorValue(x[1],x[2])
+pex(x)=x[1]
+
+testxh=interpolate(X,[uex,pex])
 testuh,testph = testxh
 testdivuh_pressure = divergence_in_pressure_space_fe_function(testuh,P, dq)
 eh = testdivuh_pressure-(∇⋅testuh)
@@ -551,4 +555,4 @@ div_uh_proj_bb(x)[8]
 testdivuh_pressure(x)[7]
 
 res = testdivuh_pressure - div_uh_proj_bb
-sum(∫(res*res)*dΩagg_cells)
+@assert sum(∫(res*res)*dΩagg_cells) < 1.0e-12
