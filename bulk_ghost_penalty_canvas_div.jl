@@ -659,7 +659,7 @@ div_dv_in_pressure_space_single_field= Gridap.FESpaces.SingleFieldFEBasis(div_dv
                                               get_triangulation(P),
                                               Gridap.FESpaces.TestBasis(),
                                               Gridap.CellData.ReferenceDomain())
-div_dv_in_pressure_space=Gridap.MultiField.MultiFieldFEBasisComponent(div_dv_in_pressure_space_single_field,1,2)                                          
+div_dv_in_pressure_space=Gridap.MultiField.MultiFieldFEBasisComponent(div_dv_in_pressure_space_single_field,1,2)
 
 div_du_in_pressure_space_cell_array=lazy_map(transpose,div_dv_in_pressure_space_cell_array)
 div_du_in_pressure_space_single_field=Gridap.FESpaces.SingleFieldFEBasis(div_du_in_pressure_space_cell_array,
@@ -668,14 +668,15 @@ div_du_in_pressure_space_single_field=Gridap.FESpaces.SingleFieldFEBasis(div_du_
                                                                  Gridap.CellData.ReferenceDomain())
 div_du_in_pressure_space=Gridap.MultiField.MultiFieldFEBasisComponent(div_du_in_pressure_space_single_field,1,2)
 
-div_dv_div_du_in_pressure_space_mat_contribs=get_array(∫(γ*div_dv_in_pressure_space⋅div_du_in_pressure_space)*dΩagg_cells) #not sure if neccesary?
+div_dv_div_du_in_pressure_space_mat_contribs=
+   get_array(∫(γ*div_dv_in_pressure_space⋅div_du_in_pressure_space)*dΩagg_cells) #not sure if neccesary?
 div_dv_div_du_mat_contribs ≈ div_dv_div_du_in_pressure_space_mat_contribs
 
 ### Compute Π_Q_bb(div_du)
 dqbb_Ωagg_cells =change_domain_bb_to_agg_cells(qbb,ref_agg_cell_to_ref_bb_map,Ωagg_cells,agg_cells_to_aggregate)  
 agg_cells_rhs_contribs=get_array(∫(dqbb_Ωagg_cells⋅div_du_in_pressure_space_single_field)dΩagg_cells) 
 # agg_cells_rhs_contribs[1]
-ass_rhs_map=BulkGhostPenaltyAssembleRhsMap(P_agg_cells_local_dof_ids,agg_cells_rhs_contribs)
+ass_rhs_map=BulkGhostPenaltyAssembleRhsMap(U_agg_cells_local_dof_ids,agg_cells_rhs_contribs)
 rhs=lazy_map(ass_rhs_map,aggregate_to_local_cells)
 div_dv_l2_proj_bb_dofs=lazy_map(\,p_lhs,rhs)
 
@@ -692,17 +693,18 @@ div_dv_l2_proj_bb_array_agg_cells=lazy_map(Broadcasting(∘),
 
 div_du_l2_proj_bb_array_agg_cells=lazy_map(transpose, div_dv_l2_proj_bb_array_agg_cells)
 
-if (_is_multifield_fe_basis_component(dp))
-    @assert _is_multifield_fe_basis_component(dq)
-    @assert _nfields(dp)==_nfields(dq)
-    nfields=_nfields(dp)
-    fieldid=_fieldid(dp)
+if (_is_multifield_fe_basis_component(du))
+    @assert _is_multifield_fe_basis_component(du)
+    @assert _nfields(du)==_nfields(dv)
+    nfields=_nfields(du)
+    fieldid=_fieldid(dv)
     div_du_l2_proj_bb_array_agg_cells=lazy_map(
                                 Gridap.Fields.BlockMap((1,nfields),fieldid),
                                 div_du_l2_proj_bb_array_agg_cells)
 end 
 
-div_du_l2_proj_agg_cells = Gridap.CellData.GenericCellField(div_du_l2_proj_bb_array_agg_cells, dΩagg_cells.quad.trian,ReferenceDomain())
+div_du_l2_proj_agg_cells = 
+   Gridap.CellData.GenericCellField(div_du_l2_proj_bb_array_agg_cells, dΩagg_cells.quad.trian,ReferenceDomain())
 
 # In the MultiField case, I have had to add this change domain 
 # call before setting up the term right below. Otherwise, we get an error 
@@ -712,20 +714,21 @@ div_dv_Ωagg_cells=Gridap.CellData.change_domain(∇⋅dv,Ωagg_cells,ReferenceD
 
 proj_div_dv_div_du_mat_contribs=get_array(∫(γ*(-1.0)*div_dv_Ωagg_cells*(div_du_l2_proj_agg_cells))*dΩagg_cells)
 
-P_Ωagg_cell_dof_ids = _restrict_to_block(Ωagg_cell_dof_ids, 2)
-P_aggregate_dof_ids=compute_aggregate_dof_ids(P_Ωagg_cell_dof_ids,aggregate_to_cells)
-P_agg_cells_to_aggregate_dof_ids=lazy_map(Reindex(P_aggregate_dof_ids),agg_cells_to_aggregate)
+U_Ωagg_cell_dof_ids = _restrict_to_block(Ωagg_cell_dof_ids, 1)
+U_aggregate_dof_ids=compute_aggregate_dof_ids(U_Ωagg_cell_dof_ids,aggregate_to_cells)
+U_agg_cells_to_aggregate_dof_ids=lazy_map(Reindex(U_aggregate_dof_ids),agg_cells_to_aggregate)
 
-if (_is_multifield_fe_basis_component(dp))
-    nfields=_nfields(dp)
-    fieldid=_fieldid(dp)
-    P_agg_cells_to_aggregate_dof_ids=
-        lazy_map(Gridap.Fields.BlockMap(nfields,fieldid),P_agg_cells_to_aggregate_dof_ids)
+if (_is_multifield_fe_basis_component(du))
+    nfields=_nfields(du)
+    fieldid=_fieldid(du)
+    U_agg_cells_to_aggregate_dof_ids=
+        lazy_map(Gridap.Fields.BlockMap(nfields,fieldid),U_agg_cells_to_aggregate_dof_ids)
+    U_Ωagg_cell_dof_ids=lazy_map(Gridap.Fields.BlockMap(nfields,fieldid),U_Ωagg_cell_dof_ids)   
 end
 
 push!(w_divu, proj_div_dv_div_du_mat_contribs)
 push!(r_divu, U_Ωagg_cell_dof_ids)              # test
-push!(c_divu, P_agg_cells_to_aggregate_dof_ids) # trial 
+push!(c_divu, U_agg_cells_to_aggregate_dof_ids) # trial 
 
 ## Now add div stabilization to A
 push!(wrc[1], w_divu...)
@@ -745,5 +748,3 @@ edivuh_withstab = divuex-(∇⋅uh_withstab)
 norm_euh_withstab = sum(∫(euh_withstab⋅euh_withstab)*dΩcut)
 norm_eph_withstab = sum(∫(eph_withstab*eph_withstab)*dΩcut)
 norm_edivuh_withstab = sum(∫(edivuh_withstab⋅edivuh_withstab)*dΩcut)
-# k=0 yields euh = 0.0014, eph = 0.47, edivuh = 0.47, κ= 8.51e11
-# k=2 yields euh = 0.00013, eph = 0.088, edivuh = 0.088, κ= 2.9e14
