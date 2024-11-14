@@ -120,13 +120,11 @@ end
 
 # Distributed InOutCut flag methods
 
-"""
-    isconsistent_bgcell_to_inoutcut(cut::DistributedEmbeddedDiscretization)
-    isconsistent_bgcell_to_inoutcut(cuts::AbstractArray{<:AbstractEmbeddedDiscretization},indices)
-
-Returns true if the local `ls_to_bgcell_to_inoutcut` arrays are consistent 
-accross processors. 
-"""
+#     isconsistent_bgcell_to_inoutcut(cut::DistributedEmbeddedDiscretization)
+#     isconsistent_bgcell_to_inoutcut(cuts::AbstractArray{<:AbstractEmbeddedDiscretization},indices)
+# 
+# Returns true if the local `ls_to_bgcell_to_inoutcut` arrays are consistent 
+# accross processors. 
 function isconsistent_bgcell_to_inoutcut(
   cut::DistributedEmbeddedDiscretization{Dc}
 ) where Dc

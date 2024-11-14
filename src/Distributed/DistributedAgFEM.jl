@@ -3,8 +3,8 @@ function AgFEMSpace(
   bgmodel::DistributedDiscreteModel,
   f::DistributedFESpace,
   bgcell_to_bgcellin::AbstractArray{<:AbstractVector},
-  g::DistributedFESpace=f)
-
+  g::DistributedFESpace=f
+)
   bgmodel_gids = get_cell_gids(bgmodel)
   spaces = map(
     local_views(f),
@@ -13,9 +13,7 @@ function AgFEMSpace(
     local_views(bgmodel_gids)) do f,bgcell_to_bgcellin,g,gids
       AgFEMSpace(f,bgcell_to_bgcellin,g,local_to_global(gids))
   end
-  trians = map(get_triangulation,local_views(f))
-  trian = DistributedTriangulation(trians,bgmodel)
-  trian = add_ghost_cells(trian)
+  trian = add_ghost_cells(get_triangulation(f))
   trian_gids = generate_cell_gids(trian)
   cell_to_cellin = _active_aggregates(bgcell_to_bgcellin)
   cell_to_ldofs = cell_ldof_to_mdof(spaces,cell_to_cellin)
@@ -26,7 +24,7 @@ function AgFEMSpace(
 end
 
 function aggregate(strategy,cutgeo::DistributedEmbeddedDiscretization,args...)
-  aggregates,aggregate_owner = distributed_aggregate(strategy,cutgeo,args...)
+  aggregates, aggregate_owner = distributed_aggregate(strategy,cutgeo,args...)
   bgmodel = get_background_model(cutgeo)
   if has_remote_aggregation(bgmodel,aggregates)
     bgmodel = add_remote_aggregates(bgmodel,aggregates,aggregate_owner)
@@ -40,8 +38,8 @@ end
 function distributed_aggregate(
   strategy::AggregateCutCellsByThreshold,
   cut::DistributedEmbeddedDiscretization,
-  in_or_out=IN)
-
+  in_or_out=IN
+)
   geo = get_geometry(cut)
   distributed_aggregate(strategy,cut,geo,in_or_out)
 end
@@ -50,13 +48,12 @@ function distributed_aggregate(
   strategy::AggregateCutCellsByThreshold,
   cut::DistributedEmbeddedDiscretization,
   geo::CSG.Geometry,
-  in_or_out=IN)
-
+  in_or_out=IN
+)
   bgmodel = get_background_model(cut)
   facet_to_inoutcut = compute_bgfacet_to_inoutcut(bgmodel,geo)
   _distributed_aggregate_by_threshold(strategy.threshold,cut,geo,in_or_out,facet_to_inoutcut)
 end
-
 
 function _distributed_aggregate_by_threshold(threshold,cutgeo,geo,loc,facet_to_inoutcut)
   @assert loc in (IN,OUT)
@@ -82,15 +79,14 @@ function _distributed_aggregate_by_threshold(threshold,cutgeo,geo,loc,facet_to_i
 
   _distributed_aggregate_by_threshold_barrier(
     threshold,cell_to_unit_cut_meas,facet_to_inoutcut,cell_to_inoutcut,
-    loc,cell_to_coords,cell_to_faces,face_to_cells,gids)
+    loc,cell_to_coords,cell_to_faces,face_to_cells,gids
+  )
 end
-
 
 function _distributed_aggregate_by_threshold_barrier(
   threshold,cell_to_unit_cut_meas,facet_to_inoutcut,cell_to_inoutcut,
-  loc,cell_to_coords,cell_to_faces,face_to_cells,gids)
-
-
+  loc,cell_to_coords,cell_to_faces,face_to_cells,gids
+)
   ocell_to_touched = map(cell_to_unit_cut_meas) do c_to_m
     map(≥,c_to_m,Fill(threshold,length(c_to_m)))
   end
@@ -111,7 +107,6 @@ function _distributed_aggregate_by_threshold_barrier(
   end
 
   cell_to_neig = map(n->zeros(Int32,n),n_cells)
-
   cell_to_root_part = map(collect,local_to_owner(gids))
 
   c1 = map(array_cache,cell_to_faces)
@@ -129,7 +124,8 @@ function _distributed_aggregate_by_threshold_barrier(
       cell_to_faces,
       face_to_cells,
       facet_to_inoutcut,
-      loc)
+      loc
+    )
 
     PVector(cell_to_touched,partition(gids)) |> consistent! |> wait
     PVector(cell_to_neig,partition(gids)) |> consistent! |> wait
@@ -248,8 +244,8 @@ function _find_best_neighbor_from_centroid_distance(
   cell_to_touched,
   cell_to_root_centroid,
   facet_to_inoutcut,
-  loc)
-
+  loc
+)
   faces = getindex!(c1,cell_to_faces,cell)
   dmin = Inf
   T = eltype(eltype(face_to_cells))
@@ -559,6 +555,8 @@ function _local_aggregates(cell_to_gcellin,gcell_to_cell)
   end
 end
 
+# change_bgmodel
+
 function change_bgmodel(cell_to_gcellin,gids::PRange)
   map(change_bgmodel,cell_to_gcellin,local_to_global(gids))
 end
@@ -570,4 +568,88 @@ function change_bgmodel(cell_to_gcellin,ncell_to_gcell)
     ncell_to_gcellin[ncell] = ncell > ncells ? gcell : cell_to_gcellin[ncell]
   end
   ncell_to_gcellin
+end
+
+function change_bgmodel(
+  cutgeo::DistributedEmbeddedDiscretization,
+  model::DistributedDiscreteModel
+)
+  cuts = map(change_bgmodel,local_views(cutgeo),local_views(model))
+  DistributedEmbeddedDiscretization(cuts,model)
+end
+
+function change_bgmodel(
+  cutgeo::DistributedEmbeddedDiscretization,
+  model::DistributedDiscreteModel,
+  cell_to_new_cell
+)
+  cuts = map(change_bgmodel,local_views(cutgeo),local_views(model),cell_to_new_cell)
+  DistributedEmbeddedDiscretization(cuts,model)
+end
+
+function change_bgmodel(
+  cut::EmbeddedDiscretization,
+  newmodel::DiscreteModel,
+  cell_to_newcell=1:num_cells(get_background_model(cut))
+)
+  ls_to_bgc_to_ioc = map(cut.ls_to_bgcell_to_inoutcut) do bgc_to_ioc
+    new_bgc_to_ioc = Vector{Int8}(undef,num_cells(newmodel))
+    new_bgc_to_ioc[cell_to_newcell] = bgc_to_ioc
+    new_bgc_to_ioc
+  end
+  subcells = change_bgmodel(cut.subcells,cell_to_newcell)
+  subfacets = change_bgmodel(cut.subfacets,cell_to_newcell)
+  EmbeddedDiscretization(
+    newmodel,
+    ls_to_bgc_to_ioc,
+    subcells,
+    cut.ls_to_subcell_to_inout,
+    subfacets,
+    cut.ls_to_subfacet_to_inout,
+    cut.oid_to_ls,
+    cut.geo
+  )
+end
+
+function change_bgmodel(
+  cut::EmbeddedFacetDiscretization,
+  newmodel::DiscreteModel,
+  facet_to_newfacet=1:num_facets(get_background_model(cut))
+)
+  nfacets = num_facets(newmodel)
+  ls_to_bgf_to_ioc = map(cut.ls_to_facet_to_inoutcut) do bgf_to_ioc
+    new_bgf_to_ioc = Vector{Int8}(undef,nfacets)
+    new_bgf_to_ioc[facet_to_newfacet] = bgf_to_ioc
+    new_bgf_to_ioc
+  end
+  subfacets = change_bgmodel(cut.subfacets,facet_to_newfacet)
+  EmbeddedFacetDiscretization(
+    newmodel,
+    ls_to_bgf_to_ioc,
+    subfacets,
+    cut.ls_to_subfacet_to_inout,
+    cut.oid_to_ls,
+    cut.geo
+  )
+end
+
+function change_bgmodel(cells::SubCellData,cell_to_newcell)
+  cell_to_bgcell = lazy_map(Reindex(cell_to_newcell),cells.cell_to_bgcell)
+  SubCellData(
+    cells.cell_to_points,
+    collect(Int32,cell_to_bgcell),
+    cells.point_to_coords,
+    cells.point_to_rcoords
+  )
+end
+
+function change_bgmodel(facets::SubFacetData,cell_to_newcell)
+  facet_to_bgcell = lazy_map(Reindex(cell_to_newcell),facets.facet_to_bgcell)
+  SubFacetData(
+    facets.facet_to_points,
+    facets.facet_to_normal,
+    collect(Int32,facet_to_bgcell),
+    facets.point_to_coords,
+    facets.point_to_rcoords
+  )
 end
