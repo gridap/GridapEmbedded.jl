@@ -8,8 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added support for distributed level-set geometries. Since PR[#99](https://github.com/gridap/GridapEmbedded.jl/pull/99).
+
+## [0.9.5] - 2024-10-18
+
+### Added
+
 - Adding `compute_redistribute_weights` and `compute_adaptive_flags` functions for load balancing and adaptive mesh refinement, respectively. Since PR [#95](https://github.com/gridap/GridapEmbedded.jl/pull/95).
 
+### Changed
+
+- Updated to Algoim v0.2.2, which runs on Julia 1.11. Since PR [#97](https://github.com/gridap/GridapEmbedded.jl/pull/97).
 
 ## [0.9.4] - 2024-07-09
 
