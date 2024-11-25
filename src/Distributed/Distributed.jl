@@ -26,19 +26,16 @@ using GridapEmbedded.Interfaces: AbstractEmbeddedDiscretization
 using GridapEmbedded.AgFEM: _touch_aggregated_cells!
 using GridapEmbedded.AgFEM: AggregateCutCellsByThreshold
 using GridapEmbedded.MomentFittedQuadratures: MomentFitted
-using Gridap.Geometry: AppendedTriangulation
+using Gridap.Geometry: AppendedTriangulation, TriangulationView
 using Gridap.Geometry: get_face_to_parent_face
 using Gridap.Arrays: find_inverse_index_map, testitem, return_type
 using Gridap.FESpaces: FESpaceWithLinearConstraints
 using Gridap.FESpaces: _dof_to_DOF, _DOF_to_dof
-using GridapDistributed: DistributedDiscreteModel
-using GridapDistributed: DistributedTriangulation
-using GridapDistributed: DistributedFESpace
-using GridapDistributed: DistributedSingleFieldFESpace
-using GridapDistributed: DistributedMeasure
-using GridapDistributed: add_ghost_cells
-using GridapDistributed: generate_gids
-using GridapDistributed: generate_cell_gids
+
+using GridapDistributed: DistributedDiscreteModel, DistributedTriangulation, DistributedMeasure
+using GridapDistributed: DistributedFESpace, DistributedSingleFieldFESpace
+using GridapDistributed: NoGhost, WithGhost, filter_cells_when_needed, add_ghost_cells
+using GridapDistributed: generate_gids, generate_cell_gids
 using GridapDistributed: _find_vector_type
 
 import GridapEmbedded.AgFEM: aggregate
@@ -48,6 +45,7 @@ import GridapEmbedded.Interfaces: cut_facets
 import GridapEmbedded.Interfaces: EmbeddedBoundary
 import GridapEmbedded.Interfaces: compute_bgfacet_to_inoutcut
 import GridapEmbedded.Interfaces: compute_bgcell_to_inoutcut
+import GridapEmbedded.Interfaces: GhostSkeleton
 import GridapEmbedded.CSG: get_geometry
 import GridapEmbedded.LevelSetCutters: discretize, DiscreteGeometry
 import Gridap.Geometry: Triangulation
@@ -60,6 +58,8 @@ import GridapDistributed: remove_ghost_cells
 include("DistributedDiscretizations.jl")
 
 include("DistributedDiscreteGeometries.jl")
+
+include("DistributedSubFacetTriangulations.jl")
 
 include("DistributedAgFEM.jl")
 
