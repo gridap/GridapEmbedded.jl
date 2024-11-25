@@ -52,12 +52,12 @@ function cut_facets(cutter::Cutter,bgmodel::DistributedDiscreteModel{Dc},args...
   DistributedEmbeddedDiscretization(cuts,bgmodel)
 end
 
-# Note on distributed triangulations: 
-# 
-# - We allow for more one argument, `portion`, which allows the user to filter 
-# some of the cells/faces. In particular, this is used to remove ghosts from the 
-# local triangulations. 
-# - The default for `portion` is `NoGhost()`, wich filters out all ghost cells, except 
+# Note on distributed triangulations:
+#
+# - We allow for more one argument, `portion`, which allows the user to filter
+# some of the cells/faces. In particular, this is used to remove ghosts from the
+# local triangulations.
+# - The default for `portion` is `NoGhost()`, wich filters out all ghost cells, except
 # when we have the argument `in_or_out`.
 
 function Triangulation(
@@ -66,7 +66,7 @@ function Triangulation(
   Triangulation(WithGhost(),cutgeo,in_or_out,args...)
 end
 
-for TT in (:Triangulation,:SkeletonTriangulation,:BoundaryTriangulation,:EmbeddedBoundary)
+for TT in (:Triangulation,:SkeletonTriangulation,:BoundaryTriangulation,:EmbeddedBoundary,:GhostSkeleton)
   @eval begin
     function $TT(cutgeo::DistributedEmbeddedDiscretization,args...)
       $TT(NoGhost(),cutgeo,args...)
@@ -122,9 +122,9 @@ end
 
 #     isconsistent_bgcell_to_inoutcut(cut::DistributedEmbeddedDiscretization)
 #     isconsistent_bgcell_to_inoutcut(cuts::AbstractArray{<:AbstractEmbeddedDiscretization},indices)
-# 
-# Returns true if the local `ls_to_bgcell_to_inoutcut` arrays are consistent 
-# accross processors. 
+#
+# Returns true if the local `ls_to_bgcell_to_inoutcut` arrays are consistent
+# accross processors.
 function isconsistent_bgcell_to_inoutcut(
   cut::DistributedEmbeddedDiscretization{Dc}
 ) where Dc
@@ -189,7 +189,7 @@ function compute_bgfacet_to_inoutcut(cutgeo::DistributedEmbeddedDiscretization,a
   end
 end
 
-# AMR 
+# AMR
 
 function compute_redistribute_wights(
   cut::DistributedEmbeddedDiscretization,

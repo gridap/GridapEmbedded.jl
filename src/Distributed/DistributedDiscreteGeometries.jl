@@ -45,7 +45,7 @@ function cut_facets(
   DistributedEmbeddedDiscretization(cuts,bgmodel)
 end
 
-for TT in (:Triangulation,:SkeletonTriangulation,:BoundaryTriangulation,:EmbeddedBoundary)
+for TT in (:Triangulation,:SkeletonTriangulation,:BoundaryTriangulation,:EmbeddedBoundary,:GhostSkeleton)
   @eval begin
     function $TT(portion,cutgeo::DistributedEmbeddedDiscretization,cutinorout,geom::DistributedDiscreteGeometry)
       model = get_background_model(cutgeo)
