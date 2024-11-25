@@ -9,7 +9,7 @@ include("fields_and_blocks_tools.jl")
 include("BulkGhostPenaltyAssembleMaps.jl")
 
 # Manufactured solution
-order = 0
+order = 2
 uex(x) = -VectorValue(2*x[1],2*x[2])
 pex(x) = (x[1]^2 + x[2]^2)
 divuex(x) = -4.0
@@ -230,9 +230,9 @@ edivuh_upstab = divuex-(∇⋅uh_upstab)
 norm_euh_upstab = sum(∫(euh_upstab⋅euh_upstab)*dΩcut)
 norm_eph_upstab = sum(∫(eph_upstab*eph_upstab)*dΩcut)
 norm_edivuh_upstab = sum(∫(edivuh_upstab⋅edivuh_upstab)*dΩcut)
-# k=0 yields euh = 6.3e-31, eph = 0.00055, edivuh = 2.4e-28, κ= 11492
-# k=2 yields euh = 5.3e-22, eph = 3.0e-18, edivuh = 3.0e-18, κ= 1.7e11
-
+# No stabilization (k=0) κ = 1.1e35 vs (k=2) κ = Inf
+# k=0 (n=10) yields euh = 3.0e-28, eph = 0.00055, edivuh = 1.3e-30, κ = 1.4e5
+# k=2 (n=10) yields euh = 1.8e-18, eph = 1.7e-28, edivuh = 7.4e-21, κ= 1.7e13
 
 ## Now add div stabilization to A
 push!(wrc[1], wdivu...)
@@ -252,3 +252,5 @@ edivuh_withstab = divuex-(∇⋅uh_withstab)
 norm_euh_withstab = sum(∫(euh_withstab⋅euh_withstab)*dΩcut)
 norm_eph_withstab = sum(∫(eph_withstab*eph_withstab)*dΩcut)
 norm_edivuh_withstab = sum(∫(edivuh_withstab⋅edivuh_withstab)*dΩcut)
+# k=0 (n=10) yields euh = 1.2e-26, eph = 0.00055, edivuh = 7.0e-29, κ = 1.7e6
+# k=2 (n=10) yields euh = 1.6e-15, eph = 1.7e-28, edivuh = 7.1e-19, κ= 1.8e14
