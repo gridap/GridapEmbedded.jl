@@ -112,7 +112,7 @@ function setup_agg_cells_to_aggregate(aggregate_to_cells)
 end 
     
 function setup_aggregate_to_local_cells(aggregate_to_cells)
-    aggregate_to_local_cells=copy(aggregate_to_cells)
+    aggregate_to_local_cells=deepcopy(aggregate_to_cells)
     current_local_cell=1
     for (i,cells) in enumerate(aggregate_to_local_cells)
         for j in 1:length(cells)
