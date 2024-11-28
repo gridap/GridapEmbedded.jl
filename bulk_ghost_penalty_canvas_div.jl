@@ -13,6 +13,7 @@ order = 2
 uex(x) = -VectorValue(2*x[1],2*x[2])
 pex(x) = (x[1]^2 + x[2]^2)
 divuex(x) = -4.0
+
 # Select geometry
 R = 0.2
 geom = disk(R, x0=Point(0.5,0.5))
@@ -84,14 +85,14 @@ vbb=get_fe_basis(Vbb)
 
 aggregate_to_local_cells=setup_aggregate_to_local_cells(aggregate_to_cells)
 
-p_lhs=set_up_bulk_ghost_penalty_lhs(aggregates_bounding_box_model,
+p_lhs=set_up_bulk_ghost_penalty_lhs(aggregate_to_local_cells,
                                   agg_cells_to_aggregate,
                                   ref_agg_cell_to_ref_bb_map,
                                   dΩagg_cells,
                                   pbb,
                                   qbb)
 
-u_lhs=set_up_bulk_ghost_penalty_lhs(aggregates_bounding_box_model,
+u_lhs=set_up_bulk_ghost_penalty_lhs(aggregate_to_local_cells,
                                   agg_cells_to_aggregate,
                                   ref_agg_cell_to_ref_bb_map,
                                   dΩagg_cells,

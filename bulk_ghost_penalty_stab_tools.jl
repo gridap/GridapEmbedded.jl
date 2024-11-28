@@ -112,6 +112,8 @@ function div_penalty_stabilization_collect_cell_matrix(agg_cells_to_aggregate,
                                                        U_agg_cells_to_aggregate_dof_ids,
                                                        h_U,
                                                        γ)
+    Ωagg_cells=dΩagg_cells.quad.trian
+
     ## +DIVU STABILIZATION 
     ## Compute ∫( (div_dv)*(div_du-div_du_l2_proj_agg_cells))*dΩ_agg_cells (simplified, equivalent version)
     # Manually set up the arrays that collect_cell_matrix would return automatically
@@ -212,7 +214,7 @@ function div_penalty_stabilization_collect_cell_matrix(agg_cells_to_aggregate,
     w,r,c
 end
 
-function set_up_bulk_ghost_penalty_lhs(aggregates_bounding_box_model,
+function set_up_bulk_ghost_penalty_lhs(aggregate_to_local_cells,
     agg_cells_to_aggregate,
     ref_agg_cell_to_ref_bb_map,
     dΩagg_cells,

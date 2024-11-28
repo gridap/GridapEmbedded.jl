@@ -234,7 +234,7 @@ for (i,cells) in enumerate(aggregate_to_local_cells)
     end
 end
 
-function set_up_bulk_ghost_penalty_lhs(aggregates_bounding_box_model,
+function set_up_bulk_ghost_penalty_lhs(aggregate_to_local_cells,
                                        agg_cells_to_aggregate,
                                        ref_agg_cell_to_ref_bb_map,
                                        dΩagg_cells,
@@ -262,14 +262,14 @@ function set_up_bulk_ghost_penalty_lhs(aggregates_bounding_box_model,
     lazy_map(ass_lhs_map,aggregate_to_local_cells)
 end 
 
-p_lhs=set_up_bulk_ghost_penalty_lhs(aggregates_bounding_box_model,
+p_lhs=set_up_bulk_ghost_penalty_lhs(aggregate_to_local_cells,
                                   agg_cells_to_aggregate,
                                   ref_agg_cell_to_ref_bb_map,
                                   dΩagg_cells,
                                   pbb,
                                   qbb)
 
-u_lhs=set_up_bulk_ghost_penalty_lhs(aggregates_bounding_box_model,
+u_lhs=set_up_bulk_ghost_penalty_lhs(aggregate_to_local_cells,
                                   agg_cells_to_aggregate,
                                   ref_agg_cell_to_ref_bb_map,
                                   dΩagg_cells,
