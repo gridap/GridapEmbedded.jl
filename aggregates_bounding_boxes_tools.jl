@@ -36,6 +36,48 @@ function setup_aggregate_to_cells(aggregates)
     end
   end
   aggregate_to_cells
+end
+
+"""
+  Creates an array of arrays with as many entries 
+  as interior cells that are not part of any aggegrate. 
+  For each interior cell, the array 
+  contains the global cell IDs of that cells in the background 
+  model that belong to the same interior cell
+
+  TO-DO: with efficiency in mind we may want to store this 
+         array of arrays as a Gridap.Arrays.Table.
+"""
+function setup_int_nonagg_cell_to_cells(aggregates)
+  
+  size_aggregates=Dict{Int,Int}()
+  for (i,agg) in enumerate(aggregates)
+    if agg>0
+        if !haskey(size_aggregates,agg)
+            size_aggregates[agg]=1
+        else 
+            size_aggregates[agg]+=1
+        end
+    end
+  end   
+
+  touched=Dict{Int,Int}()
+  interior_cell_to_cells=Vector{Vector{Int}}()
+  current_interior_cell=1
+  for (i,agg) in enumerate(aggregates)
+    if agg>0
+        if (size_aggregates[agg]==1)
+            if !haskey(touched,agg)
+                push!(interior_cell_to_cells,[i])
+                touched[agg]=current_interior_cell
+                current_interior_cell+=1
+            else 
+                push!(interior_cell_to_cells[touched[agg]],i)
+            end
+        end 
+    end
+  end
+  interior_cell_to_cells
 end 
 
 function setup_aggregates_bounding_box_model(bgmodel, aggregate_to_cells)
@@ -97,6 +139,52 @@ function setup_agg_cells(aggregate_to_cells)
     end
     return agg_cells
 end
+
+function setup_int_nonagg_cells(int_nonagg_cell_to_cells)
+    # Generate an array with the global IDs of the cells 
+    # that belong to the interior, yet do not belong to the 
+    # aggregate. We will use "int_nonagg_cells" to refer to those 
+    # cells of the background model that belong to the interior 
+    # but are not part of any of the aggregates. Thus, all interior
+    # cells but not including the root cells of the aggregates.
+       int_nonagg_cells=Vector{Int}()
+       for cell in int_nonagg_cell_to_cells
+          append!(int_nonagg_cells,cell)
+       end
+       return int_nonagg_cells
+end
+
+function setup_root_cells(int_cells, int_nonagg_cells)
+    # Generate an array with the global IDs of the cells 
+    # that are the root cells of the aggregrates. 
+    root_cells=Vector{Int}()
+    tester_int_nonagg_cells=Vector{Int}()
+    for cell in int_cells
+        if cell ∈ int_nonagg_cells
+            append!(tester_int_nonagg_cells,cell)
+        else
+            append!(root_cells,cell)
+        end
+    end
+    @assert(tester_int_nonagg_cells==int_nonagg_cells)
+    return root_cells
+end
+
+function setup_cut_cells(agg_cells, root_cells)
+    # Generate an array with the global IDs of the cells 
+    # that are the cut cells of the aggregrates. 
+    cut_cells=Vector{Int}()
+    tester_root_cells=Vector{Int}()
+    for cell in agg_cells
+        if cell ∈ root_cells
+            append!(tester_root_cells,cell)
+        else
+            append!(cut_cells,cell)
+        end
+    end
+    @assert(tester_root_cells==root_cells)
+    cut_cells
+end
     
 function setup_agg_cells_to_aggregate(aggregate_to_cells)
     # Generate an array that given the local ID of an "agg_cell"
@@ -109,8 +197,52 @@ function setup_agg_cells_to_aggregate(aggregate_to_cells)
         end
     end
     agg_cells_to_aggregate 
+end
+
+function setup_cut_cells_in_agg_cells_to_aggregate(aggregate_to_cut_cells)
+    # Generate an array that given the local ID of an "agg_cell"
+    # returns the ID of the aggregate to which it belongs
+    # (i.e., flattened version of aggregate_to_cut_cells)
+    cut_cells_in_agg_cells_to_aggregate=Vector{Int}()
+    for (i,cells) in enumerate(aggregate_to_cut_cells)
+        for _ in cells 
+            push!(cut_cells_in_agg_cells_to_aggregate,i)
+        end
+    end
+    cut_cells_in_agg_cells_to_aggregate 
 end 
-    
+
+function setup_aggregate_to_cut_cells(aggregates, root_cells)
+    size_aggregates=Dict{Int,Int}()
+    for (i,agg) in enumerate(aggregates)
+      if agg>0
+          if !haskey(size_aggregates,agg)
+              size_aggregates[agg]=1
+          else 
+              size_aggregates[agg]+=1
+          end
+      end
+    end   
+  
+    touched=Dict{Int,Int}()
+    aggregate_to_cut_cells=Vector{Vector{Int}}()
+    current_aggregate=1
+    for (i,agg) in enumerate(aggregates)
+      if agg>0
+          if (size_aggregates[agg]>1) && i ∉ root_cells
+              if !haskey(touched,agg)
+                  push!(aggregate_to_cut_cells,[i])
+                  touched[agg]=current_aggregate
+                  current_aggregate+=1
+              else 
+                  push!(aggregate_to_cut_cells[touched[agg]],i)
+              end
+          end 
+      end
+    end
+    aggregate_to_cut_cells
+end 
+
 function setup_aggregate_to_local_cells(aggregate_to_cells)
     aggregate_to_local_cells=deepcopy(aggregate_to_cells)
     current_local_cell=1
