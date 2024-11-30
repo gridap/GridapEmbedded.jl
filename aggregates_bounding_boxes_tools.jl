@@ -344,7 +344,7 @@ function change_domain_bb_to_agg_cells(basis_bb,
 end
 
 """
-  Define mapping ref_agg_cell_to_ref_bb_map: \hat{K} -> K -> bb -> \hat{bb}
+  Define mapping ref_agg_cell_to_ref_bb_map: K_ref -> K -> bb -> bb_ref
 """
 function setup_ref_agg_cell_to_ref_bb_map(aggregates_bounding_box_model,agg_cells_to_aggregate)
     bb_to_ref_bb=lazy_map(Gridap.Fields.inverse_map,get_cell_map(aggregates_bounding_box_model))
