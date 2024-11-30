@@ -40,6 +40,46 @@ end
 
 """
   Creates an array of arrays with as many entries 
+  as aggregates. For each aggregate, the array 
+  contains the global cell IDs of that cut cells in 
+  the background  model that belong to the same aggregate
+
+  TO-DO: with efficiency in mind we may want to store this 
+         array of arrays as a Gridap.Arrays.Table.
+"""
+function setup_aggregate_to_cut_cells(aggregates, root_cells)
+    size_aggregates=Dict{Int,Int}()
+    for (i,agg) in enumerate(aggregates)
+      if agg>0
+          if !haskey(size_aggregates,agg)
+              size_aggregates[agg]=1
+          else 
+              size_aggregates[agg]+=1
+          end
+      end
+    end   
+  
+    touched=Dict{Int,Int}()
+    aggregate_to_cut_cells=Vector{Vector{Int}}()
+    current_aggregate=1
+    for (i,agg) in enumerate(aggregates)
+      if agg>0
+          if (size_aggregates[agg]>1) && i ∉ root_cells
+              if !haskey(touched,agg)
+                  push!(aggregate_to_cut_cells,[i])
+                  touched[agg]=current_aggregate
+                  current_aggregate+=1
+              else 
+                  push!(aggregate_to_cut_cells[touched[agg]],i)
+              end
+          end 
+      end
+    end
+    aggregate_to_cut_cells
+end 
+
+"""
+  Creates an array of arrays with as many entries 
   as interior cells that are not part of any aggegrate. 
   For each interior cell, the array 
   contains the global cell IDs of that cells in the background 
@@ -127,12 +167,16 @@ function setup_aggregates_bounding_box_model(bgmodel, aggregate_to_cells)
     Gridap.Geometry.UnstructuredDiscreteModel(grid)
 end 
 
+"""
+  Generate an array with the global IDs of the cells 
+  that belong to an aggregrate. From now on, we will 
+  use the terminology "agg_cells" to refer to those 
+  cells of the background model that belong to an aggregate 
+  (i.e., they can be either cut or interior cells)
+
+  TO-DO: perhaps merge this function with setup_int_nonagg_cells
+"""
 function setup_agg_cells(aggregate_to_cells)
-    # Generate an array with the global IDs of the cells 
-    # that belong to an aggregrate. From now on, we will 
-    # use the terminology "agg_cells" to refer to those 
-    # cells of the background model that belong to an aggregate 
-    # (i.e., they can be either cut or interior cells)
     agg_cells=Vector{Int}()
     for cells in aggregate_to_cells
         append!(agg_cells,cells)
@@ -140,13 +184,17 @@ function setup_agg_cells(aggregate_to_cells)
     return agg_cells
 end
 
+"""
+  Generate an array with the global IDs of the cells 
+  that belong to the interior, yet do not belong to the 
+  aggregate. We will use "int_nonagg_cells" to refer to those 
+  cells of the background model that belong to the interior 
+  but are not part of any of the aggregates. Thus, all interior
+  cells but not including the root cells of the aggregates.
+
+  TO-DO: perhaps merge this function with setup_agg_cells
+"""
 function setup_int_nonagg_cells(int_nonagg_cell_to_cells)
-    # Generate an array with the global IDs of the cells 
-    # that belong to the interior, yet do not belong to the 
-    # aggregate. We will use "int_nonagg_cells" to refer to those 
-    # cells of the background model that belong to the interior 
-    # but are not part of any of the aggregates. Thus, all interior
-    # cells but not including the root cells of the aggregates.
        int_nonagg_cells=Vector{Int}()
        for cell in int_nonagg_cell_to_cells
           append!(int_nonagg_cells,cell)
@@ -154,9 +202,15 @@ function setup_int_nonagg_cells(int_nonagg_cell_to_cells)
        return int_nonagg_cells
 end
 
+"""
+  Generate an array with the global IDs of the cells 
+  that are the root cells of the aggregrates. 
+
+  TO-DO: perhaps merge this function with setup_cut_cells,
+  e.g. as a function that selects cells from list A which
+  are not part of a list B.
+"""
 function setup_root_cells(int_cells, int_nonagg_cells)
-    # Generate an array with the global IDs of the cells 
-    # that are the root cells of the aggregrates. 
     root_cells=Vector{Int}()
     tester_int_nonagg_cells=Vector{Int}()
     for cell in int_cells
@@ -170,9 +224,15 @@ function setup_root_cells(int_cells, int_nonagg_cells)
     return root_cells
 end
 
+"""
+  Generate an array with the global IDs of the cells 
+  that are the cut cells of the aggregrates. 
+
+  TO-DO: perhaps merge this function with setup_cut_cells, 
+  e.g. as a function that selects cells from list A which 
+  are not part of a list B.
+"""
 function setup_cut_cells(agg_cells, root_cells)
-    # Generate an array with the global IDs of the cells 
-    # that are the cut cells of the aggregrates. 
     cut_cells=Vector{Int}()
     tester_root_cells=Vector{Int}()
     for cell in agg_cells
@@ -185,11 +245,18 @@ function setup_cut_cells(agg_cells, root_cells)
     @assert(tester_root_cells==root_cells)
     cut_cells
 end
+
+"""
+  Generate an array that given the local ID of an "agg_cell"
+  returns the ID of the aggregate to which it belongs
+  (i.e., flattened version of aggregate_to_cells)
     
+  
+  TO-DO: perhaps merge this function with , 
+  setup_cut_cells_in_agg_cells_to_aggregate
+
+"""
 function setup_agg_cells_to_aggregate(aggregate_to_cells)
-    # Generate an array that given the local ID of an "agg_cell"
-    # returns the ID of the aggregate to which it belongs
-    # (i.e., flattened version of aggregate_to_cells)
     agg_cells_to_aggregate=Vector{Int}()
     for (i,cells) in enumerate(aggregate_to_cells)
         for _ in cells 
@@ -199,10 +266,15 @@ function setup_agg_cells_to_aggregate(aggregate_to_cells)
     agg_cells_to_aggregate 
 end
 
+"""
+  Generate an array that given the local ID of an cut "agg_cell"
+  returns the ID of the aggregate to which it belongs
+  (i.e., flattened version of aggregate_to_cut_cells)
+
+  TO-DO: perhaps merge this function with , 
+  setup_agg_cells_to_aggregate
+"""
 function setup_cut_cells_in_agg_cells_to_aggregate(aggregate_to_cut_cells)
-    # Generate an array that given the local ID of an "agg_cell"
-    # returns the ID of the aggregate to which it belongs
-    # (i.e., flattened version of aggregate_to_cut_cells)
     cut_cells_in_agg_cells_to_aggregate=Vector{Int}()
     for (i,cells) in enumerate(aggregate_to_cut_cells)
         for _ in cells 
@@ -212,37 +284,15 @@ function setup_cut_cells_in_agg_cells_to_aggregate(aggregate_to_cut_cells)
     cut_cells_in_agg_cells_to_aggregate 
 end 
 
-function setup_aggregate_to_cut_cells(aggregates, root_cells)
-    size_aggregates=Dict{Int,Int}()
-    for (i,agg) in enumerate(aggregates)
-      if agg>0
-          if !haskey(size_aggregates,agg)
-              size_aggregates[agg]=1
-          else 
-              size_aggregates[agg]+=1
-          end
-      end
-    end   
-  
-    touched=Dict{Int,Int}()
-    aggregate_to_cut_cells=Vector{Vector{Int}}()
-    current_aggregate=1
-    for (i,agg) in enumerate(aggregates)
-      if agg>0
-          if (size_aggregates[agg]>1) && i ∉ root_cells
-              if !haskey(touched,agg)
-                  push!(aggregate_to_cut_cells,[i])
-                  touched[agg]=current_aggregate
-                  current_aggregate+=1
-              else 
-                  push!(aggregate_to_cut_cells[touched[agg]],i)
-              end
-          end 
-      end
-    end
-    aggregate_to_cut_cells
-end 
+"""
+  Renumbers the global cell IDs to local cell IDs in the array of arrays
+  with as many entries as aggregates. For each aggregate, the array 
+  now contains the local cell IDs of that cells in the background 
+  model that belong to the same aggregate
 
+  TO-DO: with efficiency in mind we may want to store this 
+         array of arrays as a Gridap.Arrays.Table.
+"""
 function setup_aggregate_to_local_cells(aggregate_to_cells)
     aggregate_to_local_cells=deepcopy(aggregate_to_cells)
     current_local_cell=1
@@ -293,14 +343,19 @@ function change_domain_bb_to_agg_cells(basis_bb,
                                      ReferenceDomain())
 end
 
+"""
+  Define mapping ref_agg_cell_to_ref_bb_map: \hat{K} -> K -> bb -> \hat{bb}
+"""
 function setup_ref_agg_cell_to_ref_bb_map(aggregates_bounding_box_model,agg_cells_to_aggregate)
-    # ref_agg_cell_to_ref_bb_map: \hat{K} -> K -> bb -> \hat{bb}
     bb_to_ref_bb=lazy_map(Gridap.Fields.inverse_map,get_cell_map(aggregates_bounding_box_model))
     bb_to_ref_bb_agg_cells=lazy_map(Reindex(bb_to_ref_bb),agg_cells_to_aggregate)  
     ref_agg_cell_to_ref_bb_map=
       lazy_map(Broadcasting(∘),bb_to_ref_bb_agg_cells,ref_agg_cell_to_agg_cell_map)
 end
 
+"""
+  Compute local dof ids of the aggregated cells
+"""
 function compute_agg_cells_local_dof_ids(agg_cells_dof_ids, aggregate_to_agg_cells)
     agg_cells_local_dof_ids=copy(agg_cells_dof_ids)
     current_cell=1
@@ -325,6 +380,9 @@ function compute_agg_cells_local_dof_ids(agg_cells_dof_ids, aggregate_to_agg_cel
     agg_cells_local_dof_ids
 end
 
+"""
+  Returns the dof ids for the aggregates
+"""
 function compute_aggregate_dof_ids(agg_cells_dof_ids, aggregate_to_agg_cells)
     aggregate_dof_ids=Vector{Vector{Int}}(undef, length(aggregate_to_agg_cells))
     current_aggregate=1
