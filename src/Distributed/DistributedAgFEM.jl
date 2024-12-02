@@ -3,7 +3,8 @@ function AgFEMSpace(
   bgmodel::DistributedDiscreteModel,
   f::DistributedFESpace,
   bgcell_to_bgcellin::AbstractArray{<:AbstractVector},
-  g::DistributedFESpace=f)
+  g::DistributedFESpace=f,
+  reffeg=nothing)
 
   bgmodel_gids = get_cell_gids(bgmodel)
   spaces = map(
@@ -11,7 +12,9 @@ function AgFEMSpace(
     bgcell_to_bgcellin,
     local_views(g),
     local_views(bgmodel_gids)) do f,bgcell_to_bgcellin,g,gids
-      AgFEMSpace(f,bgcell_to_bgcellin,g,local_to_global(gids))
+      get_triangulation(f) === get_triangulation(g) ? 
+        _g = g : _g = FESpace(get_triangulation(f),reffeg,conformity=:L2)
+      AgFEMSpace(f,bgcell_to_bgcellin,_g,local_to_global(gids))
   end
   trians = map(get_triangulation,local_views(f))
   trian = DistributedTriangulation(trians,bgmodel)

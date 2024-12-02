@@ -57,14 +57,16 @@ function main(distribute,parts;n=4,cells=(n,n),order=2)
   # @show √(∑( ∫( 1.0 )dΓ  ))
 
   reffeᵘ = ReferenceFE(lagrangian,VectorValue{2,Float64},order)
+  reffeˢ = ReferenceFE(lagrangian,VectorValue{2,Float64},order,space=:S)
   reffeᵖ = ReferenceFE(lagrangian,Float64,order-1,space=:P)
   reffeˡ = ReferenceFE(lagrangian,Float64,order-2,space=:P)
 
   Vstdᵘ = TestFESpace(Ωᵃ,reffeᵘ)
   Vstdᵖ = TestFESpace(Ωᵃ,reffeᵖ)
-  Vstdˡ = TestFESpace(model,reffeˡ)
-  
-  Vᵘ = AgFEMSpace(model,Vstdᵘ,aggregates)
+
+  Vserᵘ = TestFESpace(Ωᵃ,reffeˢ,conformity=:L2)
+
+  Vᵘ = AgFEMSpace(model,Vstdᵘ,aggregates,Vserᵘ,reffeˢ)
   Vᵖ = AgFEMSpace(model,Vstdᵖ,aggregates)
   Vˡ = Vstdˡ
 
