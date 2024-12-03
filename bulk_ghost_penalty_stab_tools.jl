@@ -674,3 +674,284 @@ function div_penalty_stabilization_collect_cell_matrix_on_cut_cells_full(agg_cel
 
     w, r, c
 end
+
+## Create collect function on cut cells only
+"""
+  dv, du: Test and trial basis functions. They may be components of a MultiFieldCellField
+
+  # Compute and assemble the bulk penalty stabilization term
+  # ∫( (div_dv)*(dp-dp_l2_proj_agg_cells))*dΩ_cut_cells (reduced)
+    ##### ∫( (div_dv-div_dv_l2_proj_agg_cells)*(dp-dp_l2_proj_agg_cells))*dΩ_cut_cells (full form, not implented here)
+
+"""
+function pmix_penalty_stabilization_collect_cell_matrix_on_cut_cells(agg_cells_to_aggregate,
+                                                              ref_agg_cell_to_ref_bb_map,
+                                                              dΩbg_agg_cells,
+                                                              dq,    # Test basis
+                                                              dp,    # Trial basis (to project)
+                                                              dqbb,  # Bounding box space test basis
+                                                              p_lhs,
+                                                              U_Ωbg_cut_cell_dof_ids,
+                                                              P_Ωbg_cut_cell_dof_ids,
+                                                              P_agg_cells_local_dof_ids,
+                                                              P_cut_cells_to_aggregate_dof_ids,
+                                                              γ,
+                                                              dΩbg_cut_cells,
+                                                              dv) 
+
+
+    Ωbg_agg_cells=dΩbg_agg_cells.quad.trian
+
+    ## (I) Compute projections dq_l2_proj_agg_cells & dp_l2_proj_agg_cells
+    # Change domain of qbb (test) from Ωbb to Ωagg_cells
+    dqbb_Ωbg_agg_cells=change_domain_bb_to_agg_cells(dqbb,
+                                                  ref_agg_cell_to_ref_bb_map,
+                                                  Ωbg_agg_cells,
+                                                  agg_cells_to_aggregate)             
+
+    dp_single_field=_get_single_field_fe_basis(dp)                                              
+    agg_cells_rhs_contribs=get_array(∫(dqbb_Ωbg_agg_cells⋅dp_single_field)dΩbg_agg_cells)
+    ass_rhs_map=BulkGhostPenaltyAssembleRhsMap(P_agg_cells_local_dof_ids,agg_cells_rhs_contribs)
+    rhs=lazy_map(ass_rhs_map,aggregate_to_local_cells)
+
+    # TO-DO: optimize using our own optimized version Gridap.Fields.Map 
+    # of backslash that re-uses storage for lu factors among cells, etc.
+    dq_l2_proj_bb_dofs=lazy_map(\,p_lhs,rhs)
+
+    # Generate bb-wise array of fields. For each aggregate's bounding box,
+    # it provides the l2 projection of all basis functions in dp 
+    # restricted to the cells included in the bounding box of the aggregate   
+    dq_l2_proj_bb_array=lazy_map(Gridap.Fields.linear_combination,
+                                dq_l2_proj_bb_dofs,
+                                Gridap.CellData.get_data(dqbb))
+
+    # # Change domain of dq_l2_proj_bb_array from bb to agg_cells
+    dq_l2_proj_bb_array_agg_cells=lazy_map(Broadcasting(∘),
+                                           lazy_map(Reindex(dq_l2_proj_bb_array),agg_cells_to_aggregate),
+                                           ref_agg_cell_to_ref_bb_map)
+
+    dp_l2_proj_bb_array_agg_cells=lazy_map(transpose, dq_l2_proj_bb_array_agg_cells)
+    
+    if (_is_multifield_fe_basis_component(dp))
+        @assert _is_multifield_fe_basis_component(dq)
+        @assert _nfields(dp)==_nfields(dq)
+        nfields=_nfields(dp)
+        fieldid=_fieldid(dp)
+        dp_l2_proj_bb_array_agg_cells=lazy_map(
+                                    Gridap.Fields.BlockMap((1,nfields),fieldid),
+                                    dp_l2_proj_bb_array_agg_cells)
+    end
+
+    # if (_is_multifield_fe_basis_component(dq))
+    #     @assert _is_multifield_fe_basis_component(dq)
+    #     @assert _nfields(dp)==_nfields(dq)
+    #     nfields=_nfields(dq)
+    #     fieldid=_fieldid(dq)
+    #     dq_l2_proj_bb_array_agg_cells=lazy_map(
+    #                                 Gridap.Fields.BlockMap(nfields,fieldid),
+    #                                 dq_l2_proj_bb_array_agg_cells)
+    #  end 
+
+    dp_l2_proj_agg_cells = Gridap.CellData.GenericCellField(dp_l2_proj_bb_array_agg_cells, Ωbg_agg_cells,ReferenceDomain()) 
+    # dq_l2_proj_agg_cells = Gridap.CellData.GenericCellField(dq_l2_proj_bb_array_agg_cells, Ωbg_agg_cells,ReferenceDomain()) 
+
+    # BlockMap preparatory steps for the dof ids
+    if (_is_multifield_fe_basis_component(dq))
+        nfields=_nfields(dq)
+        fieldid=_fieldid(dq)
+        P_Ωbg_cut_cell_dof_ids=lazy_map(Gridap.Fields.BlockMap(nfields,fieldid),P_Ωbg_cut_cell_dof_ids)
+    end
+
+    if (_is_multifield_fe_basis_component(dp))
+        nfields=_nfields(dp)
+        fieldid=_fieldid(dp)
+        P_cut_cells_to_aggregate_dof_ids=
+        lazy_map(Gridap.Fields.BlockMap(nfields,fieldid),P_cut_cells_to_aggregate_dof_ids)
+    end
+
+    if (_is_multifield_fe_basis_component(dv))
+        nfields=_nfields(dv)
+        fieldid=_fieldid(dv)
+        U_Ωbg_cut_cell_dof_ids=lazy_map(Gridap.Fields.BlockMap(nfields,fieldid),U_Ωbg_cut_cell_dof_ids)
+    end
+
+    # Manually set up the arrays that collect_cell_matrix would return automatically
+    w = []
+    r = []
+    c = []
+
+    ## (1) div_dv*dp term
+    # div_dv_Ωagg_cells=Gridap.CellData.change_domain(∇⋅dv,Ωbg_agg_cells,ReferenceDomain()) 
+    # div_dv_dp_mat_contribs=get_array(∫(γ*div_dv_Ωagg_cells⋅dp)*dΩbg_cut_cells)
+    div_dv_dp_mat_contribs=get_array(∫(γ*(∇⋅dv)⋅dp)*dΩbg_cut_cells)
+
+    push!(w, div_dv_dp_mat_contribs)
+    push!(r, U_Ωbg_cut_cell_dof_ids) 
+    push!(c, P_Ωbg_cut_cell_dof_ids)
+
+    ## (2) div_dv*proj_dp term
+    div_dv_Ωagg_cells=Gridap.CellData.change_domain(∇⋅dv,Ωbg_agg_cells,ReferenceDomain()) 
+    div_dv_proj_dp_mat_contribs=get_array(∫(γ*(-1.0)*div_dv_Ωagg_cells⋅(dp_l2_proj_agg_cells))*dΩbg_cut_cells)
+
+    push!(w, div_dv_proj_dp_mat_contribs)    
+    push!(r, U_Ωbg_cut_cell_dof_ids) 
+    push!(c, P_cut_cells_to_aggregate_dof_ids)
+
+    # ## (3) proj_dq*proj_dp
+    # proj_dq_proj_dp_mat_contribs=get_array(∫(γ*dq_l2_proj_agg_cells⋅(dp_l2_proj_agg_cells))*dΩbg_cut_cells)
+
+    # push!(w, proj_dq_proj_dp_mat_contribs)
+    # push!(r, cut_cells_to_aggregate_dof_ids) 
+    # push!(c, cut_cells_to_aggregate_dof_ids)
+
+    # ## (4) proj_dq*dp
+    # dpΩagg_cells=Gridap.CellData.change_domain(dp,Ωbg_agg_cells,ReferenceDomain())
+    # proj_dq_dp_mat_contribs=get_array(∫(-γ*dq_l2_proj_agg_cells⋅dpΩagg_cells)*dΩbg_cut_cells)
+
+    # push!(w, proj_dq_dp_mat_contribs)
+    # push!(r, cut_cells_to_aggregate_dof_ids) 
+    # push!(c, Ωbg_cut_cell_dof_ids)
+
+    w, r, c
+end
+
+## Create collect function on cut cells only
+"""
+  dv, du: Test and trial basis functions. They may be components of a MultiFieldCellField
+
+  # Compute and assemble the bulk penalty stabilization term
+  # ∫( (div_dv)*(dp-dp_l2_proj_agg_cells))*dΩ_cut_cells (reduced)
+    ##### ∫( (div_dv-div_dv_l2_proj_agg_cells)*(dp-dp_l2_proj_agg_cells))*dΩ_cut_cells (full form, not implented here)
+
+"""
+function dmix_penalty_stabilization_collect_cell_matrix_on_cut_cells(agg_cells_to_aggregate,
+                                                              ref_agg_cell_to_ref_bb_map,
+                                                              dΩbg_agg_cells,
+                                                              dq,    # Test basis
+                                                              dp,    # Trial basis (to project)
+                                                              dqbb,  # Bounding box space test basis
+                                                              p_lhs,
+                                                              U_Ωbg_cut_cell_dof_ids,
+                                                              P_Ωbg_cut_cell_dof_ids,
+                                                              P_agg_cells_local_dof_ids,
+                                                              P_cut_cells_to_aggregate_dof_ids,
+                                                              γ,
+                                                              dΩbg_cut_cells,
+                                                              du) 
+
+
+    Ωbg_agg_cells=dΩbg_agg_cells.quad.trian
+
+    ## (I) Compute projections dq_l2_proj_agg_cells & dp_l2_proj_agg_cells
+    # Change domain of qbb (test) from Ωbb to Ωagg_cells
+    dqbb_Ωbg_agg_cells=change_domain_bb_to_agg_cells(dqbb,
+                                                  ref_agg_cell_to_ref_bb_map,
+                                                  Ωbg_agg_cells,
+                                                  agg_cells_to_aggregate)             
+
+    dp_single_field=_get_single_field_fe_basis(dp)                                              
+    agg_cells_rhs_contribs=get_array(∫(dqbb_Ωbg_agg_cells⋅dp_single_field)dΩbg_agg_cells)
+    ass_rhs_map=BulkGhostPenaltyAssembleRhsMap(P_agg_cells_local_dof_ids,agg_cells_rhs_contribs)
+    rhs=lazy_map(ass_rhs_map,aggregate_to_local_cells)
+
+    # TO-DO: optimize using our own optimized version Gridap.Fields.Map 
+    # of backslash that re-uses storage for lu factors among cells, etc.
+    dq_l2_proj_bb_dofs=lazy_map(\,p_lhs,rhs)
+
+    # Generate bb-wise array of fields. For each aggregate's bounding box,
+    # it provides the l2 projection of all basis functions in dp 
+    # restricted to the cells included in the bounding box of the aggregate   
+    dq_l2_proj_bb_array=lazy_map(Gridap.Fields.linear_combination,
+                                dq_l2_proj_bb_dofs,
+                                Gridap.CellData.get_data(dqbb))
+
+    # # Change domain of dq_l2_proj_bb_array from bb to agg_cells
+    dq_l2_proj_bb_array_agg_cells=lazy_map(Broadcasting(∘),
+                                           lazy_map(Reindex(dq_l2_proj_bb_array),agg_cells_to_aggregate),
+                                           ref_agg_cell_to_ref_bb_map)
+
+    # dp_l2_proj_bb_array_agg_cells=lazy_map(transpose, dq_l2_proj_bb_array_agg_cells)
+    
+    # if (_is_multifield_fe_basis_component(dp))
+    #     @assert _is_multifield_fe_basis_component(dq)
+    #     @assert _nfields(dp)==_nfields(dq)
+    #     nfields=_nfields(dp)
+    #     fieldid=_fieldid(dp)
+    #     dp_l2_proj_bb_array_agg_cells=lazy_map(
+    #                                 Gridap.Fields.BlockMap((1,nfields),fieldid),
+    #                                 dp_l2_proj_bb_array_agg_cells)
+    # end
+
+    if (_is_multifield_fe_basis_component(dq))
+        @assert _is_multifield_fe_basis_component(dq)
+        @assert _nfields(dp)==_nfields(dq)
+        nfields=_nfields(dq)
+        fieldid=_fieldid(dq)
+        dq_l2_proj_bb_array_agg_cells=lazy_map(
+                                    Gridap.Fields.BlockMap(nfields,fieldid),
+                                    dq_l2_proj_bb_array_agg_cells)
+     end 
+
+    # dp_l2_proj_agg_cells = Gridap.CellData.GenericCellField(dp_l2_proj_bb_array_agg_cells, Ωbg_agg_cells,ReferenceDomain()) 
+    dq_l2_proj_agg_cells = Gridap.CellData.GenericCellField(dq_l2_proj_bb_array_agg_cells, Ωbg_agg_cells,ReferenceDomain()) 
+
+    # BlockMap preparatory steps for the dof ids
+    if (_is_multifield_fe_basis_component(dq))
+        nfields=_nfields(dq)
+        fieldid=_fieldid(dq)
+        P_Ωbg_cut_cell_dof_ids=lazy_map(Gridap.Fields.BlockMap(nfields,fieldid),P_Ωbg_cut_cell_dof_ids)
+    end
+
+    if (_is_multifield_fe_basis_component(dp))
+        nfields=_nfields(dp)
+        fieldid=_fieldid(dp)
+        P_cut_cells_to_aggregate_dof_ids=
+        lazy_map(Gridap.Fields.BlockMap(nfields,fieldid),P_cut_cells_to_aggregate_dof_ids)
+    end
+
+    if (_is_multifield_fe_basis_component(du))
+        nfields=_nfields(du)
+        fieldid=_fieldid(du)
+        U_Ωbg_cut_cell_dof_ids=lazy_map(Gridap.Fields.BlockMap(nfields,fieldid),U_Ωbg_cut_cell_dof_ids)
+    end
+
+    # Manually set up the arrays that collect_cell_matrix would return automatically
+    w = []
+    r = []
+    c = []
+
+    ## (1) div_du*dq term
+    # div_dv_Ωagg_cells=Gridap.CellData.change_domain(∇⋅dv,Ωbg_agg_cells,ReferenceDomain()) 
+    # div_dv_dp_mat_contribs=get_array(∫(γ*div_dv_Ωagg_cells⋅dp)*dΩbg_cut_cells)
+    div_dv_dp_mat_contribs=get_array(∫(γ*(∇⋅du)⋅dq)*dΩbg_cut_cells)
+
+    push!(w, div_dv_dp_mat_contribs)
+    push!(r, P_Ωbg_cut_cell_dof_ids) 
+    push!(c, U_Ωbg_cut_cell_dof_ids)
+
+    ## (2) div_du*proj_dq term
+    div_du_Ωagg_cells=Gridap.CellData.change_domain(∇⋅du,Ωbg_agg_cells,ReferenceDomain()) 
+    div_dv_proj_dp_mat_contribs=get_array(∫(γ*(-1.0)*div_du_Ωagg_cells⋅(dq_l2_proj_agg_cells))*dΩbg_cut_cells)
+
+    push!(w, div_dv_proj_dp_mat_contribs)    
+    push!(r, P_cut_cells_to_aggregate_dof_ids)
+    push!(c, U_Ωbg_cut_cell_dof_ids) 
+
+
+    # ## (3) proj_dq*proj_dp
+    # proj_dq_proj_dp_mat_contribs=get_array(∫(γ*dq_l2_proj_agg_cells⋅(dp_l2_proj_agg_cells))*dΩbg_cut_cells)
+
+    # push!(w, proj_dq_proj_dp_mat_contribs)
+    # push!(r, cut_cells_to_aggregate_dof_ids) 
+    # push!(c, cut_cells_to_aggregate_dof_ids)
+
+    # ## (4) proj_dq*dp
+    # dpΩagg_cells=Gridap.CellData.change_domain(dp,Ωbg_agg_cells,ReferenceDomain())
+    # proj_dq_dp_mat_contribs=get_array(∫(-γ*dq_l2_proj_agg_cells⋅dpΩagg_cells)*dΩbg_cut_cells)
+
+    # push!(w, proj_dq_dp_mat_contribs)
+    # push!(r, cut_cells_to_aggregate_dof_ids) 
+    # push!(c, Ωbg_cut_cell_dof_ids)
+
+    w, r, c
+end
