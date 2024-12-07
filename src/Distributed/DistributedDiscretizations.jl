@@ -86,18 +86,19 @@ function SkeletonTriangulation(cutgeo::DistributedEmbeddedDiscretization,args...
   remove_ghost_cells(trian)
 end
 
-function BoundaryTriangulation(cutgeo::DistributedEmbeddedDiscretization,args...)
-  trian = distributed_embedded_triangulation(BoundaryTriangulation,cutgeo,args...)
+function BoundaryTriangulation(cutgeo::DistributedEmbeddedDiscretization,args...;kwargs...)
+  trian = distributed_embedded_triangulation(BoundaryTriangulation,cutgeo,args...;kwargs...)
   remove_ghost_cells(trian)
 end
 
 function distributed_embedded_triangulation(
   T,
   cutgeo::DistributedEmbeddedDiscretization,
-  args...)
+  args...;
+  kwargs...)
 
   trians = map(local_views(cutgeo)) do lcutgeo
-    T(lcutgeo,args...)
+    T(lcutgeo,args...;kwargs...)
   end
   bgmodel = get_background_model(cutgeo)
   DistributedTriangulation(trians,bgmodel)
