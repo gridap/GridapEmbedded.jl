@@ -361,7 +361,6 @@ vec_wr=Gridap.FESpaces.collect_cell_vector(Y,l(dy))
 push!(vec_wr[1],vecw_dmix...)
 push!(vec_wr[2],vecr_dmix...)
 vec_b = assemble_vector(assem, vec_wr)
-# res_nostab = compute_quantities(A,vec_b,dΩ)
 
 # NO STAB
 wrc=Gridap.FESpaces.collect_cell_matrix(X,Y,a(dx,dy))
@@ -375,13 +374,6 @@ push!(wrc[2], ru...)
 push!(wrc[3], cu...)
 A = assemble_matrix(assem, wrc)
 res_stab_u = compute_quantities(A,b,dΩ)
-
-wrc=Gridap.FESpaces.collect_cell_matrix(X,Y,a(dx,dy))
-push!(wrc[1], wp[1])
-push!(wrc[2], rp[1])
-push!(wrc[3], cp[1])
-A = assemble_matrix(assem, wrc)
-res_stab_p1 = compute_quantities(A,b,dΩ)
 
 # ONLY U FULL
 wrc=Gridap.FESpaces.collect_cell_matrix(X,Y,a(dx,dy))
