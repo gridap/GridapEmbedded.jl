@@ -80,6 +80,56 @@ end
 
 """
   Creates an array of arrays with as many entries 
+  as aggregates. For each aggregate, the array 
+  contains the global cell IDs of that cut cells in 
+  the background  model that belong to the same aggregate
+
+  TO-DO: with efficiency in mind we may want to store this 
+         array of arrays as a Gridap.Arrays.Table.
+"""
+function revised_setup_aggregate_to_cut_cells(aggregates, root_cells)
+    size_aggregates=Dict{Int,Int}()
+    for (i,agg) in enumerate(aggregates)
+      if agg>0
+          if !haskey(size_aggregates,agg)
+              size_aggregates[agg]=1
+          else 
+              size_aggregates[agg]+=1
+          end
+      end
+    end   
+  
+    touched=Dict{Int,Int}()
+    aggregate_to_cut_cells=Vector{Vector{Int}}()
+    current_aggregate=1
+    for (i,agg) in enumerate(aggregates)
+        # println("i=$i, agg=$agg")
+        if agg>0
+            if (size_aggregates[agg]>1)
+                if !haskey(touched,agg)
+                    if i ∉ root_cells
+                        push!(aggregate_to_cut_cells,[i])
+                    else
+                        push!(aggregate_to_cut_cells,[])
+                    end
+                    touched[agg]=current_aggregate
+                    current_aggregate+=1
+                else 
+                    if i ∉ root_cells
+                        push!(aggregate_to_cut_cells[touched[agg]],i)
+                    end
+                end
+            end 
+        end
+    # println("touched = $touched")
+    # println("current agg = $current_aggregate, $aggregate_to_cut_cells")
+    end
+    aggregate_to_cut_cells
+end 
+
+
+"""
+  Creates an array of arrays with as many entries 
   as interior cells that are not part of any aggegrate. 
   For each interior cell, the array 
   contains the global cell IDs of that cells in the background 
