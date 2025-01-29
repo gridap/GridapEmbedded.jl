@@ -12,7 +12,7 @@ include("BulkGhostPenaltyAssembleMaps.jl")
 problem = 1 # 0 = Manufactured solution (L2-like projection), 1 = Darcy problem 
 
 # Manufactured solution
-order = 2
+order  = 0
 uex(x) = -VectorValue(2*x[1],2*x[2])
 pex(x) = (x[1]^2 + x[2]^2)
 divuex(x) = -4.0
@@ -20,9 +20,9 @@ divuex(x) = -4.0
 # Select geometry
 nint = 3    # number of (uncut) interior elements along single direction 
 # cut length
-ε    = 0.2/2.0   # not so small cut (nint = 3)
-# ε    = 0.2e-2/2.0  # smaller cut (nint = 3)
-# ε    = 0.2e-6/2.0  # smallest cut (nint = 3)
+ε    = 0.2/2.0     # not so small cut
+# ε    = 0.2e-2/2.0  # smaller cut
+# ε    = 0.2e-6/2.0  # smallest cut
 pmin = Point(0.0,0.0)
 pmax = Point(1.0,1.0)
 function setup_geometry(nint, ε, pmin, pmax)
@@ -372,7 +372,7 @@ vecw_dmix, vecr_dmix = dmix_penalty_stabilization_collect_cell_vector_on_cut_cel
    P_cut_cells_to_aggregate_dof_ids,
    γ,
    dΩbg_cut_cells,
-   divuex(1.0)) 
+   divuex) 
 
 ## WEAK FORM
 if problem==0
@@ -521,7 +521,6 @@ wrc=Gridap.FESpaces.collect_cell_matrix(X,Y,a(dx,dy))
 push!(wrc[1], wu_full...)
 push!(wrc[2], ru_full...)
 push!(wrc[3], cu_full...)
-
 push!(wrc[1], wdiv_full...)
 push!(wrc[2], rdiv_full...)
 push!(wrc[3], cdiv_full...)

@@ -983,7 +983,7 @@ function dmix_penalty_stabilization_collect_cell_vector_on_cut_cells(agg_cells_t
 
     Ωbg_agg_cells=dΩbg_agg_cells.quad.trian
 
-    ## (I) Compute projections dq_l2_proj_agg_cells & dp_l2_proj_agg_cells
+    ## Compute projections dq_l2_proj_agg_cells & dp_l2_proj_agg_cells
     # Change domain of qbb (test) from Ωbb to Ωagg_cells
     dqbb_Ωbg_agg_cells=change_domain_bb_to_agg_cells(dqbb,
                                                   ref_agg_cell_to_ref_bb_map,
@@ -1011,18 +1011,6 @@ function dmix_penalty_stabilization_collect_cell_vector_on_cut_cells(agg_cells_t
                                            lazy_map(Reindex(dq_l2_proj_bb_array),agg_cells_to_aggregate),
                                            ref_agg_cell_to_ref_bb_map)
 
-    # dp_l2_proj_bb_array_agg_cells=lazy_map(transpose, dq_l2_proj_bb_array_agg_cells)
-    
-    # if (_is_multifield_fe_basis_component(dp))
-    #     @assert _is_multifield_fe_basis_component(dq)
-    #     @assert _nfields(dp)==_nfields(dq)
-    #     nfields=_nfields(dp)
-    #     fieldid=_fieldid(dp)
-    #     dp_l2_proj_bb_array_agg_cells=lazy_map(
-    #                                 Gridap.Fields.BlockMap((1,nfields),fieldid),
-    #                                 dp_l2_proj_bb_array_agg_cells)
-    # end
-
     if (_is_multifield_fe_basis_component(dq))
         @assert _is_multifield_fe_basis_component(dq)
         @assert _nfields(dp)==_nfields(dq)
@@ -1033,7 +1021,6 @@ function dmix_penalty_stabilization_collect_cell_vector_on_cut_cells(agg_cells_t
                                     dq_l2_proj_bb_array_agg_cells)
      end 
 
-    # dp_l2_proj_agg_cells = Gridap.CellData.GenericCellField(dp_l2_proj_bb_array_agg_cells, Ωbg_agg_cells,ReferenceDomain()) 
     dq_l2_proj_agg_cells = Gridap.CellData.GenericCellField(dq_l2_proj_bb_array_agg_cells, Ωbg_agg_cells,ReferenceDomain()) 
 
     # BlockMap preparatory steps for the dof ids
@@ -1055,17 +1042,13 @@ function dmix_penalty_stabilization_collect_cell_vector_on_cut_cells(agg_cells_t
     r = []
 
     ## (1) rhs_g*dq term
-    # div_dv_Ωagg_cells=Gridap.CellData.change_domain(∇⋅dv,Ωbg_agg_cells,ReferenceDomain()) 
-    # div_dv_dp_mat_contribs=get_array(∫(γ*div_dv_Ωagg_cells⋅dp)*dΩbg_cut_cells)
-    #TODO: γ*(rhs_g_func) does not work 
-    rhs_g_dp_mat_contribs=get_array(∫((rhs_g_func)⋅dq*γ)*dΩbg_cut_cells)
+    rhs_g_dp_mat_contribs=get_array(∫((rhs_g_func⋅dq)*γ)*dΩbg_cut_cells)
 
     push!(w, rhs_g_dp_mat_contribs)
     push!(r, P_Ωbg_cut_cell_dof_ids) 
 
     # (2) div_du*proj_dq term
-    rhs_g_proj_dp_mat_contribs=get_array(∫((rhs_g_func)⋅(dq_l2_proj_agg_cells)*γ*(-1.0))*dΩbg_cut_cells)
-    # # rhs_g_proj_dp_mat_contribs=get_array(∫((dq_l2_proj_agg_cells)*γ*(-1.0))*dΩbg_cut_cells)
+    rhs_g_proj_dp_mat_contribs=get_array(∫((rhs_g_func⋅dq_l2_proj_agg_cells)*γ*(-1.0))*dΩbg_cut_cells)
 
     push!(w, rhs_g_proj_dp_mat_contribs)    
     push!(r, P_cut_cells_to_aggregate_dof_ids)
