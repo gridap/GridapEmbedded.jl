@@ -39,136 +39,47 @@ function setup_aggregate_to_cells(aggregates)
 end
 
 """
-  Creates an array of arrays with as many entries 
-  as aggregates. For each aggregate, the array 
-  contains the global cell IDs of that cut cells in 
-  the background  model that belong to the same aggregate
-
-  TO-DO: with efficiency in mind we may want to store this 
-         array of arrays as a Gridap.Arrays.Table.
-"""
-function setup_aggregate_to_cut_cells(aggregates, root_cells)
-    size_aggregates=Dict{Int,Int}()
-    for (i,agg) in enumerate(aggregates)
-      if agg>0
-          if !haskey(size_aggregates,agg)
-              size_aggregates[agg]=1
-          else 
-              size_aggregates[agg]+=1
-          end
-      end
-    end   
-  
-    touched=Dict{Int,Int}()
-    aggregate_to_cut_cells=Vector{Vector{Int}}()
-    current_aggregate=1
-    for (i,agg) in enumerate(aggregates)
-      if agg>0
-          if (size_aggregates[agg]>1) && i ∉ root_cells
-              if !haskey(touched,agg)
-                  push!(aggregate_to_cut_cells,[i])
-                  touched[agg]=current_aggregate
-                  current_aggregate+=1
-              else 
-                  push!(aggregate_to_cut_cells[touched[agg]],i)
-              end
-          end 
-      end
-    end
-    aggregate_to_cut_cells
-end 
+  Creates an array containing the cell IDs of a selection of the background cells. The cell type filter IN (-1) selects the interior cells, OUT (1) the exterior cells, and GridapEmbedded.Interfaces.CUT (0) the cut cells.
+  TO-DO: publish CUT, so that GridapEmbedded.Interfaces.CUT can be shortened to CUT?
+  TO-DO: be careful with using restrict_cells(cutgeo,GridapEmbedded.Interfaces.CUT) to replace flatten(restrict_aggregate_to_cells(cutgeo,aggregate_to_cells,GridapEmbedded.Interfaces.CUT))
 
 """
-  Creates an array of arrays with as many entries 
-  as aggregates. For each aggregate, the array 
-  contains the global cell IDs of that cut cells in 
-  the background  model that belong to the same aggregate
-
-  TO-DO: with efficiency in mind we may want to store this 
-         array of arrays as a Gridap.Arrays.Table.
-"""
-function revised_setup_aggregate_to_cut_cells(aggregates, root_cells)
-    size_aggregates=Dict{Int,Int}()
-    for (i,agg) in enumerate(aggregates)
-      if agg>0
-          if !haskey(size_aggregates,agg)
-              size_aggregates[agg]=1
-          else 
-              size_aggregates[agg]+=1
-          end
-      end
-    end   
-  
-    touched=Dict{Int,Int}()
-    aggregate_to_cut_cells=Vector{Vector{Int}}()
-    current_aggregate=1
-    for (i,agg) in enumerate(aggregates)
-        # println("i=$i, agg=$agg")
-        if agg>0
-            if (size_aggregates[agg]>1)
-                if !haskey(touched,agg)
-                    if i ∉ root_cells
-                        push!(aggregate_to_cut_cells,[i])
-                    else
-                        push!(aggregate_to_cut_cells,[])
-                    end
-                    touched[agg]=current_aggregate
-                    current_aggregate+=1
-                else 
-                    if i ∉ root_cells
-                        push!(aggregate_to_cut_cells[touched[agg]],i)
-                    end
-                end
-            end 
-        end
-    # println("touched = $touched")
-    # println("current agg = $current_aggregate, $aggregate_to_cut_cells")
-    end
-    aggregate_to_cut_cells
-end 
-
-
-"""
-  Creates an array of arrays with as many entries 
-  as interior cells that are not part of any aggegrate. 
-  For each interior cell, the array 
-  contains the global cell IDs of that cells in the background 
-  model that belong to the same interior cell
-
-  TO-DO: with efficiency in mind we may want to store this 
-         array of arrays as a Gridap.Arrays.Table.
-"""
-function setup_int_nonagg_cell_to_cells(aggregates)
-  
-  size_aggregates=Dict{Int,Int}()
-  for (i,agg) in enumerate(aggregates)
-    if agg>0
-        if !haskey(size_aggregates,agg)
-            size_aggregates[agg]=1
-        else 
-            size_aggregates[agg]+=1
-        end
-    end
-  end   
-
-  touched=Dict{Int,Int}()
-  interior_cell_to_cells=Vector{Vector{Int}}()
-  current_interior_cell=1
-  for (i,agg) in enumerate(aggregates)
-    if agg>0
-        if (size_aggregates[agg]==1)
-            if !haskey(touched,agg)
-                push!(interior_cell_to_cells,[i])
-                touched[agg]=current_interior_cell
-                current_interior_cell+=1
-            else 
-                push!(interior_cell_to_cells[touched[agg]],i)
-            end
-        end 
+function restrict_cells(cutgeo,cell_type_filter)
+  restricted_cells=Int64[]
+  cell_to_inoutcut=compute_bgcell_to_inoutcut(cutgeo,cutgeo.geo)
+  for cell in 1:length(cell_to_inoutcut)
+    if cell_to_inoutcut[cell] == cell_type_filter
+        push!(restricted_cells, cell)
     end
   end
-  interior_cell_to_cells
-end 
+  restricted_cells
+end
+
+"""
+  Creates an array of arrays with as many entries 
+  as aggregates. For each aggregate, the array 
+  contains a selection of the global cell IDs of 
+  the cells in the background model that belong to 
+  the same aggregate. The cell type filter IN (-1)
+  selects the interior cells, OUT (1) the exterior
+  cells, and GridapEmbedded.Interfaces.CUT (0) the
+  cut cells.
+  TO-DO: publish CUT, so that GridapEmbedded.Interfaces.CUT can be shortened to CUT?
+"""
+function restrict_aggregate_to_cells(cutgeo,aggregate_to_cells,cell_type_filter)
+  aggregate_to_restricted_cells=Vector{Int}[]
+  cell_to_inoutcut=compute_bgcell_to_inoutcut(cutgeo,cutgeo.geo)
+  for agg in aggregate_to_cells
+    restricted_cells = Int64[]
+    for cell in agg
+        if cell_to_inoutcut[cell] == cell_type_filter
+            push!(restricted_cells, cell)
+        end
+    end
+    push!(aggregate_to_restricted_cells,restricted_cells)
+  end
+  aggregate_to_restricted_cells
+end
 
 function setup_aggregates_bounding_box_model(bgmodel, aggregate_to_cells)
     g=get_grid(bgmodel)
@@ -218,83 +129,11 @@ function setup_aggregates_bounding_box_model(bgmodel, aggregate_to_cells)
 end 
 
 """
-  Generate an array with the global IDs of the cells 
-  that belong to an aggregrate. From now on, we will 
-  use the terminology "agg_cells" to refer to those 
-  cells of the background model that belong to an aggregate 
-  (i.e., they can be either cut or interior cells)
-
-  TO-DO: perhaps merge this function with setup_int_nonagg_cells
+  Flattens an array of arrays
 """
-function setup_agg_cells(aggregate_to_cells)
-    agg_cells=Vector{Int}()
-    for cells in aggregate_to_cells
-        append!(agg_cells,cells)
-    end
-    return agg_cells
-end
-
-"""
-  Generate an array with the global IDs of the cells 
-  that belong to the interior, yet do not belong to the 
-  aggregate. We will use "int_nonagg_cells" to refer to those 
-  cells of the background model that belong to the interior 
-  but are not part of any of the aggregates. Thus, all interior
-  cells but not including the root cells of the aggregates.
-
-  TO-DO: perhaps merge this function with setup_agg_cells
-"""
-function setup_int_nonagg_cells(int_nonagg_cell_to_cells)
-       int_nonagg_cells=Vector{Int}()
-       for cell in int_nonagg_cell_to_cells
-          append!(int_nonagg_cells,cell)
-       end
-       return int_nonagg_cells
-end
-
-"""
-  Generate an array with the global IDs of the cells 
-  that are the root cells of the aggregrates. 
-
-  TO-DO: perhaps merge this function with setup_cut_cells,
-  e.g. as a function that selects cells from list A which
-  are not part of a list B.
-"""
-function setup_root_cells(int_cells, int_nonagg_cells)
-    root_cells=Vector{Int}()
-    tester_int_nonagg_cells=Vector{Int}()
-    for cell in int_cells
-        if cell ∈ int_nonagg_cells
-            append!(tester_int_nonagg_cells,cell)
-        else
-            append!(root_cells,cell)
-        end
-    end
-    @assert(tester_int_nonagg_cells==int_nonagg_cells)
-    return root_cells
-end
-
-"""
-  Generate an array with the global IDs of the cells 
-  that are the cut cells of the aggregrates. 
-
-  TO-DO: perhaps merge this function with setup_cut_cells, 
-  e.g. as a function that selects cells from list A which 
-  are not part of a list B.
-"""
-function setup_cut_cells(agg_cells, root_cells)
-    cut_cells=Vector{Int}()
-    tester_root_cells=Vector{Int}()
-    for cell in agg_cells
-        if cell ∈ root_cells
-            append!(tester_root_cells,cell)
-        else
-            append!(cut_cells,cell)
-        end
-    end
-    @assert(tester_root_cells==root_cells)
-    cut_cells
-end
+function flatten(array_of_arrays)
+    vcat(array_of_arrays...)
+ end
 
 """
   Generate an array that given the local ID of an "agg_cell"
@@ -306,33 +145,15 @@ end
   setup_cut_cells_in_agg_cells_to_aggregate
 
 """
-function setup_agg_cells_to_aggregate(aggregate_to_cells)
-    agg_cells_to_aggregate=Vector{Int}()
+function setup_cells_to_aggregate(aggregate_to_cells)
+    cells_to_aggregate=Vector{Int}()
     for (i,cells) in enumerate(aggregate_to_cells)
         for _ in cells 
-            push!(agg_cells_to_aggregate,i)
+            push!(cells_to_aggregate,i)
         end
     end
-    agg_cells_to_aggregate 
+    cells_to_aggregate 
 end
-
-"""
-  Generate an array that given the local ID of an cut "agg_cell"
-  returns the ID of the aggregate to which it belongs
-  (i.e., flattened version of aggregate_to_cut_cells)
-
-  TO-DO: perhaps merge this function with , 
-  setup_agg_cells_to_aggregate
-"""
-function setup_cut_cells_in_agg_cells_to_aggregate(aggregate_to_cut_cells)
-    cut_cells_in_agg_cells_to_aggregate=Vector{Int}()
-    for (i,cells) in enumerate(aggregate_to_cut_cells)
-        for _ in cells 
-            push!(cut_cells_in_agg_cells_to_aggregate,i)
-        end
-    end
-    cut_cells_in_agg_cells_to_aggregate 
-end 
 
 """
   Renumbers the global cell IDs to local cell IDs in the array of arrays

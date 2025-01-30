@@ -57,13 +57,11 @@ function setup_geometry(nint, ε, pmin, pmax)
 
    bgmodel, cutgeo, h
 end
-bgmodel, cutgeo, h = setup_geometry(nint, ε, pmin, pmax)
+bgmodel, cutgeo, h= setup_geometry(nint, ε, pmin, pmax)
 
-# Compute mapping among background model 
-# cut cells and interior cells 
-strategy = AggregateAllCutCells()
-aggregates = aggregate(strategy,cutgeo)
-
+# Setup aggregates
+strategy  = AggregateAllCutCells()
+aggregates= aggregate(strategy,cutgeo)
 aggregate_to_cells=setup_aggregate_to_cells(aggregates)
 aggregates_bounding_box_model=
        setup_aggregates_bounding_box_model(bgmodel,aggregate_to_cells)
@@ -77,10 +75,9 @@ aggregates_bounding_box_model=
 degree=2*2*(order+1)
 dΩ = Measure(Ω,degree)
 
-## (1) FIND ALL INTERIOR CELLS WHICH ARE NOT PART OF AN AGGREGATE
-int_nonagg_cell_to_cells = setup_int_nonagg_cell_to_cells(aggregates)
-int_nonagg_cells = setup_int_nonagg_cells(int_nonagg_cell_to_cells)
-@assert length(int_nonagg_cells)>0 # otherwise we can not constrain a dof
+# Setup agg cells and triangulation
+agg_cells    =flatten(aggregate_to_cells) #[CLEAN]: replaced setup_agg_cells
+Ωbg_agg_cells=view(Ωbg,agg_cells)
 
 # Pressure space
 if problem==0
@@ -88,9 +85,9 @@ if problem==0
 elseif problem==1
    # Set up zero-mean pressure space, with fixed interior dof
    Qnzm = FESpace(Ωact, ReferenceFE(lagrangian,Float64,order), conformity=:L2)
-   @assert nint>2 
-   int_nonagg_dof_to_fix = int_nonagg_cells[1] # pick the first interior cell that is not part of an aggregate to be constrained by the zero mean pressure condition.
-   spaceWithConstantFixed = Gridap.FESpaces.FESpaceWithConstantFixed(Qnzm,true,int_nonagg_dof_to_fix)
+   int_cells = restrict_cells(cutgeo,IN) #TODO: this dof may belong to an aggregate (root cell)
+   nonagg_int_cell = int_cells[findfirst(!in(agg_cells),int_cells)]
+   spaceWithConstantFixed = Gridap.FESpaces.FESpaceWithConstantFixed(Qnzm,true,nonagg_int_cell)
    Qzm_vol_i = assemble_vector(v->∫(v)*dΩ,Qnzm)
    Qzm_vol = sum(Qzm_vol_i)
    Q     = Gridap.FESpaces.ZeroMeanFESpace(spaceWithConstantFixed,Qzm_vol_i,Qzm_vol)
@@ -107,13 +104,9 @@ dy    = get_fe_basis(Y)
 du,dp = dx  
 dv,dq = dy 
 
-# Aggregate cells and triangulation
-agg_cells    =setup_agg_cells(aggregate_to_cells)
-Ωbg_agg_cells=view(Ωbg,agg_cells)
-
 # ref_agg_cell_to_agg_cell_map: \hat{K} -> K 
 ref_agg_cell_to_agg_cell_map=get_cell_map(Ωbg_agg_cells)
-agg_cells_to_aggregate      =setup_agg_cells_to_aggregate(aggregate_to_cells)
+agg_cells_to_aggregate      =setup_cells_to_aggregate(aggregate_to_cells)
 ref_agg_cell_to_ref_bb_map  =setup_ref_agg_cell_to_ref_bb_map(aggregates_bounding_box_model,
                                                             agg_cells_to_aggregate)
 
@@ -173,31 +166,24 @@ h_U = 1.0
 ### STABILIZATION ON Ωagg\Troot ###
 ###########################################
 
-## (2) FIND THE INTERIOR CELLS
-Ω_agg_cells = view(Ω,agg_cells)            # cells in aggregates
-int_cells   = Ω_agg_cells.parent.b.tface_to_mface 
-
-## (3) FIND THE INTERIOR AGGREGATE (/ROOT) CELLS AND CUT CELLS 
-root_cells = setup_root_cells(int_cells, int_nonagg_cells)
-cut_cells  = setup_cut_cells(agg_cells, root_cells)
-
-## (4) CUT CELLS AND MEASURE
-Ωbg_cut_cells   = view(Ωbg,cut_cells)            # cut cells (part of aggregate)
+# Setup cut cells and triangulation
+aggregate_to_cut_cells = restrict_aggregate_to_cells(cutgeo,aggregate_to_cells,GridapEmbedded.Interfaces.CUT)
+cut_cells = flatten(aggregate_to_cut_cells)
+#TO-DO: look into why cut_cells  = restrict_cells(cutgeo,GridapEmbedded.Interfaces.CUT) can not be used instead of the above
+Ωbg_cut_cells   = view(Ωbg,cut_cells)
 dΩbg_cut_cells  = Measure(Ωbg_cut_cells,degree)
 
-# (5) DOF IDS related to cut cells
+# Selecting relevant global dofs ids of cut cells (from background mesh)
 Ωbg_cut_cell_dof_ids   = get_cell_dof_ids(X,Ωbg_cut_cells)
 U_Ωbg_cut_cell_dof_ids = _restrict_to_block(Ωbg_cut_cell_dof_ids, 1) 
 P_Ωbg_cut_cell_dof_ids = _restrict_to_block(Ωbg_cut_cell_dof_ids, 2)
 
-# (6) Defining cut_cells_to_aggregate_dof_ids
-# aggregate_to_cut_cells = setup_aggregate_to_cut_cells(aggregates, root_cells)
-aggregate_to_cut_cells = revised_setup_aggregate_to_cut_cells(aggregates, root_cells)
-cut_cells_in_agg_cells_to_aggregate = setup_cut_cells_in_agg_cells_to_aggregate(aggregate_to_cut_cells)
-U_cut_cells_to_aggregate_dof_ids=lazy_map(Reindex(U_aggregate_dof_ids),cut_cells_in_agg_cells_to_aggregate)
-P_cut_cells_to_aggregate_dof_ids=lazy_map(Reindex(P_aggregate_dof_ids),cut_cells_in_agg_cells_to_aggregate)
+# Compute global dofs ids per aggregate and reindex these 
+cut_cells_to_aggregate = setup_cells_to_aggregate(aggregate_to_cut_cells)
+U_cut_cells_to_aggregate_dof_ids=lazy_map(Reindex(U_aggregate_dof_ids),cut_cells_to_aggregate)
+P_cut_cells_to_aggregate_dof_ids=lazy_map(Reindex(P_aggregate_dof_ids),cut_cells_to_aggregate)
 
-# (7) Compute stabilization terms for u and p 
+# Compute stabilization terms for u and p 
 wu,ru,cu=bulk_ghost_penalty_stabilization_collect_cell_matrix_on_cut_cells(agg_cells_to_aggregate,
                                                         ref_agg_cell_to_ref_bb_map,
                                                         dΩbg_agg_cells,
