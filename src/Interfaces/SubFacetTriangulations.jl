@@ -33,14 +33,17 @@ struct SubFacetTriangulation{Dc,Dp,T,A} <: Triangulation{Dc,Dp}
     A = typeof(bgmodel)
     new{Dc,Dp,T,A}(subfacets,bgmodel,subgrid)
   end
+  function SubFacetTriangulation(
+    subfacets::SubFacetData{Dp,T},bgmodel::AdaptedDiscreteModel) where {Dp,T}
+    Dc = Dp-1
+    subgrid = UnstructuredGrid(subfacets)
+    A = typeof(bgmodel.model)
+    new{Dc,Dp,T,A}(subfacets,bgmodel,subgrid)
+  end
 end
 
 function get_background_model(a::SubFacetTriangulation)
-  if isa(a.bgmodel,AdaptedDiscreteModel)
-    get_background_model(a.bgmodel)
-  else
-    a.bgmodel
-  end
+  a.bgmodel
 end
 
 function get_active_model(a::SubFacetTriangulation)

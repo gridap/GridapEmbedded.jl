@@ -28,14 +28,16 @@ struct SubCellTriangulation{Dc,Dp,T,A} <: Triangulation{Dc,Dp}
     A = typeof(bgmodel)
     new{Dc,Dp,T,A}(subcells,bgmodel,subgrid)
   end
+  function SubCellTriangulation(
+    subcells::SubCellData{Dc,Dp,T},bgmodel::AdaptedDiscreteModel) where {Dc,Dp,T}
+    subgrid = UnstructuredGrid(subcells)
+    A = typeof(bgmodel.model)
+    new{Dc,Dp,T,A}(subcells,bgmodel,subgrid)
+  end
 end
 
 function get_background_model(a::SubCellTriangulation)
-  if isa(a.bgmodel,AdaptedDiscreteModel)
-    get_background_model(a.bgmodel)
-  else
-    a.bgmodel
-  end
+  a.bgmodel
 end
 
 function get_active_model(a::SubCellTriangulation)
