@@ -95,7 +95,7 @@ function remove_ghost_cells(trian::AppendedTriangulation,gids)
   lazy_append(a,b)
 end
 
-function remove_ghost_cells(trian::Union{SubFacetTriangulation,SubFacetBoundaryTriangulation}{Df,Dc},gids) where {Df,Dc}
+function remove_ghost_cells(trian::Union{SubFacetTriangulation{Df,Dc},SubFacetBoundaryTriangulation{Df,Dc}},gids) where {Df,Dc}
   glue  = get_glue(trian,Val{Dc}())
   remove_ghost_cells(glue,trian,gids)
 end
