@@ -33,13 +33,10 @@ struct SubFacetTriangulation{Dc,Dp,T,A} <: Triangulation{Dc,Dp}
     A = typeof(bgmodel)
     new{Dc,Dp,T,A}(subfacets,bgmodel,subgrid)
   end
-  function SubFacetTriangulation(
-    subfacets::SubFacetData{Dp,T},bgmodel::AdaptedDiscreteModel) where {Dp,T}
-    Dc = Dp-1
-    subgrid = UnstructuredGrid(subfacets)
-    A = typeof(bgmodel.model)
-    new{Dc,Dp,T,A}(subfacets,bgmodel,subgrid)
-  end
+end
+
+function SubFacetTriangulation(subfacets::SubFacetData,bgmodel::AdaptedDiscreteModel) 
+  SubFacetTriangulation(subfacets,bgmodel.model)
 end
 
 function get_background_model(a::SubFacetTriangulation)
