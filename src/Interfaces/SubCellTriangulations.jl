@@ -31,7 +31,11 @@ struct SubCellTriangulation{Dc,Dp,T,A} <: Triangulation{Dc,Dp}
 end
 
 function get_background_model(a::SubCellTriangulation)
-  a.bgmodel
+  if isa(a.bgmodel,AdaptedDiscreteModel)
+    get_background_model(a.bgmodel)
+  else
+    a.bgmodel
+  end
 end
 
 function get_active_model(a::SubCellTriangulation)
