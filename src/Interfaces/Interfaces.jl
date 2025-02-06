@@ -7,6 +7,7 @@ using Gridap.ReferenceFEs
 using Gridap.Geometry
 using Gridap.CellData
 using Gridap.Visualization
+using Gridap.Adaptivity
 
 import GridapEmbedded.CSG: get_geometry
 import Gridap.Geometry: UnstructuredGrid
