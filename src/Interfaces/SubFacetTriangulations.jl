@@ -35,9 +35,9 @@ struct SubFacetTriangulation{Dc,Dp,T,A} <: Triangulation{Dc,Dp}
   end
 end
 
-# function SubFacetTriangulation(subfacets::SubFacetData,bgmodel::AdaptedDiscreteModel) 
-#   SubFacetTriangulation(subfacets,bgmodel.model)
-# end
+function SubFacetTriangulation(subfacets::SubFacetData,bgmodel::AdaptedDiscreteModel) 
+  SubFacetTriangulation(subfacets,bgmodel.model)
+end
 
 function get_background_model(a::SubFacetTriangulation)
   a.bgmodel
