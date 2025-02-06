@@ -30,6 +30,7 @@ using Gridap.CellData
 using Gridap.Polynomials
 using Gridap.Visualization
 using Gridap.FESpaces
+using Gridap.Adaptivity
 
 export LevelSetCutter
 export AnalyticalGeometry
@@ -62,6 +63,12 @@ function cut(cutter::LevelSetCutter,background::DiscreteModel,geom)
   EmbeddedDiscretization(background, data..., geom)
 end
 
+function cut(cutter::LevelSetCutter,background::AdaptedDiscreteModel,geom)
+  background = get_model(background)
+  data = _cut_ls(background,geom)
+  EmbeddedDiscretization(background, data..., geom)
+end
+
 function cut(background::DiscreteModel,geom::AnalyticalGeometry)
   cutter = LevelSetCutter()
   cut(cutter,background,geom)
@@ -86,6 +93,12 @@ function _cut_ls(grid::Grid,geom)
 end
 
 function cut_facets(cutter::LevelSetCutter,background::DiscreteModel,geom)
+  data = _cut_ls_facets(background,geom)
+  EmbeddedFacetDiscretization(background, data..., geom)
+end
+
+function cut_facets(cutter::LevelSetCutter,background::AdaptedDiscreteModel,geom)
+  background = get_model(background)
   data = _cut_ls_facets(background,geom)
   EmbeddedFacetDiscretization(background, data..., geom)
 end
