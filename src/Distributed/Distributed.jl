@@ -11,6 +11,7 @@ using Gridap.Geometry
 using Gridap.Helpers
 using Gridap.ReferenceFEs
 using Gridap.FESpaces
+using Gridap.Adaptivity
 
 using PartitionedArrays: VectorFromDict
 
