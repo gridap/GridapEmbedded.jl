@@ -653,3 +653,11 @@ function change_bgmodel(facets::SubFacetData,cell_to_newcell)
     facets.point_to_rcoords
   )
 end
+
+function change_bgmodel(cut::EmbeddedDiscretization,newmodel::AdaptedDiscreteModel)
+  change_bgmodel(cut,newmodel.model)
+end 
+
+function change_bgmodel(cut::EmbeddedFacetDiscretization,newmodel::AdaptedDiscreteModel)
+  change_bgmodel(cut,newmodel.model)
+end 
