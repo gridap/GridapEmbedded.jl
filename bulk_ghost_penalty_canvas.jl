@@ -85,9 +85,11 @@ if problem==0
 elseif problem==1
    # Set up zero-mean pressure space, with fixed interior dof
    Qnzm = FESpace(Ωact, ReferenceFE(lagrangian,Float64,order), conformity=:L2)
-   int_cells = restrict_cells(cutgeo,IN) #TODO: this dof may belong to an aggregate (root cell)
-   nonagg_int_cell = int_cells[findfirst(!in(agg_cells),int_cells)]
-   spaceWithConstantFixed = Gridap.FESpaces.FESpaceWithConstantFixed(Qnzm,true,nonagg_int_cell)
+   int_cells = restrict_cells(cutgeo,IN) # global (background mesh') cell identifiers of interior cells 
+   nonagg_int_cell = int_cells[findfirst(!in(agg_cells),int_cells)]   # cell identifier (background mesh) of first interior cell not in aggregate
+   local_id = findfirst(isequal(nonagg_int_cell),Ωact.tface_to_mface) # local (active mesh') cell id of interior cell not in aggregate
+   dof_to_fix = get_cell_dof_ids(Qnzm)[local_id][1]
+   spaceWithConstantFixed = Gridap.FESpaces.FESpaceWithConstantFixed(Qnzm,true,Int64(dof_to_fix)) 
    Qzm_vol_i = assemble_vector(v->∫(v)*dΩ,Qnzm)
    Qzm_vol = sum(Qzm_vol_i)
    Q     = Gridap.FESpaces.ZeroMeanFESpace(spaceWithConstantFixed,Qzm_vol_i,Qzm_vol)
