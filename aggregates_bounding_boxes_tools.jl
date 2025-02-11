@@ -245,7 +245,6 @@ function compute_agg_cells_local_dof_ids(agg_cells_dof_ids, aggregate_to_agg_cel
                 end 
             end 
             current_cell+=1
-            println(agg_cells_local_dof_ids)
         end
     end
     agg_cells_local_dof_ids
