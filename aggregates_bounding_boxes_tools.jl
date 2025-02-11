@@ -217,7 +217,7 @@ end
 """
   Define mapping ref_agg_cell_to_ref_bb_map: K_ref -> K -> bb -> bb_ref
 """
-function setup_ref_agg_cell_to_ref_bb_map(aggregates_bounding_box_model,agg_cells_to_aggregate)
+function setup_ref_agg_cell_to_ref_bb_map(aggregates_bounding_box_model,agg_cells_to_aggregate,ref_agg_cell_to_agg_cell_map)
     bb_to_ref_bb=lazy_map(Gridap.Fields.inverse_map,get_cell_map(aggregates_bounding_box_model))
     bb_to_ref_bb_agg_cells=lazy_map(Reindex(bb_to_ref_bb),agg_cells_to_aggregate)  
     ref_agg_cell_to_ref_bb_map=

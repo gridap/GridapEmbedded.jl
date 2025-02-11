@@ -110,7 +110,7 @@ dv,dq = dy
 ref_agg_cell_to_agg_cell_map=get_cell_map(Ωbg_agg_cells)
 agg_cells_to_aggregate      =setup_cells_to_aggregate(aggregate_to_cells)
 ref_agg_cell_to_ref_bb_map  =setup_ref_agg_cell_to_ref_bb_map(aggregates_bounding_box_model,
-                                                            agg_cells_to_aggregate)
+                                                            agg_cells_to_aggregate,ref_agg_cell_to_agg_cell_map)
 
 # Spaces on bounding boxes                                                            
 reffeₚ_bb =ReferenceFE(lagrangian,Float64,order) 
