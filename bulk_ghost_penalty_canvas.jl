@@ -186,7 +186,8 @@ U_cut_cells_to_aggregate_dof_ids=lazy_map(Reindex(U_aggregate_dof_ids),cut_cells
 P_cut_cells_to_aggregate_dof_ids=lazy_map(Reindex(P_aggregate_dof_ids),cut_cells_to_aggregate)
 
 # Compute stabilization terms for u and p 
-wu,ru,cu=bulk_ghost_penalty_stabilization_collect_cell_matrix_on_cut_cells(agg_cells_to_aggregate,
+wu,ru,cu=bulk_ghost_penalty_stabilization_collect_cell_matrix_on_cut_cells(aggregate_to_local_cells,
+                                                        agg_cells_to_aggregate,
                                                         ref_agg_cell_to_ref_bb_map,
                                                         dΩbg_agg_cells,
                                                         dv,    # Test basis
@@ -199,7 +200,8 @@ wu,ru,cu=bulk_ghost_penalty_stabilization_collect_cell_matrix_on_cut_cells(agg_c
                                                         γ,
                                                         dΩbg_cut_cells)                           
 
-wp,rp,cp=bulk_ghost_penalty_stabilization_collect_cell_matrix_on_cut_cells(agg_cells_to_aggregate,
+wp,rp,cp=bulk_ghost_penalty_stabilization_collect_cell_matrix_on_cut_cells(aggregate_to_local_cells,
+                                                        agg_cells_to_aggregate,
                                                         ref_agg_cell_to_ref_bb_map,
                                                         dΩbg_agg_cells,
                                                         dq,    # Test basis
@@ -212,7 +214,8 @@ wp,rp,cp=bulk_ghost_penalty_stabilization_collect_cell_matrix_on_cut_cells(agg_c
                                                         γ,
                                                         dΩbg_cut_cells)                                                           
 #DIV stabilization part
-wdiv, rdiv, cdiv = div_penalty_stabilization_collect_cell_matrix_on_cut_cells(agg_cells_to_aggregate,
+wdiv, rdiv, cdiv = div_penalty_stabilization_collect_cell_matrix_on_cut_cells(aggregate_to_local_cells,
+                                                            agg_cells_to_aggregate,
                                                             ref_agg_cell_to_ref_bb_map,
                                                             dΩbg_agg_cells,
                                                             dv,    # Test basisr
@@ -226,7 +229,8 @@ wdiv, rdiv, cdiv = div_penalty_stabilization_collect_cell_matrix_on_cut_cells(ag
                                                             dΩbg_cut_cells)
 
 ## FULL stabilization terms:
-wu_full,ru_full,cu_full=bulk_ghost_penalty_stabilization_collect_cell_matrix_on_cut_cells_full(agg_cells_to_aggregate,
+wu_full,ru_full,cu_full=bulk_ghost_penalty_stabilization_collect_cell_matrix_on_cut_cells_full(aggregate_to_local_cells,
+                                                        agg_cells_to_aggregate,
                                                         ref_agg_cell_to_ref_bb_map,
                                                         dΩbg_agg_cells,
                                                         dv,    # Test basis
@@ -239,7 +243,8 @@ wu_full,ru_full,cu_full=bulk_ghost_penalty_stabilization_collect_cell_matrix_on_
                                                         γ,
                                                         dΩbg_cut_cells)                           
 
-wp_full,rp_full,cp_full=bulk_ghost_penalty_stabilization_collect_cell_matrix_on_cut_cells_full(agg_cells_to_aggregate,
+wp_full,rp_full,cp_full=bulk_ghost_penalty_stabilization_collect_cell_matrix_on_cut_cells_full(aggregate_to_local_cells,
+                                                        agg_cells_to_aggregate,
                                                         ref_agg_cell_to_ref_bb_map,
                                                         dΩbg_agg_cells,
                                                         dq,    # Test basis
@@ -252,7 +257,8 @@ wp_full,rp_full,cp_full=bulk_ghost_penalty_stabilization_collect_cell_matrix_on_
                                                         γ,
                                                         dΩbg_cut_cells)   
 
-wdiv_full, rdiv_full, cdiv_full = div_penalty_stabilization_collect_cell_matrix_on_cut_cells_full(agg_cells_to_aggregate,
+wdiv_full, rdiv_full, cdiv_full = div_penalty_stabilization_collect_cell_matrix_on_cut_cells_full(aggregate_to_local_cells,
+                                                        agg_cells_to_aggregate,
                                                         ref_agg_cell_to_ref_bb_map,
                                                         dΩbg_agg_cells,
                                                         dv,    # Test basis
@@ -266,7 +272,8 @@ wdiv_full, rdiv_full, cdiv_full = div_penalty_stabilization_collect_cell_matrix_
                                                         dΩbg_cut_cells)
 
 # MIXED STAB TERMS
-wpmix, rpmix, cpmix = pmix_penalty_stabilization_collect_cell_matrix_on_cut_cells(agg_cells_to_aggregate,
+wpmix, rpmix, cpmix = pmix_penalty_stabilization_collect_cell_matrix_on_cut_cells(aggregate_to_local_cells,
+                                                               agg_cells_to_aggregate,
                                                                ref_agg_cell_to_ref_bb_map,
                                                                dΩbg_agg_cells,
                                                                dq,    # Test basis
@@ -281,7 +288,8 @@ wpmix, rpmix, cpmix = pmix_penalty_stabilization_collect_cell_matrix_on_cut_cell
                                                                dΩbg_cut_cells,
                                                                dv) 
 
-wdmix, rdmix, cdmix = dmix_penalty_stabilization_collect_cell_matrix_on_cut_cells(agg_cells_to_aggregate,
+wdmix, rdmix, cdmix = dmix_penalty_stabilization_collect_cell_matrix_on_cut_cells(aggregate_to_local_cells,
+                                                               agg_cells_to_aggregate,
                                                                ref_agg_cell_to_ref_bb_map,
                                                                dΩbg_agg_cells,
                                                                dq,    # Test basis
@@ -348,7 +356,7 @@ end
 
 ## RHS STAB
 # rhs_g = divuex # TODO: pass function on rather than constant value!!!!!
-vecw_dmix, vecr_dmix = dmix_penalty_stabilization_collect_cell_vector_on_cut_cells(agg_cells_to_aggregate,
+vecw_dmix, vecr_dmix = dmix_penalty_stabilization_collect_cell_vector_on_cut_cells(aggregate_to_local_cells,agg_cells_to_aggregate,
    ref_agg_cell_to_ref_bb_map,
    dΩbg_agg_cells,
    dq,    # Test basis

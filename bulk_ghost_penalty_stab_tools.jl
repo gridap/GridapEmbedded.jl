@@ -5,7 +5,8 @@
   # ∫( (dv-dv_l2_proj_agg_cells)*(du-du_l2_proj_agg_cells))*dΩ_agg_cells (long version)
   # ∫( (dv)*(du-du_l2_proj_agg_cells))*dΩ_agg_cells (simplified, equivalent version)
 """
-function bulk_ghost_penalty_stabilization_collect_cell_matrix(agg_cells_to_aggregate,
+function bulk_ghost_penalty_stabilization_collect_cell_matrix(aggregate_to_local_cells,
+                                                              agg_cells_to_aggregate,
                                                               ref_agg_cell_to_ref_bb_map,
                                                               dΩagg_cells,
                                                               dv,    # Test basis
@@ -107,7 +108,8 @@ end
   # Compute and assemble the bulk penalty stabilization term
   # ∫( (dv)*(du-du_l2_proj_agg_cells))*dΩ_cut_cells
 """
-function bulk_ghost_penalty_stabilization_collect_cell_matrix_on_cut_cells(agg_cells_to_aggregate,
+function bulk_ghost_penalty_stabilization_collect_cell_matrix_on_cut_cells(aggregate_to_local_cells,
+                                                              agg_cells_to_aggregate,
                                                               ref_agg_cell_to_ref_bb_map,
                                                               dΩbg_agg_cells,
                                                               dv,    # Test basis
@@ -208,7 +210,8 @@ end
   # Compute and assemble the bulk penalty stabilization term
   # ∫( (dv-dv_l2_proj_agg_cells)*(du-du_l2_proj_agg_cells))*dΩ_cut_cells
 """
-function bulk_ghost_penalty_stabilization_collect_cell_matrix_on_cut_cells_full(agg_cells_to_aggregate,
+function bulk_ghost_penalty_stabilization_collect_cell_matrix_on_cut_cells_full(aggregate_to_local_cells,
+                                                              agg_cells_to_aggregate,
                                                               ref_agg_cell_to_ref_bb_map,
                                                               dΩbg_agg_cells,
                                                               dv,    # Test basis
@@ -333,7 +336,8 @@ function bulk_ghost_penalty_stabilization_collect_cell_matrix_on_cut_cells_full(
     w, r, c
 end
 
-function div_penalty_stabilization_collect_cell_matrix(agg_cells_to_aggregate,
+function div_penalty_stabilization_collect_cell_matrix(aggregate_to_local_cells,
+                                                       agg_cells_to_aggregate,
                                                        ref_agg_cell_to_ref_bb_map,
                                                        dΩagg_cells,
                                                        dv,    # Test basis
@@ -366,31 +370,6 @@ function div_penalty_stabilization_collect_cell_matrix(agg_cells_to_aggregate,
     push!(w, div_dv_div_du_mat_contribs)
     push!(r, U_Ωagg_cell_dof_ids)
     push!(c, U_Ωagg_cell_dof_ids)
-
-    ## Set up  ∫( (div_dv)*(-div_du_l2_proj_agg_cells))*dΩ_agg_cells
-    # div_dv=∇⋅(_get_single_field_fe_basis(dv))
-    # pdofs=Gridap.FESpaces.get_fe_dof_basis(P)
-    # div_dv_pdofs_values=pdofs(div_dv)
-    # div_dv_in_pressure_space_cell_array=lazy_map(Gridap.Fields.linear_combination,
-    #                         div_dv_pdofs_values,
-    #                         Gridap.CellData.get_data(_get_single_field_fe_basis(dq)))
-    # div_dv_in_pressure_space_single_field= Gridap.FESpaces.SingleFieldFEBasis(div_dv_in_pressure_space_cell_array,
-    #                                             get_triangulation(P),
-    #                                             Gridap.FESpaces.TestBasis(),
-    #                                             Gridap.CellData.ReferenceDomain())
-    # div_dv_in_pressure_space=Gridap.MultiField.MultiFieldFEBasisComponent(div_dv_in_pressure_space_single_field,1,2)
-
-    # div_du_in_pressure_space_cell_array=lazy_map(transpose,div_dv_in_pressure_space_cell_array)
-    # div_du_in_pressure_space_single_field=Gridap.FESpaces.SingleFieldFEBasis(div_du_in_pressure_space_cell_array,
-    #                                                                 get_triangulation(P),
-    #                                                                 Gridap.FESpaces.TrialBasis(),
-    #                                                                 Gridap.CellData.ReferenceDomain())
-    # div_du_in_pressure_space=Gridap.MultiField.MultiFieldFEBasisComponent(div_du_in_pressure_space_single_field,1,2)
-
-    # div_dv_div_du_in_pressure_space_mat_contribs=
-    # get_array(∫(γ*div_dv_in_pressure_space⋅div_du_in_pressure_space)*dΩagg_cells) #not sure if neccesary?
-    # div_dv_div_du_mat_contribs ≈ div_dv_div_du_in_pressure_space_mat_contribs
-
     div_du=∇⋅(_get_single_field_fe_basis(du))
 
     ### Compute Π_Q_bb(div_du)
@@ -448,7 +427,8 @@ function div_penalty_stabilization_collect_cell_matrix(agg_cells_to_aggregate,
 end
 
 
-function div_penalty_stabilization_collect_cell_matrix_on_cut_cells(agg_cells_to_aggregate,
+function div_penalty_stabilization_collect_cell_matrix_on_cut_cells(aggregate_to_local_cells,
+    agg_cells_to_aggregate,
     ref_agg_cell_to_ref_bb_map,
     dΩbg_agg_cells,
     dv,    # Test basis
@@ -564,7 +544,8 @@ end
   # Compute and assemble the bulk penalty stabilization term
   # ∫( (div_dv-div_dv_l2_proj_agg_cells)*(div_du-div_du_l2_proj_agg_cells))*dΩ_cut_cells
 """
-function div_penalty_stabilization_collect_cell_matrix_on_cut_cells_full(agg_cells_to_aggregate,
+function div_penalty_stabilization_collect_cell_matrix_on_cut_cells_full(aggregate_to_local_cells,
+                                                              agg_cells_to_aggregate,
                                                               ref_agg_cell_to_ref_bb_map,
                                                               dΩbg_agg_cells,
                                                               dv,    # Test basis
@@ -684,7 +665,8 @@ end
     ##### ∫( (div_dv-div_dv_l2_proj_agg_cells)*(dp-dp_l2_proj_agg_cells))*dΩ_cut_cells (full form, not implented here)
 
 """
-function pmix_penalty_stabilization_collect_cell_matrix_on_cut_cells(agg_cells_to_aggregate,
+function pmix_penalty_stabilization_collect_cell_matrix_on_cut_cells(aggregate_to_local_cells,
+                                                              agg_cells_to_aggregate,
                                                               ref_agg_cell_to_ref_bb_map,
                                                               dΩbg_agg_cells,
                                                               dq,    # Test basis
@@ -824,7 +806,8 @@ end
     ##### ∫( (div_dv-div_dv_l2_proj_agg_cells)*(dp-dp_l2_proj_agg_cells))*dΩ_cut_cells (full form, not implented here)
 
 """
-function dmix_penalty_stabilization_collect_cell_matrix_on_cut_cells(agg_cells_to_aggregate,
+function dmix_penalty_stabilization_collect_cell_matrix_on_cut_cells(aggregate_to_local_cells,
+                                                              agg_cells_to_aggregate,
                                                               ref_agg_cell_to_ref_bb_map,
                                                               dΩbg_agg_cells,
                                                               dq,    # Test basis
@@ -869,18 +852,6 @@ function dmix_penalty_stabilization_collect_cell_matrix_on_cut_cells(agg_cells_t
     dq_l2_proj_bb_array_agg_cells=lazy_map(Broadcasting(∘),
                                            lazy_map(Reindex(dq_l2_proj_bb_array),agg_cells_to_aggregate),
                                            ref_agg_cell_to_ref_bb_map)
-
-    # dp_l2_proj_bb_array_agg_cells=lazy_map(transpose, dq_l2_proj_bb_array_agg_cells)
-    
-    # if (_is_multifield_fe_basis_component(dp))
-    #     @assert _is_multifield_fe_basis_component(dq)
-    #     @assert _nfields(dp)==_nfields(dq)
-    #     nfields=_nfields(dp)
-    #     fieldid=_fieldid(dp)
-    #     dp_l2_proj_bb_array_agg_cells=lazy_map(
-    #                                 Gridap.Fields.BlockMap((1,nfields),fieldid),
-    #                                 dp_l2_proj_bb_array_agg_cells)
-    # end
 
     if (_is_multifield_fe_basis_component(dq))
         @assert _is_multifield_fe_basis_component(dq)
@@ -966,7 +937,8 @@ end
     ##### ∫( (div_dv-div_dv_l2_proj_agg_cells)*(dp-dp_l2_proj_agg_cells))*dΩ_cut_cells (full form, not implented here)
 
 """
-function dmix_penalty_stabilization_collect_cell_vector_on_cut_cells(agg_cells_to_aggregate,
+function dmix_penalty_stabilization_collect_cell_vector_on_cut_cells(aggregate_to_local_cells,
+                                                              agg_cells_to_aggregate,
                                                               ref_agg_cell_to_ref_bb_map,
                                                               dΩbg_agg_cells,
                                                               dq,    # Test basis
