@@ -301,22 +301,20 @@ function _cell_quadrature_and_active_mask(trian::DistributedTriangulation,
   cell_quad, cell_to_is_active
 end
 
-function CellQuadratureAndActiveMask(trian,
-    ::Algoim,_args::Tuple{<:AlgoimCallLevelSetFunction,Any};kwargs)
+function _cell_quadrature_and_active_mask(trian,
+    name,_args::Tuple{<:AlgoimCallLevelSetFunction,Any};kwargs)
   phi, args = _args
   _cell_quadrature_and_active_mask(trian,name,phi,args;kwargs)
 end
 
-function CellQuadratureAndActiveMask(trian,
-    ::Algoim,_args::Tuple{<:DistributedAlgoimCallLevelSetFunction,Any};kwargs)
+function _cell_quadrature_and_active_mask(trian,
+    name,_args::Tuple{<:DistributedAlgoimCallLevelSetFunction,Any};kwargs)
   phi, args = _args
   _cell_quadrature_and_active_mask(trian,name,phi,args;kwargs)
 end
 
-function CellQuadratureAndActiveMask(trian,
-  ::Algoim,
-  _args::Tuple{<:DistributedAlgoimCallLevelSetFunction,<:AlgoimCallLevelSetFunction,Any};
-  kwargs)
+function _cell_quadrature_and_active_mask(trian,
+    name,_args::Tuple{<:DistributedAlgoimCallLevelSetFunction,<:AlgoimCallLevelSetFunction,Any};kwargs)
   phi1, phi2, args = _args
   _cell_quadrature_and_active_mask(trian,name,phi1,phi2,args;kwargs)
 end
@@ -1001,6 +999,26 @@ function active_triangulation(Ω::DistributedTriangulation,
   is_aʳ = apply_mask(φʳ,active_mask)
   is_nᵃ = map(local_views(is_a),local_views(is_aʳ)) do is_a,is_aʳ
     lazy_map((a,aʳ)->a|aʳ,is_a,is_aʳ)
+  end
+  Ωˡ = map((lt,ca)->Triangulation(lt,ca),local_views(Ω),is_nᵃ)
+  Mbg = get_background_model(Ω)
+  DistributedTriangulation(Ωˡ,Mbg),is_nᵃ
+end
+
+function active_triangulation(Ω::DistributedTriangulation,
+                              φ::DistributedSingleFieldFEFunction,
+                              ηʳ::DistributedSingleFieldFEFunction,
+                              Vbg::DistributedFESpace,
+                              is_a::AbstractArray,
+                              δ::Float64)
+  φʳ = interpolate_everywhere(φ-δ,Vbg)
+  is_aʳ = apply_mask(φʳ,active_mask)
+  is_rʳ = apply_mask(ηʳ,active_mask)
+  is_aʳ = map(local_views(is_aʳ),local_views(is_rʳ)) do is_aʳ,is_rʳ
+    lazy_map((aʳ,rʳ)->(aʳ&(~rʳ)),is_aʳ,is_rʳ)
+  end
+  is_nᵃ = map(local_views(is_a),local_views(is_aʳ)) do is_a,is_aʳ
+    lazy_map((a,aʳ)->(a|aʳ),is_a,is_aʳ)
   end
   Ωˡ = map((lt,ca)->Triangulation(lt,ca),local_views(Ω),is_nᵃ)
   Mbg = get_background_model(Ω)
