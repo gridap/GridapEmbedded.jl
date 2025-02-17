@@ -175,6 +175,23 @@ function Quadrature(trian::Grid,::Algoim,
   CompressedArray(cell_to_quad,1:length(cell_to_quad))
 end
 
+function Quadrature(trian::Grid,::Algoim,
+                    phi1::LevelSetFunction,phi2::LevelSetFunction,
+                    own_to_local::AbstractVector,degree::Int;kwargs...)
+  ctype_polytope = map(get_polytope,get_reffes(trian))
+  @notimplementedif !all(map(is_n_cube,ctype_polytope))
+  cell_to_coords = get_cell_coordinates(trian)
+  cell_to_bboxes = collect1d(lazy_map(a->(a[1],a[end]),cell_to_coords))
+  jls1 = JuliaFunctionLevelSet(phi1,Val{num_dims(trian)}())
+  jls2 = JuliaFunctionLevelSet(phi2,Val{num_dims(trian)}())
+  cell_to_quad = map(enumerate(cell_to_bboxes)) do (own_cell_id,bbox)
+    bbmin, bbmax = bbox
+    cell_id = own_to_local[own_cell_id]
+    Quadrature(cell_id,bbmin,bbmax,jls1,jls2,phi1,phi2,degree;kwargs...)
+  end
+  CompressedArray(cell_to_quad,1:length(cell_to_quad))
+end
+
 function Quadrature(cell_id::Int,
                     xmin::Point{N,T},
                     xmax::Point{N,T},
@@ -223,12 +240,30 @@ function _cell_quadrature_and_active_mask(trian::Grid,
   cell_quad, cell_to_is_active
 end
 
+function _cell_quadrature_and_active_mask(trian::Grid,
+                                          ::Algoim,phi1,phi2,args;kwargs)
+  cell_quad = Quadrature(trian,algoim,phi1,phi2,args...;kwargs...)
+  cell_to_is_active = is_cell_active(cell_quad)
+  cell_quad, cell_to_is_active
+end
+
 function _cell_quadrature_and_active_mask(trian::DistributedTriangulation,
     ::Algoim,
     phi::AlgoimCallLevelSetFunction,
     args;kwargs)
   ltrians = local_views(trian)
   cell_quad = map(t->Quadrature(t,algoim,phi,args...;kwargs...),ltrians)
+  cell_to_is_active = map(cq->is_cell_active(cq),cell_quad)
+  cell_quad, cell_to_is_active
+end
+
+function _cell_quadrature_and_active_mask(trian::DistributedTriangulation,
+    ::Algoim,
+    phi1::AlgoimCallLevelSetFunction,
+    phi2::AlgoimCallLevelSetFunction,
+    args;kwargs)
+  ltrians = local_views(trian)
+  cell_quad = map(t->Quadrature(t,algoim,phi1,phi2,args...;kwargs...),ltrians)
   cell_to_is_active = map(cq->is_cell_active(cq),cell_quad)
   cell_quad, cell_to_is_active
 end
@@ -249,15 +284,52 @@ function _cell_quadrature_and_active_mask(trian::DistributedTriangulation,
   cell_quad, cell_to_is_active
 end
 
-function CellQuadratureAndActiveMask(trian,quad::Tuple{<:QuadratureName,Any,Any})
-  name, _args, kwargs = quad
+function _cell_quadrature_and_active_mask(trian::DistributedTriangulation,
+    ::Algoim,
+    phi1::DistributedAlgoimCallLevelSetFunction,
+    phi2::AlgoimCallLevelSetFunction,
+    args;kwargs)
+  ltrians = local_views(trian); lphis = local_views(phi1)
+  phitrian = get_triangulation(phi1.values)
+  gids = get_cell_gids(get_background_model(phitrian))
+  own_to_local = map(local_views(phitrian),local_views(gids)) do t,g
+    findall(!iszero,local_to_own(g)[t.tface_to_mface])
+  end
+  cell_quad = map(
+    (t,p,otl)->Quadrature(t,algoim,p,phi2,otl,args...;kwargs...),ltrians,lphis,own_to_local)
+  cell_to_is_active = map(cq->is_cell_active(cq),cell_quad)
+  cell_quad, cell_to_is_active
+end
+
+function CellQuadratureAndActiveMask(trian,
+    ::Algoim,_args::Tuple{<:AlgoimCallLevelSetFunction,Any};kwargs)
   phi, args = _args
   _cell_quadrature_and_active_mask(trian,name,phi,args;kwargs)
 end
 
+function CellQuadratureAndActiveMask(trian,
+    ::Algoim,_args::Tuple{<:DistributedAlgoimCallLevelSetFunction,Any};kwargs)
+  phi, args = _args
+  _cell_quadrature_and_active_mask(trian,name,phi,args;kwargs)
+end
+
+function CellQuadratureAndActiveMask(trian,
+  ::Algoim,
+  _args::Tuple{<:DistributedAlgoimCallLevelSetFunction,<:AlgoimCallLevelSetFunction,Any};
+  kwargs)
+  phi1, phi2, args = _args
+  _cell_quadrature_and_active_mask(trian,name,phi1,phi2,args;kwargs)
+end
+
+function CellQuadratureAndActiveMask(trian,
+    quad::Tuple{<:QuadratureName,Any,Any})
+  name, args, kwargs = quad
+  _cell_quadrature_and_active_mask(trian,name,args;kwargs)
+end
+
 function CellQuadratureAndActiveMask(
-          model::Union{DiscreteModel,DistributedDiscreteModel},
-          quad::Tuple{<:QuadratureName,Any,Any})
+    model::Union{DiscreteModel,DistributedDiscreteModel},
+    quad::Tuple{<:QuadratureName,Any,Any})
   CellQuadratureAndActiveMask(Triangulation(model),quad)
 end
 
