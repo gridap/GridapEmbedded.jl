@@ -61,28 +61,28 @@ end
 # when we have the argument `in_or_out`.
 
 function Triangulation(
-  cutgeo::DistributedEmbeddedDiscretization,in_or_out::ActiveInOrOut,args...
+  cutgeo::DistributedEmbeddedDiscretization,in_or_out::ActiveInOrOut,args...;kwargs...
 )
-  Triangulation(WithGhost(),cutgeo,in_or_out,args...)
+  Triangulation(WithGhost(),cutgeo,in_or_out,args...;kwargs...)
 end
 
 for TT in (:Triangulation,:SkeletonTriangulation,:BoundaryTriangulation,:EmbeddedBoundary,:GhostSkeleton)
   @eval begin
-    function $TT(cutgeo::DistributedEmbeddedDiscretization,args...)
-      $TT(NoGhost(),cutgeo,args...)
+    function $TT(cutgeo::DistributedEmbeddedDiscretization,args...;kwargs...)
+      $TT(NoGhost(),cutgeo,args...;kwargs...)
     end
 
-    function $TT(portion,cutgeo::DistributedEmbeddedDiscretization,args...)
+    function $TT(portion,cutgeo::DistributedEmbeddedDiscretization,args...;kwargs...)
       model = get_background_model(cutgeo)
       gids  = get_cell_gids(model)
       trians = map(local_views(cutgeo),partition(gids)) do cutgeo, gids
-        $TT(portion,gids,cutgeo,args...)
+        $TT(portion,gids,cutgeo,args...;kwargs...)
       end
       DistributedTriangulation(trians,model)
     end
 
-    function $TT(portion,gids::AbstractLocalIndices,cutgeo::AbstractEmbeddedDiscretization,args...)
-      trian = $TT(cutgeo,args...)
+    function $TT(portion,gids::AbstractLocalIndices,cutgeo::AbstractEmbeddedDiscretization,args...;kwargs...)
+      trian = $TT(cutgeo,args...;kwargs...)
       filter_cells_when_needed(portion,gids,trian)
     end
   end
@@ -95,7 +95,7 @@ function remove_ghost_cells(trian::AppendedTriangulation,gids)
   lazy_append(a,b)
 end
 
-function remove_ghost_cells(trian::SubFacetTriangulation{Df,Dc},gids) where {Df,Dc}
+function remove_ghost_cells(trian::Union{SubFacetTriangulation{Df,Dc},SubFacetBoundaryTriangulation{Df,Dc}},gids) where {Df,Dc}
   glue  = get_glue(trian,Val{Dc}())
   remove_ghost_cells(glue,trian,gids)
 end
