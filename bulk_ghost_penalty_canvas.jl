@@ -7,6 +7,7 @@ include("aggregates_bounding_boxes_tools.jl")
 include("bulk_ghost_penalty_stab_tools.jl")
 include("fields_and_blocks_tools.jl")
 include("BulkGhostPenaltyAssembleMaps.jl")
+include("darcy_preconditioning_tools.jl")
 
 # Problem selection
 problem = 1 # 0 = Manufactured solution (L2-like projection), 1 = Darcy problem 
@@ -494,6 +495,37 @@ push!(wrc[2], rdiv_full...)
 push!(wrc[3], cdiv_full...)
 A = assemble_matrix(assem, wrc)
 res_stab_ufullpfulldivufull = compute_quantities(problem,A,b,dΩ)
+
+if problem==1
+   P=assemble_darcy_preconditioner_matrix(cutgeo, degree, X, Y, s, h, β₀,
+                                       aggregate_to_local_cells,
+                                       agg_cells_to_aggregate, 
+                                       ref_agg_cell_to_ref_bb_map,
+                                       dΩbg_agg_cells,
+                                       dΩbg_cut_cells,
+                                       # FLUX-RELATED DATA
+                                       dv,    # Test basis
+                                       du,    # Trial basis (to project)
+                                       vbb,  # Bounding box space test basis
+                                       u_lhs,
+                                       U_Ωbg_cut_cell_dof_ids, 
+                                       U_agg_cells_local_dof_ids,
+                                       U_cut_cells_to_aggregate_dof_ids,
+                                       γ,
+                                       # PRESSURE-RELATED DATA         
+                                       dq,    # Test basis
+                                       dp,    # Trial basis (to project)
+                                       qbb,  # Bounding box space test basis
+                                       p_lhs,
+                                       P_Ωbg_cut_cell_dof_ids, 
+                                       P_agg_cells_local_dof_ids,
+                                       P_cut_cells_to_aggregate_dof_ids,
+                                       γ,
+                                       # DIV-RELATED DbTA
+                                       γ)
+      evals = eigvals(Array(A),Array(P))
+      println("Preconditioned condition number: ", abs(evals[end])/abs(evals[1]))
+end
 
 # U + DIVU + PMIX + DMIX
 wrc=Gridap.FESpaces.collect_cell_matrix(X,Y,a(dx,dy))
