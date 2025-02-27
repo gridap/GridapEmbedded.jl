@@ -1,7 +1,7 @@
 
-abstract type AbstractEmbeddedDiscretization{Dc,Dp} <: GridapType end
+abstract type AbstractEmbeddedDiscretization <: GridapType end
 
-struct EmbeddedDiscretization{Dc,T} <: AbstractEmbeddedDiscretization{Dc,Dc}
+struct EmbeddedDiscretization{Dc,T} <: AbstractEmbeddedDiscretization
   bgmodel::DiscreteModel
   ls_to_bgcell_to_inoutcut::Vector{Vector{Int8}}
   subcells::SubCellData{Dc,Dc,T}

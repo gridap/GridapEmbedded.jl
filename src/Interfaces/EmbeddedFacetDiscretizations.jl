@@ -1,5 +1,5 @@
 
-struct EmbeddedFacetDiscretization{Dc,Dp,T} <: AbstractEmbeddedDiscretization{Dc,Dp}
+struct EmbeddedFacetDiscretization{Dc,Dp,T} <: AbstractEmbeddedDiscretization
   bgmodel::DiscreteModel{Dp,Dp}
   ls_to_facet_to_inoutcut::Vector{Vector{Int8}}
   subfacets::SubCellData{Dc,Dp,T}

@@ -1,14 +1,14 @@
 
-struct DistributedEmbeddedDiscretization{Dc,Dp,A,B} <: GridapType
+struct DistributedEmbeddedDiscretization{A,B} <: GridapType
   discretizations::A
   model::B
   function DistributedEmbeddedDiscretization(
-    discretizations::AbstractArray{<:AbstractEmbeddedDiscretization{Dc,Dp}},
+    discretizations::AbstractArray{<:AbstractEmbeddedDiscretization},
     model::DistributedDiscreteModel
-  ) where {Dc,Dp}
+  )
     A = typeof(discretizations)
     B = typeof(model)
-    new{Dc,Dp,A,B}(discretizations,model)
+    new{A,B}(discretizations,model)
   end
 end
 
