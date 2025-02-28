@@ -191,23 +191,23 @@ end
 
 # AMR
 
-function compute_redistribute_wights(
+function compute_redistribute_weights(
   cut::DistributedEmbeddedDiscretization,
   args...)
 
   geo = get_geometry(cut)
-  compute_redistribute_wights(cut,geo,args...)
+  compute_redistribute_weights(cut,geo,args...)
 end
 
-function compute_redistribute_wights(
+function compute_redistribute_weights(
   cut::DistributedEmbeddedDiscretization,
   geo::CSG.Geometry,
   args...)
 
-  compute_redistribute_wights(compute_bgcell_to_inoutcut(cut,geo),args...)
+  compute_redistribute_weights(compute_bgcell_to_inoutcut(cut,geo),args...)
 end
 
-function compute_redistribute_wights(cell_to_inoutcut,in_or_out=IN)
+function compute_redistribute_weights(cell_to_inoutcut,in_or_out=IN)
   map(cell_to_inoutcut) do cell_to_inoutcut
     map(cell_to_inoutcut) do inoutcut
       Int( inoutcut ∈ (CUT,in_or_out) )
