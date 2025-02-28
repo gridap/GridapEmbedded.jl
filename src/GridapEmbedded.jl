@@ -14,8 +14,8 @@ include("AlgoimUtils/AlgoimUtils.jl")
 
 include("Distributed/Distributed.jl")
 
-include("BGP/BGP.jl")
-
 include("Exports.jl")
+
+include("BGP/BGP.jl")
 
 end # module
