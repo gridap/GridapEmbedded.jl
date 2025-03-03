@@ -8,7 +8,7 @@ export setup_aggregate_to_cells
 export setup_aggregates_bounding_box_model
 export flatten
 export restrict_cells
-export restrict_aggregates_to_cells
+export restrict_aggregate_to_cells
 export setup_cells_to_aggregate
 export setup_ref_agg_cell_to_ref_bb_map
 export setup_aggregate_to_local_cells
