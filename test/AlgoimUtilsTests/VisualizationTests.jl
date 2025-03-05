@@ -37,7 +37,8 @@ module VisualizationTests
   vquad = Quadrature(algoim,phi,degree,phase=IN)
   _,dΩ = TriangulationAndMeasure(Ω,vquad)
 
-  writevtk(dΓ,"res_sur",cellfields=["f"=>fₕ],qhulltype=convexhull)
-  writevtk([dΩ,dΓ],"res_vol",cellfields=["f"=>fₕ])
+  path = mktempdir()
+  writevtk(dΓ,joinpath(path,"res_sur"),cellfields=["f"=>fₕ],qhulltype=convexhull)
+  writevtk([dΩ,dΓ],joinpath("res_vol"),cellfields=["f"=>fₕ])
 
 end # module

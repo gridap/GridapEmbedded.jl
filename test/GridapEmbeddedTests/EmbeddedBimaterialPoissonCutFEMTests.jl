@@ -103,10 +103,11 @@ uh1, uh2 = solve(op)
 uh = (uh1,uh2)
 
 # Postprocess
+path = mktempdir()
 qh1 = α1*∇(uh1)
 qh2 = α2*∇(uh2)
-writevtk(Ω1,"results1",cellfields=["uh"=>uh1,"qh"=>qh1])
-writevtk(Ω2,"results2",cellfields=["uh"=>uh2,"qh"=>qh2])
+writevtk(Ω1,joinpath(path,"results1"),cellfields=["uh"=>uh1,"qh"=>qh1])
+writevtk(Ω2,joinpath(path,"results2"),cellfields=["uh"=>uh2,"qh"=>qh2])
 
 #writevtk(model1,"model1")
 #writevtk(model2,"model2")
