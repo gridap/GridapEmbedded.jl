@@ -26,8 +26,6 @@ cutgeom = cut(bgmodel,geom)
 Γ = EmbeddedBoundary(cutgeom,geom)
 Γg = GhostSkeleton(cutgeom,CUT,geom)
 
-writevtk(Γg,"Γg")
-
 order=1
 V = TestFESpace(Ωc,ReferenceFE(lagrangian,Float64,order),conformity=:H1)
 U = TrialFESpace(V)

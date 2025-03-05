@@ -1,12 +1,12 @@
 
 abstract type AbstractEmbeddedDiscretization <: GridapType end
 
-struct EmbeddedDiscretization{Dp,T} <: AbstractEmbeddedDiscretization
+struct EmbeddedDiscretization{Dc,T} <: AbstractEmbeddedDiscretization
   bgmodel::DiscreteModel
   ls_to_bgcell_to_inoutcut::Vector{Vector{Int8}}
-  subcells::SubCellData{Dp,Dp,T}
+  subcells::SubCellData{Dc,Dc,T}
   ls_to_subcell_to_inout::Vector{Vector{Int8}}
-  subfacets::SubFacetData{Dp,T}
+  subfacets::SubFacetData{Dc,T}
   ls_to_subfacet_to_inout::Vector{Vector{Int8}}
   oid_to_ls::Dict{UInt,Int}
   geo::CSG.Geometry

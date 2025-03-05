@@ -133,18 +133,19 @@ uh1 = h1(uh)
 Γ = EmbeddedBoundary(cutgeo)
 Ωbg = Triangulation(bgmodel)
 
-writevtk(Ω,"trian");
-writevtk(Γ,"bnd");
-writevtk(Ωbg,"bg_trian");
-writevtk(Ω_act,"act_trian");
+path = mktempdir()
+writevtk(Ω,joinpath(path,"trian"));
+writevtk(Γ,joinpath(path,"bnd"));
+writevtk(Ωbg,joinpath(path,"bg_trian"));
+writevtk(Ω_act,joinpath(path,"act_trian"));
 
-writevtk(Ω,"trian",
+writevtk(Ω,joinpath(path,"trian"),
   cellfields=["uh"=>uh,"u"=>u,"e"=>e],);
 
 
 map(local_views(uh),local_views(bgmodel),ranks) do uh,m,p
   trian = Triangulation(m)
-  writevtk(trian,"ltrian_$p",cellfields=["uh"=>uh])
+  writevtk(trian,joinpath(path,"ltrian_$p"),cellfields=["uh"=>uh])
 end
 
 end # module
