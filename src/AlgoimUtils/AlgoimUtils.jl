@@ -301,6 +301,23 @@ function _cell_quadrature_and_active_mask(trian::DistributedTriangulation,
   cell_quad, cell_to_is_active
 end
 
+function _cell_quadrature_and_active_mask(trian::DistributedTriangulation,
+    ::Algoim,
+    phi1::DistributedAlgoimCallLevelSetFunction,
+    phi2::DistributedAlgoimCallLevelSetFunction,
+    args;kwargs)
+  ltrians = local_views(trian); lphis1 = local_views(phi1); lphis2 = local_views(phi2)
+  phitrian = get_triangulation(phi1.values)
+  gids = get_cell_gids(get_background_model(phitrian))
+  own_to_local = map(local_views(phitrian),local_views(gids)) do t,g
+    findall(!iszero,local_to_own(g)[t.tface_to_mface])
+  end
+  cell_quad = map(
+    (t,p1,p2,otl)->Quadrature(t,algoim,p1,p2,otl,args...;kwargs...),ltrians,lphis1,lphis2,own_to_local)
+  cell_to_is_active = map(cq->is_cell_active(cq),cell_quad)
+  cell_quad, cell_to_is_active
+end
+
 function _cell_quadrature_and_active_mask(trian,
     name,_args::Tuple{<:AlgoimCallLevelSetFunction,Any};kwargs)
   phi, args = _args
@@ -314,7 +331,15 @@ function _cell_quadrature_and_active_mask(trian,
 end
 
 function _cell_quadrature_and_active_mask(trian,
-    name,_args::Tuple{<:DistributedAlgoimCallLevelSetFunction,<:AlgoimCallLevelSetFunction,Any};kwargs)
+    name,_args::Tuple{<:DistributedAlgoimCallLevelSetFunction,
+                      <:AlgoimCallLevelSetFunction,Any};kwargs)
+  phi1, phi2, args = _args
+  _cell_quadrature_and_active_mask(trian,name,phi1,phi2,args;kwargs)
+end
+
+function _cell_quadrature_and_active_mask(trian,
+    name,_args::Tuple{<:DistributedAlgoimCallLevelSetFunction,
+                      <:DistributedAlgoimCallLevelSetFunction,Any};kwargs)
   phi1, phi2, args = _args
   _cell_quadrature_and_active_mask(trian,name,phi1,phi2,args;kwargs)
 end
