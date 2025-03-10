@@ -61,28 +61,28 @@ end
 # when we have the argument `in_or_out`.
 
 function Triangulation(
-  cutgeo::DistributedEmbeddedDiscretization,in_or_out::ActiveInOrOut,args...
+  cutgeo::DistributedEmbeddedDiscretization,in_or_out::ActiveInOrOut,args...;kwargs...
 )
-  Triangulation(WithGhost(),cutgeo,in_or_out,args...)
+  Triangulation(WithGhost(),cutgeo,in_or_out,args...;kwargs...)
 end
 
 for TT in (:Triangulation,:SkeletonTriangulation,:BoundaryTriangulation,:EmbeddedBoundary,:GhostSkeleton)
   @eval begin
-    function $TT(cutgeo::DistributedEmbeddedDiscretization,args...)
-      $TT(NoGhost(),cutgeo,args...)
+    function $TT(cutgeo::DistributedEmbeddedDiscretization,args...;kwargs...)
+      $TT(NoGhost(),cutgeo,args...;kwargs...)
     end
 
-    function $TT(portion,cutgeo::DistributedEmbeddedDiscretization,args...)
+    function $TT(portion,cutgeo::DistributedEmbeddedDiscretization,args...;kwargs...)
       model = get_background_model(cutgeo)
       gids  = get_cell_gids(model)
       trians = map(local_views(cutgeo),partition(gids)) do cutgeo, gids
-        $TT(portion,gids,cutgeo,args...)
+        $TT(portion,gids,cutgeo,args...;kwargs...)
       end
       DistributedTriangulation(trians,model)
     end
 
-    function $TT(portion,gids::AbstractLocalIndices,cutgeo::AbstractEmbeddedDiscretization,args...)
-      trian = $TT(cutgeo,args...)
+    function $TT(portion,gids::AbstractLocalIndices,cutgeo::AbstractEmbeddedDiscretization,args...;kwargs...)
+      trian = $TT(cutgeo,args...;kwargs...)
       filter_cells_when_needed(portion,gids,trian)
     end
   end
@@ -95,7 +95,7 @@ function remove_ghost_cells(trian::AppendedTriangulation,gids)
   lazy_append(a,b)
 end
 
-function remove_ghost_cells(trian::SubFacetTriangulation{Df,Dc},gids) where {Df,Dc}
+function remove_ghost_cells(trian::Union{SubFacetTriangulation{Df,Dc},SubFacetBoundaryTriangulation{Df,Dc}},gids) where {Df,Dc}
   glue  = get_glue(trian,Val{Dc}())
   remove_ghost_cells(glue,trian,gids)
 end
@@ -191,23 +191,23 @@ end
 
 # AMR
 
-function compute_redistribute_wights(
+function compute_redistribute_weights(
   cut::DistributedEmbeddedDiscretization,
   args...)
 
   geo = get_geometry(cut)
-  compute_redistribute_wights(cut,geo,args...)
+  compute_redistribute_weights(cut,geo,args...)
 end
 
-function compute_redistribute_wights(
+function compute_redistribute_weights(
   cut::DistributedEmbeddedDiscretization,
   geo::CSG.Geometry,
   args...)
 
-  compute_redistribute_wights(compute_bgcell_to_inoutcut(cut,geo),args...)
+  compute_redistribute_weights(compute_bgcell_to_inoutcut(cut,geo),args...)
 end
 
-function compute_redistribute_wights(cell_to_inoutcut,in_or_out=IN)
+function compute_redistribute_weights(cell_to_inoutcut,in_or_out=IN)
   map(cell_to_inoutcut) do cell_to_inoutcut
     map(cell_to_inoutcut) do inoutcut
       Int( inoutcut ∈ (CUT,in_or_out) )
