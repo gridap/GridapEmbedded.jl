@@ -16,7 +16,6 @@ function bulk_ghost_penalty_stabilization_collect_cell_matrix(aggregate_to_local
                                                               Ωagg_cell_dof_ids,
                                                               agg_cells_local_dof_ids,
                                                               agg_cells_to_aggregate_dof_ids,
-                                                              h_U,
                                                               γ)
 
 
@@ -347,7 +346,6 @@ function div_penalty_stabilization_collect_cell_matrix(aggregate_to_local_cells,
                                                        U_Ωagg_cell_dof_ids, 
                                                        U_agg_cells_local_dof_ids,
                                                        U_agg_cells_to_aggregate_dof_ids,
-                                                       h_U,
                                                        γ)
     Ωagg_cells=dΩagg_cells.quad.trian
 
