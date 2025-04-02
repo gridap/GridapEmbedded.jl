@@ -122,21 +122,7 @@ vbb=get_fe_basis(Vbb)
 # Numerical integration (Measures)
 dΩbg_agg_cells = Measure(Ωbg_agg_cells,degree)
 
-# LHS of L2 projection on bounding boxes.
-aggregate_to_local_cells=setup_aggregate_to_local_cells(aggregate_to_cells)
-p_lhs=set_up_bulk_ghost_penalty_lhs(aggregate_to_local_cells,
-                                  agg_cells_to_aggregate,
-                                  ref_agg_cell_to_ref_bb_map,
-                                  dΩbg_agg_cells,
-                                  pbb,
-                                  qbb)
-
-u_lhs=set_up_bulk_ghost_penalty_lhs(aggregate_to_local_cells,
-                                  agg_cells_to_aggregate,
-                                  ref_agg_cell_to_ref_bb_map,
-                                  dΩbg_agg_cells,
-                                  ubb,
-                                  vbb)   
+# # LHS of L2 projection on bounding boxes.
 
 # Selecting relevant global dofs ids of aggregate cells (from background mesh)
 Ωbg_agg_cell_dof_ids   = get_cell_dof_ids(X,Ωbg_agg_cells)
@@ -144,6 +130,7 @@ U_Ωbg_agg_cell_dof_ids = _restrict_to_block(Ωbg_agg_cell_dof_ids, 1)
 P_Ωbg_agg_cell_dof_ids = _restrict_to_block(Ωbg_agg_cell_dof_ids, 2)
 
 # Computing local (per aggregate) dof ids 
+aggregate_to_local_cells=setup_aggregate_to_local_cells(aggregate_to_cells)
 U_agg_cells_local_dof_ids=
    compute_agg_cells_local_dof_ids(U_Ωbg_agg_cell_dof_ids, aggregate_to_local_cells)
 P_agg_cells_local_dof_ids=
@@ -157,7 +144,6 @@ P_agg_cells_to_aggregate_dof_ids=lazy_map(Reindex(P_aggregate_dof_ids),agg_cells
 
 # parameters
 γ = 10.0 # Interior bulk-penalty stabilization parameter
-h_U = 1.0
 
 ###########################################
 ### STABILIZATION ON Ωagg\Troot ###
@@ -180,190 +166,229 @@ cut_cells_to_aggregate = setup_cells_to_aggregate(aggregate_to_cut_cells)
 U_cut_cells_to_aggregate_dof_ids=lazy_map(Reindex(U_aggregate_dof_ids),cut_cells_to_aggregate)
 P_cut_cells_to_aggregate_dof_ids=lazy_map(Reindex(P_aggregate_dof_ids),cut_cells_to_aggregate)
 
-# Compute stabilization terms for u and p 
-wu,ru,cu=bulk_ghost_penalty_stabilization_collect_cell_matrix_on_cut_cells(aggregate_to_local_cells,
-                                                        agg_cells_to_aggregate,
-                                                        ref_agg_cell_to_ref_bb_map,
-                                                        dΩbg_agg_cells,
-                                                        dv,    # Test basis
-                                                        du,    # Trial basis (to project)
-                                                        vbb,  # Bounding box space test basis
-                                                        u_lhs,
-                                                        U_Ωbg_cut_cell_dof_ids, 
-                                                        U_agg_cells_local_dof_ids,
-                                                        U_cut_cells_to_aggregate_dof_ids,
-                                                        γ,
-                                                        dΩbg_cut_cells)                           
-
-wp,rp,cp=bulk_ghost_penalty_stabilization_collect_cell_matrix_on_cut_cells(aggregate_to_local_cells,
-                                                        agg_cells_to_aggregate,
-                                                        ref_agg_cell_to_ref_bb_map,
-                                                        dΩbg_agg_cells,
-                                                        dq,    # Test basis
-                                                        dp,    # Trial basis (to project)
-                                                        qbb,  # Bounding box space test basis
-                                                        p_lhs,
-                                                        P_Ωbg_cut_cell_dof_ids, 
-                                                        P_agg_cells_local_dof_ids,
-                                                        P_cut_cells_to_aggregate_dof_ids,
-                                                        γ,
-                                                        dΩbg_cut_cells)                                                           
-#DIV stabilization part
-wdiv, rdiv, cdiv = div_penalty_stabilization_collect_cell_matrix_on_cut_cells(aggregate_to_local_cells,
-                                                            agg_cells_to_aggregate,
-                                                            ref_agg_cell_to_ref_bb_map,
-                                                            dΩbg_agg_cells,
-                                                            dv,    # Test basisr
-                                                            du,    # Trial basis (to project)
-                                                            qbb,   # Bounding box space test basis
-                                                            p_lhs,
-                                                            U_Ωbg_cut_cell_dof_ids, 
-                                                            U_agg_cells_local_dof_ids,
-                                                            U_cut_cells_to_aggregate_dof_ids,
-                                                            γ,
-                                                            dΩbg_cut_cells)
-
-## FULL stabilization terms:
-wu_full,ru_full,cu_full=bulk_ghost_penalty_stabilization_collect_cell_matrix_on_cut_cells_full(aggregate_to_local_cells,
-                                                        agg_cells_to_aggregate,
-                                                        ref_agg_cell_to_ref_bb_map,
-                                                        dΩbg_agg_cells,
-                                                        dv,    # Test basis
-                                                        du,    # Trial basis (to project)
-                                                        vbb,  # Bounding box space test basis
-                                                        u_lhs,
-                                                        U_Ωbg_cut_cell_dof_ids, 
-                                                        U_agg_cells_local_dof_ids,
-                                                        U_cut_cells_to_aggregate_dof_ids,
-                                                        γ,
-                                                        dΩbg_cut_cells)                           
-
-wp_full,rp_full,cp_full=bulk_ghost_penalty_stabilization_collect_cell_matrix_on_cut_cells_full(aggregate_to_local_cells,
-                                                        agg_cells_to_aggregate,
-                                                        ref_agg_cell_to_ref_bb_map,
-                                                        dΩbg_agg_cells,
-                                                        dq,    # Test basis
-                                                        dp,    # Trial basis (to project)
-                                                        qbb,  # Bounding box space test basis
-                                                        p_lhs,
-                                                        P_Ωbg_cut_cell_dof_ids, 
-                                                        P_agg_cells_local_dof_ids,
-                                                        P_cut_cells_to_aggregate_dof_ids,
-                                                        γ,
-                                                        dΩbg_cut_cells)   
-
-wdiv_full, rdiv_full, cdiv_full = div_penalty_stabilization_collect_cell_matrix_on_cut_cells_full(aggregate_to_local_cells,
-                                                        agg_cells_to_aggregate,
-                                                        ref_agg_cell_to_ref_bb_map,
-                                                        dΩbg_agg_cells,
-                                                        dv,    # Test basis
-                                                        du,    # Trial basis (to project)
-                                                        qbb,   # Bounding box space test basis
-                                                        p_lhs,
-                                                        U_Ωbg_cut_cell_dof_ids, 
-                                                        U_agg_cells_local_dof_ids,
-                                                        U_cut_cells_to_aggregate_dof_ids,
-                                                        γ,
-                                                        dΩbg_cut_cells)
-
-# MIXED STAB TERMS
-wpmix, rpmix, cpmix = pmix_penalty_stabilization_collect_cell_matrix_on_cut_cells(aggregate_to_local_cells,
-                                                               agg_cells_to_aggregate,
-                                                               ref_agg_cell_to_ref_bb_map,
-                                                               dΩbg_agg_cells,
-                                                               dq,    # Test basis
-                                                               dp,    # Trial basis (to project)
-                                                               qbb,  # Bounding box space test basis
-                                                               p_lhs,
-                                                               U_Ωbg_cut_cell_dof_ids,
-                                                               P_Ωbg_cut_cell_dof_ids,
-                                                               P_agg_cells_local_dof_ids,
-                                                               P_cut_cells_to_aggregate_dof_ids,
-                                                               γ,
-                                                               dΩbg_cut_cells,
-                                                               dv) 
-
-wdmix, rdmix, cdmix = dmix_penalty_stabilization_collect_cell_matrix_on_cut_cells(aggregate_to_local_cells,
-                                                               agg_cells_to_aggregate,
-                                                               ref_agg_cell_to_ref_bb_map,
-                                                               dΩbg_agg_cells,
-                                                               dq,    # Test basis
-                                                               dp,    # Trial basis (to project)
-                                                               qbb,  # Bounding box space test basis
-                                                               p_lhs,
-                                                               U_Ωbg_cut_cell_dof_ids,
-                                                               P_Ωbg_cut_cell_dof_ids,
-                                                               P_agg_cells_local_dof_ids,
-                                                               P_cut_cells_to_aggregate_dof_ids,
-                                                               γ,
-                                                               dΩbg_cut_cells,
-                                                               du) 
-
 ###########################################
-###      VISUALIZATION                  ###
+### Setup projections
 ###########################################
-# writevtk(Ωbg,"trian-bg")
-# writevtk(Ωbg_cut_cells,"trian-bg-cut-cells")
-# colors = color_aggregates(aggregates,bgmodel)
-# writevtk(Ωbg,"trian-bg-with-coloured-aggregates", celldata=["aggregate"=>aggregates,"color"=>colors])
-# writevtk(Ωbg_agg_cells,"trian-bg-agg-cells")
-# Ωbg_int_cells=view(Ωbg,int_cells)
-# Ωbg_root_cells=view(Ωbg,root_cells)
-# writevtk(Ωbg_int_cells,"trian-bg-int-cells")
-# writevtk(Ωbg_root_cells,"trian-bg-root-cells")
-# writevtk(Ω,"trian-phys")
-# writevtk(Ωact,"trian-act")
 
-function compute_quantities(problem,A,b,dΩ)
-   cond_A =  cond(Array(A))
-   norm_A =  norm(A)
-   sol_x = A\b
-   xh = FEFunction(X, sol_x)
-   uh,ph = xh
-   if problem==1
-      area = sum(∫(1.0)dΩ)
-      mean_p  = sum(∫(pex)dΩ)/area # mean presure exact sol
-      ph = ph + mean_p
-   end
-   euh = uex-uh
-   eph = pex-ph
-   edivuh = divuex-(∇⋅uh)
-   norm_euh = sum(∫(euh⋅euh)*dΩ)
-   norm_eph = sum(∫(eph*eph)*dΩ)
-   norm_edivuh = sum(∫(edivuh⋅edivuh)*dΩ)
-   return round(cond_A,sigdigits=3), round(norm_A,sigdigits=3), round(norm_euh,sigdigits=3), round(norm_eph,sigdigits=3), round(norm_edivuh,sigdigits=3)
+du_proj_Vbb, dv_proj_Vbb = setup_L2_proj_in_bb_space(
+   dΩbg_agg_cells,             # measure of aggregated cells in background domain
+   ref_agg_cell_to_ref_bb_map, # map
+   agg_cells_to_aggregate,     # 
+   aggregate_to_local_cells,   # 
+   du,                         # Trial basis (to project) 
+   dv,                         # Test basis 
+   ubb,                        # Trial basis of bounding box space Vbb
+   vbb,                        # Test basis of bounding box space Vbb
+   identity,                   # operation to be applied to u and v
+   U_agg_cells_local_dof_ids)  # aggregates local dof ids for space U   
+
+dp_proj_Qbb, dq_proj_Qbb = setup_L2_proj_in_bb_space(
+   dΩbg_agg_cells,             # measure of aggregated cells in background domain
+   ref_agg_cell_to_ref_bb_map, # map
+   agg_cells_to_aggregate,     # 
+   aggregate_to_local_cells,   # 
+   dp,                         # Trial basis (to project) 
+   dq,                         # Test basis 
+   pbb,                        # Trial basis of bounding box space Qbb
+   qbb,                        # Test basis of bounding box space Qbb
+   identity,                   # operation to be applied to u and v
+   P_agg_cells_local_dof_ids)  # aggregates local dof ids for space P   
+
+div_du_proj_Vbb, div_dv_proj_Vbb = setup_L2_proj_in_bb_space(
+   dΩbg_agg_cells,             # measure of aggregated cells in background domain
+   ref_agg_cell_to_ref_bb_map, # map
+   agg_cells_to_aggregate,     # 
+   aggregate_to_local_cells,   # 
+   du,                         # Trial basis (to project) 
+   dv,                         # Test basis 
+   pbb,                        # Trial basis of bounding box space Vbb
+   qbb,                        # Test basis of bounding box space Vbb
+   divergence,                 # operation to be applied to u and v
+   U_agg_cells_local_dof_ids)  # aggregates local dof ids for space U   
+
+# ###########################################
+# ### BlockMap PREP STEPS #TODO MOVE INTO collect_cell_matrix_on_D?
+# ###########################################
+if (_is_multifield_fe_basis_component(dv))
+   nfields=_nfields(dv)
+   fieldid=_fieldid(dv)
+   U_Ωbg_cut_cell_dof_ids=lazy_map(Gridap.Fields.BlockMap(nfields,fieldid),U_Ωbg_cut_cell_dof_ids)
 end
 
-function plot_quantities(problem,A,b,Ω;filename="results")
-   sol_x = A\b
-   xh = FEFunction(X, sol_x)
-   uh,ph = xh
-   if problem==1
-      area = sum(∫(1.0)dΩ)
-      mean_p  = sum(∫(pex)dΩ)/area # mean presure exact sol
-      ph = ph_zm + mean_p
-   end
-   euh = uex-uh
-   eph = pex-ph
-   edivuh = divuex-(∇⋅uh)
-   writevtk(Ω,filename,cellfields=["uh"=>uh,"ph"=>ph,"divuh"=>(∇⋅uh),"euh"=>euh,"eph"=>eph,"edivuh"=>edivuh])
+if (_is_multifield_fe_basis_component(du))
+   nfields=_nfields(du)
+   fieldid=_fieldid(du)
+   U_cut_cells_to_aggregate_dof_ids=
+   lazy_map(Gridap.Fields.BlockMap(nfields,fieldid),U_cut_cells_to_aggregate_dof_ids)
 end
 
-## RHS STAB
-# rhs_g = divuex # TODO: pass function on rather than constant value!!!!!
-vecw_dmix, vecr_dmix = dmix_penalty_stabilization_collect_cell_vector_on_cut_cells(aggregate_to_local_cells,agg_cells_to_aggregate,
-   ref_agg_cell_to_ref_bb_map,
-   dΩbg_agg_cells,
-   dq,    # Test basis
-   dp,    # Trial basis (to project)
-   qbb,  # Bounding box space test basis
-   p_lhs,
-   P_Ωbg_cut_cell_dof_ids,
-   P_agg_cells_local_dof_ids,
-   P_cut_cells_to_aggregate_dof_ids,
+if (_is_multifield_fe_basis_component(dq))
+   nfields=_nfields(dq)
+   fieldid=_fieldid(dq)
+   P_Ωbg_cut_cell_dof_ids=lazy_map(Gridap.Fields.BlockMap(nfields,fieldid),P_Ωbg_cut_cell_dof_ids)
+end
+
+if (_is_multifield_fe_basis_component(dp))
+   nfields=_nfields(dp)
+   fieldid=_fieldid(dp)
+   P_cut_cells_to_aggregate_dof_ids=
+   lazy_map(Gridap.Fields.BlockMap(nfields,fieldid),P_cut_cells_to_aggregate_dof_ids)
+end
+
+##########################################
+### Setup stabilization terms (DIFF)   ###
+##########################################
+w_u_diff, r_u_diff, c_u_diff = bulk_ghost_penalty_stabilization_collect_cell_matrix_on_D(dΩbg_cut_cells,
+   Ωbg_agg_cells,
    γ,
-   dΩbg_cut_cells,
-   divuex) 
+   du,
+   dv,
+   du_proj_Vbb,
+   dv_proj_Vbb,
+   U_Ωbg_cut_cell_dof_ids,
+   U_Ωbg_cut_cell_dof_ids,
+   U_cut_cells_to_aggregate_dof_ids,
+   U_cut_cells_to_aggregate_dof_ids,
+   identity,
+   identity)
+
+w_p_diff, r_p_diff, c_p_diff = bulk_ghost_penalty_stabilization_collect_cell_matrix_on_D(dΩbg_cut_cells,
+   Ωbg_agg_cells,
+   γ,
+   dp,
+   dq,
+   dp_proj_Qbb,
+   dq_proj_Qbb,
+   P_Ωbg_cut_cell_dof_ids,
+   P_Ωbg_cut_cell_dof_ids,
+   P_cut_cells_to_aggregate_dof_ids,
+   P_cut_cells_to_aggregate_dof_ids,
+   identity,
+   identity)
+
+w_divu_diff, r_divu_diff, c_divu_diff = bulk_ghost_penalty_stabilization_collect_cell_matrix_on_D(dΩbg_cut_cells,
+   Ωbg_agg_cells,
+   γ,
+   du,
+   dv,
+   div_du_proj_Vbb,
+   div_dv_proj_Vbb,
+   U_Ωbg_cut_cell_dof_ids,
+   U_Ωbg_cut_cell_dof_ids,
+   U_cut_cells_to_aggregate_dof_ids,
+   U_cut_cells_to_aggregate_dof_ids,
+   divergence,
+   divergence)
+
+w_divuq_diff, r_divuq_diff, c_divuq_diff = bulk_ghost_penalty_stabilization_collect_cell_matrix_on_D(dΩbg_cut_cells,
+   Ωbg_agg_cells,
+   γ,
+   du,
+   dq,
+   div_du_proj_Vbb,
+   dq_proj_Qbb,
+   U_Ωbg_cut_cell_dof_ids,
+   P_Ωbg_cut_cell_dof_ids,
+   U_cut_cells_to_aggregate_dof_ids,
+   P_cut_cells_to_aggregate_dof_ids,
+   divergence,
+   identity)
+
+w_pdivv_diff, r_pdivv_diff, c_pdivv_diff = bulk_ghost_penalty_stabilization_collect_cell_matrix_on_D(dΩbg_cut_cells,
+   Ωbg_agg_cells,
+   γ,
+   dp,
+   dv,
+   dp_proj_Qbb,
+   div_dv_proj_Vbb,
+   P_Ωbg_cut_cell_dof_ids,
+   U_Ωbg_cut_cell_dof_ids,
+   P_cut_cells_to_aggregate_dof_ids,
+   U_cut_cells_to_aggregate_dof_ids,
+   identity,
+   divergence)
+
+##########################################
+### Setup stabilization terms (FULL)   ###
+##########################################
+w_u_full, r_u_full, c_u_full = bulk_ghost_penalty_stabilization_collect_cell_matrix_on_D(dΩbg_cut_cells,
+   Ωbg_agg_cells,
+   γ,
+   du,
+   dv,
+   du_proj_Vbb,
+   U_Ωbg_cut_cell_dof_ids,
+   U_Ωbg_cut_cell_dof_ids,
+   U_cut_cells_to_aggregate_dof_ids,
+   identity,
+   identity)
+
+w_p_full, r_p_full, c_p_full = bulk_ghost_penalty_stabilization_collect_cell_matrix_on_D(dΩbg_cut_cells,
+   Ωbg_agg_cells,
+   γ,
+   dp,
+   dq,
+   dp_proj_Qbb,
+   P_Ωbg_cut_cell_dof_ids,
+   P_Ωbg_cut_cell_dof_ids,
+   P_cut_cells_to_aggregate_dof_ids,
+   identity,
+   identity)
+
+w_divu_full, r_divu_full, c_divu_full = bulk_ghost_penalty_stabilization_collect_cell_matrix_on_D(dΩbg_cut_cells,
+   Ωbg_agg_cells,
+   γ,
+   du,
+   dv,
+   div_du_proj_Vbb,
+   U_Ωbg_cut_cell_dof_ids,
+   U_Ωbg_cut_cell_dof_ids,
+   U_cut_cells_to_aggregate_dof_ids,
+   divergence,
+   divergence)
+
+w_divuq_full, r_divuq_full, c_divuq_full = bulk_ghost_penalty_stabilization_collect_cell_matrix_on_D(dΩbg_cut_cells,
+   Ωbg_agg_cells,
+   γ,
+   du,
+   dq,
+   div_du_proj_Vbb,
+   U_Ωbg_cut_cell_dof_ids,
+   P_Ωbg_cut_cell_dof_ids,
+   U_cut_cells_to_aggregate_dof_ids,
+   divergence,
+   identity)
+
+w_pdivv_full, r_pdivv_full, c_pdivv_full = bulk_ghost_penalty_stabilization_collect_cell_matrix_on_D(dΩbg_cut_cells,
+   Ωbg_agg_cells,
+   γ,
+   dp,
+   dv,
+   dp_proj_Qbb,
+   P_Ωbg_cut_cell_dof_ids,
+   U_Ωbg_cut_cell_dof_ids,
+   P_cut_cells_to_aggregate_dof_ids,
+   identity,
+   divergence)
+
+##########################################
+### Setup rhs stabilization            ###
+##########################################
+w_rhsq_diff, r_rhsq_diff = bulk_ghost_penalty_stabilization_collect_cell_vector_on_D(dΩbg_cut_cells,
+   γ,  
+   dq, 
+   dq_proj_Qbb,
+   P_Ωbg_cut_cell_dof_ids,
+   P_cut_cells_to_aggregate_dof_ids,
+   identity,
+   divuex)
+
+w_rhsq_full, r_rhsq_full = bulk_ghost_penalty_stabilization_collect_cell_vector_on_D(dΩbg_cut_cells,
+   γ,  
+   dq, 
+   P_Ωbg_cut_cell_dof_ids,
+   identity,
+   divuex)
 
 ## WEAK FORM
 if problem==0
@@ -387,187 +412,146 @@ end
 assem=SparseMatrixAssembler(X,Y)
 b = assemble_vector(l, Y)
 
-#RHS_DMIX
-vec_wr=Gridap.FESpaces.collect_cell_vector(Y,l(dy))
-push!(vec_wr[1],vecw_dmix...)
-push!(vec_wr[2],vecr_dmix...)
-vec_b = assemble_vector(assem, vec_wr)
+# RHS
+vec_rhsq_diff=Gridap.FESpaces.collect_cell_vector(Y,l(dy))
+push!(vec_rhsq_diff[1],w_rhsq_diff...)
+push!(vec_rhsq_diff[2],r_rhsq_diff...)
+b_rhsq_diff = assemble_vector(assem, vec_rhsq_diff)
 
-# NO STAB
+vec_rhsq_full=Gridap.FESpaces.collect_cell_vector(Y,l(dy))
+push!(vec_rhsq_full[1],w_rhsq_full...)
+push!(vec_rhsq_full[2],r_rhsq_full...)
+b_rhsq_full = assemble_vector(assem, vec_rhsq_full)
+
+function compute_quantities(problem,A,b,dΩ)
+   cond_A =  cond(Array(A))
+   norm_A =  norm(A)
+   sol_x = A\b
+   xh = FEFunction(X, sol_x)
+   uh,ph = xh
+   if problem==1
+      area = sum(∫(1.0)dΩ)
+      mean_p  = sum(∫(pex)dΩ)/area # mean presure exact sol
+      ph = ph + mean_p
+   end
+   euh = uex-uh
+   eph = pex-ph
+   edivuh = divuex-(∇⋅uh)
+   norm_euh = sum(∫(euh⋅euh)*dΩ)
+   norm_eph = sum(∫(eph*eph)*dΩ)
+   norm_edivuh = sum(∫(edivuh⋅edivuh)*dΩ)
+   return round(cond_A,sigdigits=3), round(norm_A,sigdigits=3), round(norm_euh,sigdigits=3), round(norm_eph,sigdigits=3), round(norm_edivuh,sigdigits=3)
+end
+
+####### SOLVING TEST PROBLEMS (DIFF)
+
+# NO STAB DIFF
 wrc=Gridap.FESpaces.collect_cell_matrix(X,Y,a(dx,dy))
 A = assemble_matrix(assem, wrc)
 res_nostab = compute_quantities(problem,A,b,dΩ)
 
-# ONLY U
+# ONLY U DIFF
 wrc=Gridap.FESpaces.collect_cell_matrix(X,Y,a(dx,dy))
-push!(wrc[1], wu...)
-push!(wrc[2], ru...)
-push!(wrc[3], cu...)
+push!(wrc[1], w_u_diff...)
+push!(wrc[2], r_u_diff...)
+push!(wrc[3], c_u_diff...)
 A = assemble_matrix(assem, wrc)
-res_stab_u = compute_quantities(problem,A,b,dΩ)
+res_stab_u_diff = compute_quantities(problem,A,b,dΩ)
+
+# ONLY P DIFF
+wrc=Gridap.FESpaces.collect_cell_matrix(X,Y,a(dx,dy))
+push!(wrc[1], w_p_diff...)
+push!(wrc[2], r_p_diff...)
+push!(wrc[3], c_p_diff...)
+A = assemble_matrix(assem, wrc)
+res_stab_p_diff = compute_quantities(problem,A,b,dΩ)
+
+# ONLY DIVU DIFF
+wrc=Gridap.FESpaces.collect_cell_matrix(X,Y,a(dx,dy))
+push!(wrc[1], w_divu_diff...)
+push!(wrc[2], r_divu_diff...)
+push!(wrc[3], c_divu_diff...)
+A = assemble_matrix(assem, wrc)
+res_stab_divu_diff = compute_quantities(problem,A,b,dΩ)
+
+# ONLY DIVUQ DIFF
+wrc=Gridap.FESpaces.collect_cell_matrix(X,Y,a(dx,dy))
+push!(wrc[1], w_divuq_diff...)
+push!(wrc[2], r_divuq_diff...)
+push!(wrc[3], c_divuq_diff...)
+A = assemble_matrix(assem, wrc)
+res_stab_divuq_diff = compute_quantities(problem,A,b,dΩ)
+res_stab_divuq_diff_rhs = compute_quantities(problem,A,b_rhsq_diff,dΩ)
+
+# ONLY PDIVV DIFF
+wrc=Gridap.FESpaces.collect_cell_matrix(X,Y,a(dx,dy))
+push!(wrc[1], w_pdivv_diff...)
+push!(wrc[2], r_pdivv_diff...)
+push!(wrc[3], c_pdivv_diff...)
+A = assemble_matrix(assem, wrc)
+res_stab_pdivv_diff = compute_quantities(problem,A,b,dΩ)
+
+####### SOLVING TEST PROBLEMS (FULL)
 
 # ONLY U FULL
 wrc=Gridap.FESpaces.collect_cell_matrix(X,Y,a(dx,dy))
-push!(wrc[1], wu_full...)
-push!(wrc[2], ru_full...)
-push!(wrc[3], cu_full...)
+push!(wrc[1], w_u_full...)
+push!(wrc[2], r_u_full...)
+push!(wrc[3], c_u_full...)
 A = assemble_matrix(assem, wrc)
-res_stab_ufull = compute_quantities(problem,A,b,dΩ)
+res_stab_u_full = compute_quantities(problem,A,b,dΩ)
 
-# ONLY P 
+# ONLY P FULL
 wrc=Gridap.FESpaces.collect_cell_matrix(X,Y,a(dx,dy))
-push!(wrc[1], wp...)
-push!(wrc[2], rp...)
-push!(wrc[3], cp...)
+push!(wrc[1], w_p_full...)
+push!(wrc[2], r_p_full...)
+push!(wrc[3], c_p_full...)
 A = assemble_matrix(assem, wrc)
-res_stab_p = compute_quantities(problem,A,b,dΩ)
-
-# ONLY PFULL
-wrc=Gridap.FESpaces.collect_cell_matrix(X,Y,a(dx,dy))
-push!(wrc[1], wp_full...)
-push!(wrc[2], rp_full...)
-push!(wrc[3], cp_full...)
-A = assemble_matrix(assem, wrc)
-res_stab_pfull = compute_quantities(problem,A,b,dΩ)
-
-# ONLY DIV
-wrc=Gridap.FESpaces.collect_cell_matrix(X,Y,a(dx,dy))
-push!(wrc[1], wdiv...)
-push!(wrc[2], rdiv...)
-push!(wrc[3], cdiv...)
-A = assemble_matrix(assem, wrc)
-res_stab_div = compute_quantities(problem,A,b,dΩ)
+res_stab_p_full = compute_quantities(problem,A,b,dΩ)
 
 # ONLY DIVU FULL
 wrc=Gridap.FESpaces.collect_cell_matrix(X,Y,a(dx,dy))
-push!(wrc[1], wdiv_full...)
-push!(wrc[2], rdiv_full...)
-push!(wrc[3], cdiv_full...)
+push!(wrc[1], w_divu_full...)
+push!(wrc[2], r_divu_full...)
+push!(wrc[3], c_divu_full...)
 A = assemble_matrix(assem, wrc)
-res_stab_divfull = compute_quantities(problem,A,b,dΩ)
+res_stab_divu_full = compute_quantities(problem,A,b,dΩ)
 
-# ONLY PMIX
+# ONLY DIVUQ FULL
 wrc=Gridap.FESpaces.collect_cell_matrix(X,Y,a(dx,dy))
-push!(wrc[1], wpmix...)
-push!(wrc[2], rpmix...)
-push!(wrc[3], cpmix...)
+push!(wrc[1], w_divuq_full...)
+push!(wrc[2], r_divuq_full...)
+push!(wrc[3], c_divuq_full...)
 A = assemble_matrix(assem, wrc)
-res_stab_pmix = compute_quantities(problem,A,b,dΩ)
+res_stab_divuq_full = compute_quantities(problem,A,b,dΩ)
+res_stab_divuq_full_rhs = compute_quantities(problem,A,b_rhsq_full,dΩ)
 
-# ONLY DMIX
+# ONLY PDIVV FULL
 wrc=Gridap.FESpaces.collect_cell_matrix(X,Y,a(dx,dy))
-push!(wrc[1], wdmix...)
-push!(wrc[2], rdmix...)
-push!(wrc[3], cdmix...)
+push!(wrc[1], w_pdivv_full...)
+push!(wrc[2], r_pdivv_full...)
+push!(wrc[3], c_pdivv_full...)
 A = assemble_matrix(assem, wrc)
-res_stab_dmix = compute_quantities(problem,A,vec_b,dΩ)
+res_stab_pdivv_full = compute_quantities(problem,A,b,dΩ)
 
-# U + P + DIVU
-wrc=Gridap.FESpaces.collect_cell_matrix(X,Y,a(dx,dy))
-push!(wrc[1], wu...)
-push!(wrc[2], ru...)
-push!(wrc[3], cu...)
-push!(wrc[1], wp...)
-push!(wrc[2], rp...)
-push!(wrc[3], cp...)
-push!(wrc[1], wdiv...)
-push!(wrc[2], rdiv...)
-push!(wrc[3], cdiv...)
-A = assemble_matrix(assem, wrc)
-res_stab_updivu = compute_quantities(problem,A,b,dΩ)
-
-# UFULL + PFULL + DIVUFULL
-wrc=Gridap.FESpaces.collect_cell_matrix(X,Y,a(dx,dy))
-push!(wrc[1], wu_full...)
-push!(wrc[2], ru_full...)
-push!(wrc[3], cu_full...)
-push!(wrc[1], wp_full...)
-push!(wrc[2], rp_full...)
-push!(wrc[3], cp_full...)
-push!(wrc[1], wdiv_full...)
-push!(wrc[2], rdiv_full...)
-push!(wrc[3], cdiv_full...)
-A = assemble_matrix(assem, wrc)
-res_stab_ufullpfulldivufull = compute_quantities(problem,A,b,dΩ)
-
-if problem==1
-   P=assemble_darcy_preconditioner_matrix(cutgeo, degree, X, Y, s, h, β₀,
-                                       aggregate_to_local_cells,
-                                       agg_cells_to_aggregate, 
-                                       ref_agg_cell_to_ref_bb_map,
-                                       dΩbg_agg_cells,
-                                       dΩbg_cut_cells,
-                                       # FLUX-RELATED DATA
-                                       dv,    # Test basis
-                                       du,    # Trial basis (to project)
-                                       vbb,  # Bounding box space test basis
-                                       u_lhs,
-                                       U_Ωbg_cut_cell_dof_ids, 
-                                       U_agg_cells_local_dof_ids,
-                                       U_cut_cells_to_aggregate_dof_ids,
-                                       γ,
-                                       # PRESSURE-RELATED DATA         
-                                       dq,    # Test basis
-                                       dp,    # Trial basis (to project)
-                                       qbb,  # Bounding box space test basis
-                                       p_lhs,
-                                       P_Ωbg_cut_cell_dof_ids, 
-                                       P_agg_cells_local_dof_ids,
-                                       P_cut_cells_to_aggregate_dof_ids,
-                                       γ,
-                                       # DIV-RELATED DbTA
-                                       γ)
-      evals = eigvals(Array(A),Array(P))
-      println("Preconditioned condition number: ", abs(evals[end])/abs(evals[1]))
-end
-
-# U + DIVU + PMIX + DMIX
-wrc=Gridap.FESpaces.collect_cell_matrix(X,Y,a(dx,dy))
-push!(wrc[1], wu...)
-push!(wrc[2], ru...)
-push!(wrc[3], cu...)
-push!(wrc[1], wdiv...)
-push!(wrc[2], rdiv...)
-push!(wrc[3], cdiv...)
-push!(wrc[1], wpmix...)
-push!(wrc[2], rpmix...)
-push!(wrc[3], cpmix...)
-push!(wrc[1], wdmix...)
-push!(wrc[2], rdmix...)
-push!(wrc[3], cdmix...)
-A = assemble_matrix(assem, wrc)
-res_stab_udivupmixdmix = compute_quantities(problem,A,vec_b,dΩ)
-
-# UFULL + DIVUFULL + PMIX + DMIX
-wrc=Gridap.FESpaces.collect_cell_matrix(X,Y,a(dx,dy))
-push!(wrc[1], wu_full...)
-push!(wrc[2], ru_full...)
-push!(wrc[3], cu_full...)
-push!(wrc[1], wdiv_full...)
-push!(wrc[2], rdiv_full...)
-push!(wrc[3], cdiv_full...)
-push!(wrc[1], wpmix...)
-push!(wrc[2], rpmix...)
-push!(wrc[3], cpmix...)
-push!(wrc[1], wdmix...)
-push!(wrc[2], rdmix...)
-push!(wrc[3], cdmix...)
-A = assemble_matrix(assem, wrc)
-res_stab_ufulldivufullpmixdmix = compute_quantities(problem,A,vec_b,dΩ)
-
-## PRINT DATA:
+## GENERATE EXCEL SHEET RESULTS``
 print("results")
 res_nostab
-res_stab_u
-res_stab_ufull
-res_stab_p
-res_stab_pfull
-res_stab_div
-res_stab_divfull
-res_stab_pmix
-res_stab_dmix
-print("")
-res_stab_updivu
-res_stab_ufullpfulldivufull
-res_stab_udivupmixdmix
-res_stab_ufulldivufullpmixdmix
+res_stab_u_full
+res_stab_u_diff
+res_stab_p_full
+res_stab_p_diff
+res_stab_divu_full
+res_stab_divu_diff
+res_stab_pdivv_full # THIS IS OK. 
+res_stab_divuq_full_rhs #THIS SEEMS TO BE INCORRECT 
+
+# Alternatives for res_stab_divuq_full_rhs
+res_stab_divuq_full #THIS SEEMS BETTER
+res_stab_divuq_diff #not too relevant 
+res_stab_divuq_full_rhs # seems incorrect
+res_stab_divuq_diff_rhs # seems incorrect
+
+# Lastly compare these:
+res_stab_pdivv_full 
+res_stab_pdivv_diff 
