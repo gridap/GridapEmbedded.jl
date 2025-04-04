@@ -168,108 +168,86 @@ cut_cells_to_aggregate = setup_cells_to_aggregate(aggregate_to_cut_cells)
 U_cut_cells_to_aggregate_dof_ids=lazy_map(Reindex(U_aggregate_dof_ids),cut_cells_to_aggregate)
 P_cut_cells_to_aggregate_dof_ids=lazy_map(Reindex(P_aggregate_dof_ids),cut_cells_to_aggregate)
 
-###########################################
-### Setup projections
-###########################################
+##==============================================================================##
+#                                OBJECTIVE
+##==============================================================================##
+#=
+  Compute and assemble the bulk penalty stabilization term
 
-du_proj_Vbb, dv_proj_Vbb = setup_L2_proj_in_bb_space(
-   dΩbg_agg_cells,             # measure of aggregated cells in background domain
-   ref_agg_cell_to_ref_bb_map, # map
-   agg_cells_to_aggregate,     # 
-   aggregate_to_local_cells,   # 
-   du,                         # Trial basis (to project) 
-   dv,                         # Test basis 
-   ubb,                        # Trial basis of bounding box space Vbb
-   vbb,                        # Test basis of bounding box space Vbb
-   identity,                   # operation to be applied to u and v
-   U_agg_cells_local_dof_ids)  # aggregates local dof ids for space U   
+  γ ∫( (v)⊙(rhs_function - proj_rhs_function) )*dD
 
-dp_proj_Qbb, dq_proj_Qbb = setup_L2_proj_in_bb_space(
-   dΩbg_agg_cells,             # measure of aggregated cells in background domain
-   ref_agg_cell_to_ref_bb_map, # map
-   agg_cells_to_aggregate,     # 
-   aggregate_to_local_cells,   # 
-   dp,                         # Trial basis (to project) 
-   dq,                         # Test basis 
-   pbb,                        # Trial basis of bounding box space Qbb
-   qbb,                        # Test basis of bounding box space Qbb
-   identity,                   # operation to be applied to u and v
-   P_agg_cells_local_dof_ids)  # aggregates local dof ids for space P   
+  with `v` the test basis functions (which may be components of a MultiField). The L2 projections `proj_rhs_function` can be computed via `setup_L2_proj_in_bb_space`. `dD` is the measure of the cut cells or full aggregate, that is `dΩbg_cut_cells` or `dΩbg_agg_cells`. The function `rhs_function` is the forcing term appearing on the right hand-side of the PDE. 
 
-div_du_proj_Vbb, div_dv_proj_Vbb = setup_L2_proj_in_bb_space(
-   dΩbg_agg_cells,             # measure of aggregated cells in background domain
-   ref_agg_cell_to_ref_bb_map, # map
-   agg_cells_to_aggregate,     # 
-   aggregate_to_local_cells,   # 
-   du,                         # Trial basis (to project) 
-   dv,                         # Test basis 
-   pbb,                        # Trial basis of bounding box space Vbb
-   qbb,                        # Test basis of bounding box space Vbb
-   divergence,                 # operation to be applied to u and v
-   U_agg_cells_local_dof_ids)  # aggregates local dof ids for space U   
-
-#### ---------------------- ####
-if (_is_multifield_fe_basis_component(dq))
-   nfields=_nfields(dq)
-   fieldid=_fieldid(dq)
-   testP_Ωbg_cut_cell_dof_ids=lazy_map(Gridap.Fields.BlockMap(nfields,fieldid),P_Ωbg_cut_cell_dof_ids)
-end
+  Here, we are interested in using the pressure basis functions for the test space, thus v = dq. In addition, dD = dΩbg_cut_cells.
+=#
 
 # Manually set up the arrays that collect_cell_vector would return automatically
 test_w = []
 test_r = []
 
-######################## (1) int (rhs_function)*dq) #########################
+# Pick a rhs function
 #rhs_func(x) = 10.0*x[1]^2 + sin(x[2])
 rhs_func(x) = 10.0*x[1]
 #rhs_func(x) = 1000.0
-test_f = rhs_func
-test_rhs_vec_contribs1=get_array(∫((rhs_func)*dq)*dΩbg_cut_cells)
+
+##==============================================================================##
+#                   First term: γ ∫( (v)⊙(rhs_function) )*dD
+##==============================================================================##
+test_rhs_vec_contribs1=get_array(∫((rhs_func)*dq)*dΩbg_cut_cells) # 16-element array, one entry per T ∈ Ωbg_cut_cells, with 1-element Vector (for pressure) per cell T.
 push!(test_w, test_rhs_vec_contribs1)
+
+if (_is_multifield_fe_basis_component(dq))
+   nfields=_nfields(dq)
+   fieldid=_fieldid(dq)
+   testP_Ωbg_cut_cell_dof_ids=lazy_map(Gridap.Fields.BlockMap(nfields,fieldid),P_Ωbg_cut_cell_dof_ids)
+end
 push!(test_r, testP_Ωbg_cut_cell_dof_ids) 
 
-######################## (2) proj_rhs_function*dq ######################### (2) 
-test_wbb     = pbb
-test_zbb     = qbb
+##==============================================================================##
+#                   Second term: γ ∫( (v)⊙(proj_rhs_function) )*dD
+##==============================================================================##
+
+## (1) Set-up proj_rhs_function using 
+#=
+
+returns the L2 projection in the bounding box space of the rhs function. That is, the L2 projection is defined through
+
+        ∫ (rhs_func - Π_{Zbb}(operation(u)) zbb dΩbg_agg_cells = 0   ∀ zbb ∈ Zbb(T), 
+        
+with T ∈ T_agg and `Zbb` the bounding box space. Note that Ωbg_agg_cells ⊆ Ωbg_bb. Additionally, Π_{Zbb}(operation(u)) appears in the lhs as the trial function wbb ∈ Zbb.
+
+=#
+test_wbb     = pbb      # Bounding box trial space (for pressure)
+test_zbb     = qbb      # Bounding box test space (for pressure)   
+# evaluate(Gridap.CellData.get_data(qbb)[1],[Point(0.0,0.0)])
 
 test_wbb_Ωbg_agg_cells=change_domain_bb_to_agg_cells(test_wbb, ref_agg_cell_to_ref_bb_map, Ωbg_agg_cells, agg_cells_to_aggregate)   # trial
 test_zbb_Ωbg_agg_cells=change_domain_bb_to_agg_cells(test_zbb, ref_agg_cell_to_ref_bb_map, Ωbg_agg_cells, agg_cells_to_aggregate)   # test
+# evaluate(Gridap.CellData.get_data(test_zbb_Ωbg_agg_cells)[1],[Point(0.0,0.0)])
 
 test_agg_cells_to_lhs_contribs=get_array(∫(test_zbb_Ωbg_agg_cells⋅test_wbb_Ωbg_agg_cells)dΩbg_agg_cells)
 
-test_ass_lhs_map=BulkGhostPenaltyAssembleLhsMap(test_agg_cells_to_lhs_contribs)
-test_lhs = lazy_map(test_ass_lhs_map,aggregate_to_local_cells)
-test_agg_cells_rhs_contribs=get_array(∫(test_zbb_Ωbg_agg_cells*test_f)dΩbg_agg_cells)
+test_ass_lhs_map= BulkGhostPenaltyAssembleLhsMap(test_agg_cells_to_lhs_contribs)
+test_lhs        = lazy_map(test_ass_lhs_map,aggregate_to_local_cells)
+test_agg_cells_rhs_contribs=get_array(∫(test_zbb_Ωbg_agg_cells*rhs_func)dΩbg_agg_cells)
 
-
-evaluate(Gridap.CellData.get_data(test_zbb_Ωbg_agg_cells)[1],[Point(0.0,0.0)])
-evaluate(Gridap.CellData.get_data(qbb)[8],[Point(0.0,0.0)])
-evaluate(Gridap.CellData.get_data(qbb)[8],[Point(0.0,0.0)])
-test_lhs[1]
+# test_lhs[1]
 # Gridap.CellData.get_triangulation(dΩbg_agg_cells.quad) === Gridap.CellData.get_triangulation(test_zbb_Ωbg_agg_cells)
-
 
 test_ass_rhs_map=BulkGhostPenaltyAssembleRhsMap(P_agg_cells_local_dof_ids,test_agg_cells_rhs_contribs) # (!) No need to apply BlockMap!
 test_rhs=lazy_map(test_ass_rhs_map,aggregate_to_local_cells)
 test_f_proj_Zbb_dofs=lazy_map(\,test_lhs,test_rhs)
 test_f_proj_Zbb_array=lazy_map(Gridap.Fields.linear_combination, test_f_proj_Zbb_dofs, Gridap.CellData.get_data(test_zbb))
 
-Gridap.CellData.get_data(test_zbb)
-
-
-evaluate((test_f_proj_Zbb_array)[1],[Point(0.0,0.0)])
-
-
-test_rhs[1]
-test_rhs[1]
+# Gridap.CellData.get_data(test_zbb)
+# evaluate((test_f_proj_Zbb_array)[1],[Point(0.0,0.0)])
 test_f_proj_Zbb_dofs[1] # dofs belonging to the four cells in the first aggregate
 test_f_proj_Zbb_array[1] # 4 x linear combinations of four cells in aggregate
 
-# (7) Change domain of proj_op_u and proj_op_v from Ωbb to Ωbg_agg_cells
+# Change domain of proj_op_u and proj_op_v from Ωbb to Ωbg_agg_cells
 test_f_proj_Zbb_array_agg_cells=lazy_map(Broadcasting(∘), lazy_map(Reindex(test_f_proj_Zbb_array),agg_cells_to_aggregate), ref_agg_cell_to_ref_bb_map)
 # contains 24 entries, with nr of operation fields equal to the nr of cells in that aggregate. 
 
-# ....
 test_fT_proj_Zbb_array_agg_cells=lazy_map(transpose, test_f_proj_Zbb_array_agg_cells)
 if (_is_multifield_fe_basis_component(dp))
    @assert _is_multifield_fe_basis_component(dq)
@@ -292,40 +270,12 @@ if (_is_multifield_fe_basis_component(dq))
 end 
 test_f_proj_Zbb_agg_cells = Gridap.CellData.GenericCellField(test_f_proj_Zbb_array_agg_cells,Ωbg_agg_cells,ReferenceDomain()) 
 
+## (2) Define γ ∫( (v)⊙(proj_rhs_function) )*dD
 dq_on_Ωbg_agg_cells = Gridap.CellData.change_domain(dq,Ωbg_agg_cells,ReferenceDomain())
 dp_on_Ωbg_agg_cells = Gridap.CellData.change_domain(dp,Ωbg_agg_cells,ReferenceDomain())
 
-## ANOTHER TEST ##
-testarray_dp_test_f  = get_array(∫(dp_on_Ωbg_agg_cells⊙test_f_proj_Zbb_agg_cells)*dΩbg_cut_cells)  #matrix
-
-testarray_dq_test_f  = get_array(∫(dq_on_Ωbg_agg_cells*test_f_proj_Zbb_agg_cells)*dΩbg_cut_cells)
-
-testarray_test_f_dq  = get_array(∫(test_f_proj_Zbb_agg_cells⊙dq_on_Ωbg_agg_cells)*dΩbg_cut_cells)
-testarray_dq_test_fT = get_array(∫(dq_on_Ωbg_agg_cells⊙test_fT_proj_Zbb_agg_cells)*dΩbg_cut_cells)
-testarray_test_fT_dq = get_array(∫(test_fT_proj_Zbb_agg_cells⊙dq_on_Ωbg_agg_cells)*dΩbg_cut_cells)
-
-testarray_dq_test_f[1] 
-testarray_test_f_dq[1]  
-testarray_dq_test_fT[1] 
-testarray_test_fT_dq[1] 
-
-### ---- START TEST ## 
-## THE FOLLOWING SEEMS TO IMPLY THAT test_fT_proj_Zbb_agg_cells is the projected rhs_func.
-# NOTE that for (lowest order Pbb) a rhs_func which takes on a constant value everywhere, the different/error = machine precision, whereas for higher order functions this is not the case (as expected)
-sum_cut_cells = sum([sum(get_array(∫(test_fT_proj_Zbb_agg_cells)dΩbg_cut_cells)[i][2]) for i=1:16])
-sum((get_array(∫(rhs_func)*dΩbg_cut_cells)))
-@assert abs(sum_cut_cells - sum((get_array(∫(rhs_func)*dΩbg_cut_cells)))) <1e-12
-difference = abs(sum_cut_cells - sum((get_array(∫(rhs_func)*dΩbg_cut_cells)))) 
-### ---- END TEST ## 
-
-# push contributions to rhs_vec
-# test_rhs_vec_contribs2=get_array(∫((-1.0)*(test_fT_proj_Zbb_agg_cells)⋅(dq_on_Ωbg_agg_cells))*dΩbg_cut_cells)
-
-test_rhs_vec_contribs2 = get_array(∫((-1.0)*(test_fT_proj_Zbb_agg_cells)⋅dq_on_Ωbg_agg_cells)*dΩbg_cut_cells)
-#DEBUG ME: here output is cell matrix  and should be cell vector
-
-
-
+test_rhs_vec_contribs2 = get_array(∫((-1.0)*(test_fT_proj_Zbb_agg_cells)⋅dq_on_Ωbg_agg_cells)*dΩbg_cut_cells) #DEBUG ME: here output is cell matrix  and should be cell vector
+test_rhs_vec_contribs2[2][2,2] # this should be a 4-element vector?
 push!(test_w, test_rhs_vec_contribs2)
 if (_is_multifield_fe_basis_component(dq))
    nfields=_nfields(dq)
@@ -334,10 +284,25 @@ if (_is_multifield_fe_basis_component(dq))
    lazy_map(Gridap.Fields.BlockMap(nfields,fieldid),P_cut_cells_to_aggregate_dof_ids)
 end
 push!(test_r, test_P_cut_cells_to_aggregate_dof_ids)
+test_P_cut_cells_to_aggregate_dof_ids[1][2]
 
-test_w[2][1]
+## TESTING OTHER CONTRIBS TERMS:
+testarray_dp_test_f  = get_array(∫(dp_on_Ωbg_agg_cells⊙test_f_proj_Zbb_agg_cells)*dΩbg_cut_cells)  #matrix
+testarray_dq_test_f  = get_array(∫(dq_on_Ωbg_agg_cells*test_f_proj_Zbb_agg_cells)*dΩbg_cut_cells)  # AssertionError: A check failed.
+testarray_test_f_dq  = get_array(∫(test_f_proj_Zbb_agg_cells⊙dq_on_Ωbg_agg_cells)*dΩbg_cut_cells)  # AssertionError: A check failed.
+testarray_dq_test_fT = get_array(∫(dq_on_Ωbg_agg_cells⊙test_fT_proj_Zbb_agg_cells)*dΩbg_cut_cells)
+testarray_test_fT_dq = get_array(∫(test_fT_proj_Zbb_agg_cells⊙dq_on_Ωbg_agg_cells)*dΩbg_cut_cells)
 
-#### -- PROBLEM -- ####
+### START TEST ###
+## THE FOLLOWING SEEMS TO IMPLY THAT test_fT_proj_Zbb_agg_cells is the projected rhs_func.
+# NOTE that for (lowest order Pbb) a rhs_func which takes on a constant value everywhere, the different/error = machine precision, whereas for higher order functions this is not the case (as expected)
+sum_cut_cells = sum([sum(get_array(∫(test_fT_proj_Zbb_agg_cells)dΩbg_cut_cells)[i][2]) for i=1:16])
+sum((get_array(∫(rhs_func)*dΩbg_cut_cells)))
+@assert abs(sum_cut_cells - sum((get_array(∫(rhs_func)*dΩbg_cut_cells)))) <1e-12
+difference = abs(sum_cut_cells - sum((get_array(∫(rhs_func)*dΩbg_cut_cells)))) 
+### END TEST ###
+
+#### -- TEST PROBLEM -- ####
 test_a((u,p),(v,q))=∫(u⋅v+q*p)dΩ 
 uex(x) = -VectorValue(2.0,2.0)
 test_l((v,q))=∫(uex⋅v+1.0⋅q)dΩ
@@ -352,22 +317,6 @@ test_vec_b=Gridap.FESpaces.collect_cell_vector(Y,test_l(dy))
 
 push!(test_vec_b[1], test_w...)
 push!(test_vec_b[2], test_r...)
-
-# test_w = []
-# test_r = []
-# push!(test_w, test_rhs_vec_contribs1)
-# push!(test_r, testP_Ωbg_cut_cell_dof_ids) 
-# push!(test_w, test_rhs_vec_contribs2)
-# push!(test_r, test_P_cut_cells_to_aggregate_dof_ids)
-
-#
-# push!(test_mat_A[1], test_rhs_vec_contribs2...)
-# push!(test_mat_A[2], test_P_cut_cells_to_aggregate_dof_ids...)
-
-# I AM CREATING MATRIX BLOCKS WHEN USING 
-# test_rhs_vec_contribs2=get_array(∫((-1.0)*(test_fT_proj_Zbb_agg_cells)⋅(dq_on_Ωbg_agg_cells))*dΩbg_cut_cells)
-
-
 
 assem=SparseMatrixAssembler(X,Y)
 
