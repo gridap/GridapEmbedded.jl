@@ -16,4 +16,6 @@ include("Distributed/Distributed.jl")
 
 include("Exports.jl")
 
+include("BGP/BGP.jl")
+
 end # module
