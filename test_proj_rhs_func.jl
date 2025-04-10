@@ -233,49 +233,34 @@ test_agg_cells_rhs_contribs=get_array(∫(test_zbb_Ωbg_agg_cells*rhs_func)dΩbg
 
 # test_lhs[1]
 # Gridap.CellData.get_triangulation(dΩbg_agg_cells.quad) === Gridap.CellData.get_triangulation(test_zbb_Ωbg_agg_cells)
+# test_ass_rhs_map=BulkGhostPenaltyAssembleRhsMap(P_agg_cells_local_dof_ids,test_agg_cells_rhs_contribs)
+# test_rhs=lazy_map(sum,aggregate_to_local_cells)
+test_rhs = lazy_map(sum, 
+                    lazy_map(Broadcasting(Reindex(test_agg_cells_rhs_contribs)), 
+                    aggregate_to_local_cells))
 
-test_ass_rhs_map=BulkGhostPenaltyAssembleRhsMap(P_agg_cells_local_dof_ids,test_agg_cells_rhs_contribs) # (!) No need to apply BlockMap!
-test_rhs=lazy_map(test_ass_rhs_map,aggregate_to_local_cells)
 test_f_proj_Zbb_dofs=lazy_map(\,test_lhs,test_rhs)
-test_f_proj_Zbb_array=lazy_map(Gridap.Fields.linear_combination, test_f_proj_Zbb_dofs, Gridap.CellData.get_data(test_zbb))
+test_f_proj_Zbb_array=lazy_map(Gridap.Fields.linear_combination, 
+                               test_f_proj_Zbb_dofs, 
+                               Gridap.CellData.get_data(test_zbb))
 
 # Gridap.CellData.get_data(test_zbb)
-# evaluate((test_f_proj_Zbb_array)[1],[Point(0.0,0.0)])
-test_f_proj_Zbb_dofs[1] # dofs belonging to the four cells in the first aggregate
-test_f_proj_Zbb_array[1] # 4 x linear combinations of four cells in aggregate
+test_f_proj_Zbb_dofs[2] 
+test_f_proj_Zbb_array[1]
 
 # Change domain of proj_op_u and proj_op_v from Ωbb to Ωbg_agg_cells
-test_f_proj_Zbb_array_agg_cells=lazy_map(Broadcasting(∘), lazy_map(Reindex(test_f_proj_Zbb_array),agg_cells_to_aggregate), ref_agg_cell_to_ref_bb_map)
+test_f_proj_Zbb_array_agg_cells=lazy_map(Broadcasting(∘), 
+                          lazy_map(Reindex(test_f_proj_Zbb_array),agg_cells_to_aggregate), ref_agg_cell_to_ref_bb_map)
 # contains 24 entries, with nr of operation fields equal to the nr of cells in that aggregate. 
-
-test_fT_proj_Zbb_array_agg_cells=lazy_map(transpose, test_f_proj_Zbb_array_agg_cells)
-if (_is_multifield_fe_basis_component(dp))
-   @assert _is_multifield_fe_basis_component(dq)
-   @assert _nfields(dp)==_nfields(dq)
-   nfields=_nfields(dq)
-   fieldid=_fieldid(dp)
-test_fT_proj_Zbb_array_agg_cells=lazy_map(Gridap.Fields.BlockMap((1,nfields),fieldid),
-   test_fT_proj_Zbb_array_agg_cells)
-end
-test_fT_proj_Zbb_agg_cells = Gridap.CellData.GenericCellField(test_fT_proj_Zbb_array_agg_cells,Ωbg_agg_cells,ReferenceDomain()) 
-
-if (_is_multifield_fe_basis_component(dq))
-   @assert _is_multifield_fe_basis_component(dq)
-   @assert _nfields(dp)==_nfields(dq)
-   nfields=_nfields(dq)
-   fieldid=_fieldid(dq)
-   test_f_proj_Zbb_array_agg_cells=lazy_map(
-                               Gridap.Fields.BlockMap(nfields,fieldid),
-                               test_f_proj_Zbb_array_agg_cells)
-end 
-test_f_proj_Zbb_agg_cells = Gridap.CellData.GenericCellField(test_f_proj_Zbb_array_agg_cells,Ωbg_agg_cells,ReferenceDomain()) 
+test_f_proj_Zbb_agg_cells = 
+    Gridap.CellData.GenericCellField(test_f_proj_Zbb_array_agg_cells,Ωbg_agg_cells,ReferenceDomain())
 
 ## (2) Define γ ∫( (v)⊙(proj_rhs_function) )*dD
 dq_on_Ωbg_agg_cells = Gridap.CellData.change_domain(dq,Ωbg_agg_cells,ReferenceDomain())
 dp_on_Ωbg_agg_cells = Gridap.CellData.change_domain(dp,Ωbg_agg_cells,ReferenceDomain())
 
-test_rhs_vec_contribs2 = get_array(∫((-1.0)*(test_fT_proj_Zbb_agg_cells)⋅dq_on_Ωbg_agg_cells)*dΩbg_cut_cells) #DEBUG ME: here output is cell matrix  and should be cell vector
-test_rhs_vec_contribs2[2][2,2] # this should be a 4-element vector?
+test_rhs_vec_contribs2 = get_array(∫((-1.0)*(test_f_proj_Zbb_agg_cells)⋅dq_on_Ωbg_agg_cells)*dΩbg_cut_cells) #DEBUG ME: here output is cell matrix  and should be cell vector
+test_rhs_vec_contribs2[2][2]
 push!(test_w, test_rhs_vec_contribs2)
 if (_is_multifield_fe_basis_component(dq))
    nfields=_nfields(dq)
@@ -290,8 +275,6 @@ test_P_cut_cells_to_aggregate_dof_ids[1][2]
 testarray_dp_test_f  = get_array(∫(dp_on_Ωbg_agg_cells⊙test_f_proj_Zbb_agg_cells)*dΩbg_cut_cells)  #matrix
 testarray_dq_test_f  = get_array(∫(dq_on_Ωbg_agg_cells*test_f_proj_Zbb_agg_cells)*dΩbg_cut_cells)  # AssertionError: A check failed.
 testarray_test_f_dq  = get_array(∫(test_f_proj_Zbb_agg_cells⊙dq_on_Ωbg_agg_cells)*dΩbg_cut_cells)  # AssertionError: A check failed.
-testarray_dq_test_fT = get_array(∫(dq_on_Ωbg_agg_cells⊙test_fT_proj_Zbb_agg_cells)*dΩbg_cut_cells)
-testarray_test_fT_dq = get_array(∫(test_fT_proj_Zbb_agg_cells⊙dq_on_Ωbg_agg_cells)*dΩbg_cut_cells)
 
 ### START TEST ###
 ## THE FOLLOWING SEEMS TO IMPLY THAT test_fT_proj_Zbb_agg_cells is the projected rhs_func.
