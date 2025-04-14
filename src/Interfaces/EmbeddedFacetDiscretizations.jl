@@ -223,6 +223,21 @@ function compute_subfacet_to_inout(cut::EmbeddedFacetDiscretization,geo::CSG.Geo
   compute_inoutcut(newtree)
 end
 
+"""
+    struct SubFacetBoundaryTriangulation{Dc,Dp,T} <: Triangulation{Dc,Dp}
+
+Triangulation of cut facets from the background mesh, i.e each of the facets 
+in this triangulation is part of a background facet that has been cut by the geometry.
+
+This differs from the the `SubFacetTriangulation` in that the facets in the `SubFacetTriangulation` 
+are not cut background facets, but rather subfacets on the interior of a background cell.
+
+They result from calling `Boundary` or `Skeleton` on an `EmbeddedFacetDiscretization` object, 
+for instance: 
+
+    BoundaryTriangulation(cut::EmbeddedFacetDiscretization,in_or_out,geo;tags=nothing)
+
+"""
 struct SubFacetBoundaryTriangulation{Dc,Dp,T} <: Triangulation{Dc,Dp}
   facets::BoundaryTriangulation{Dc,Dp}
   subfacets::SubCellData{Dc,Dp,T}

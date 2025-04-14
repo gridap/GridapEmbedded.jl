@@ -41,6 +41,8 @@ u = interpolate(x->x[1]+x[2],V)
 Λ = SkeletonTriangulation(cutgeo_facets,PHYSICAL)
 
 face_model = get_active_model(Γu)
+Σb = BoundaryTriangulation(Γu)
+Σi = SkeletonTriangulation(Γu)
 
 test_triangulation(Ω)
 test_triangulation(Γ)
