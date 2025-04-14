@@ -126,10 +126,9 @@ function BoundaryTriangulation(
   in_or_out::Tuple,
   geo::CSG.Geometry)
 
-  trian1 = BoundaryTriangulation(facets,cut,in_or_out[1],geo)
-  trian2 = BoundaryTriangulation(facets,cut,in_or_out[2],geo)
-  num_cells(trian1) == 0 ? trian2 : lazy_append(trian1,trian2)
-
+  a = BoundaryTriangulation(facets,cut,in_or_out[1],geo)
+  b = BoundaryTriangulation(facets,cut,in_or_out[2],geo)
+  iszero(num_cells(a)) ? b : lazy_append(a,b)
 end
 
 function BoundaryTriangulation(
@@ -139,7 +138,7 @@ function BoundaryTriangulation(
   geo::CSG.Geometry)
 
   bgfacet_to_inoutcut = compute_bgfacet_to_inoutcut(cut,geo)
-  bgfacet_to_mask = lazy_map( a->a==in_or_out, bgfacet_to_inoutcut)
+  bgfacet_to_mask = lazy_map(isequal(in_or_out), bgfacet_to_inoutcut)
   _restrict_boundary_triangulation(cut.bgmodel,facets,bgfacet_to_mask)
 end
 
@@ -161,7 +160,7 @@ function BoundaryTriangulation(
   geo::CSG.Geometry)
 
   bgfacet_to_inoutcut = compute_bgfacet_to_inoutcut(cut,geo)
-  bgfacet_to_mask = lazy_map( a->a==CUT, bgfacet_to_inoutcut)
+  bgfacet_to_mask = lazy_map(isequal(CUT), bgfacet_to_inoutcut)
   facets = _restrict_boundary_triangulation(cut.bgmodel,_facets,bgfacet_to_mask)
 
   facet_to_bgfacet = facets.glue.face_to_bgface
@@ -173,7 +172,7 @@ function BoundaryTriangulation(
   _subfacet_to_facet = lazy_map(Reindex(bgfacet_to_facet),cut.subfacets.cell_to_bgcell)
 
   subfacet_to_inout = compute_subfacet_to_inout(cut,geo)
-  pred(a,b,c) = c != 0 && a==CUT && b==in_or_out.in_or_out
+  pred(a,b,c) = !iszero(c) && a==CUT && b==in_or_out.in_or_out
   mask = lazy_map( pred, subfacet_to_inoutcut, subfacet_to_inout, _subfacet_to_facet )
   newsubfacets = findall(mask)
   subfacets = SubCellData(cut.subfacets,newsubfacets)
@@ -183,7 +182,6 @@ function BoundaryTriangulation(
 end
 
 function _restrict_boundary_triangulation(model,facets,bgfacet_to_mask)
-
   facet_to_bgfacet = facets.glue.face_to_bgface
   facet_to_mask = lazy_map(Reindex(bgfacet_to_mask),facet_to_bgfacet)
   n_bgfacets = length(bgfacet_to_mask)

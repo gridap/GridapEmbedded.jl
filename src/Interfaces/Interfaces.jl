@@ -1,5 +1,6 @@
 module Interfaces
 
+using Gridap
 using Gridap.Helpers
 using Gridap.Arrays
 using Gridap.Fields
@@ -21,12 +22,14 @@ import Gridap.Geometry: get_reffes
 import Gridap.Geometry: get_cell_type
 import Gridap.Geometry: get_background_model
 import Gridap.Geometry: get_active_model
+import Gridap.Geometry: compute_active_model
 import Gridap.Geometry: get_glue
 import Gridap.Geometry: get_grid
 import Gridap.Geometry: FaceToFaceGlue
 import Gridap.Geometry: get_facet_normal
 import Gridap.Geometry: move_contributions
 using Gridap.Geometry: GenericTriangulation
+using Gridap.Geometry: CompositeTriangulation
 
 using GridapEmbedded.CSG
 

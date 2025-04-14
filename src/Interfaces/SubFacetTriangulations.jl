@@ -39,14 +39,6 @@ function get_background_model(a::SubFacetTriangulation)
   a.bgmodel
 end
 
-function get_active_model(a::SubFacetTriangulation)
-  msg = """
-  This is not implemented, but also not needed in practice.
-  Embedded Grids implemented for integration, not interpolation.
-  """
-  @notimplemented  msg
-end
-
 function get_grid(a::SubFacetTriangulation)
   a.subgrid
 end
@@ -86,6 +78,49 @@ function move_contributions(scell_to_val::AbstractArray,strian::SubFacetTriangul
   Ωa = Triangulation(model,cell_to_touched)
   acell_to_val = move_contributions(scell_to_val,strian,Ωa)
   acell_to_val, Ωa 
+end
+
+# Compute the active model
+# To do this, we need to glue together the subfacets, which unfortunately requires comparing 
+# the point coordinates...
+function compute_active_model(trian::SubFacetTriangulation)
+  subgrid = trian.subgrid
+  subfacets = trian.subfacets
+  facet_to_uids, uid_to_point = consistent_facet_to_points(
+    subfacets.facet_to_points, subfacets.point_to_coords
+  )
+  topo = UnstructuredGridTopology(
+    subgrid, facet_to_uids, uid_to_point
+  )
+  return UnstructuredDiscreteModel(subgrid,topo,FaceLabeling(topo))
+end
+
+function consistent_facet_to_points(
+  facet_to_points::Table, point_to_coords::Vector
+)
+  f(pt::VectorValue) = VectorValue(round.(pt.data;sigdigits=12))
+  f(id::Integer) = f(point_to_coords[id])
+
+  # Create a list of the unique points composing the facets
+  npts = length(point_to_coords)
+  nfaces = length(facet_to_points)
+  touched = zeros(Bool,npts)
+  for face in 1:nfaces
+    pts = view(facet_to_points,face)
+    touched[pts] .= true
+  end
+  touched_ids = findall(touched)
+  unique_ids = unique(f,touched_ids)
+
+  # Create a mapping from the old point ids to the new ones
+  touched_to_uid = collect(Int32,indexin(f.(touched_ids),f.(unique_ids)))
+  point_to_uid = extend(touched_to_uid,PosNegPartition(touched_ids,npts))
+
+  facet_to_uids = Table(
+    collect(Int32,lazy_map(Reindex(point_to_uid),facet_to_points.data)),
+    facet_to_points.ptrs
+  )
+  return facet_to_uids, unique_ids
 end
 
 # API
