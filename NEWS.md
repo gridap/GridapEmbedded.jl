@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added support for distributed level-set geometries. Since PR[#99](https://github.com/gridap/GridapEmbedded.jl/pull/99).
 - Refactored the distributed code to allow for ghosted/unghosted geometries and triangulations. Since PR[#100](https://github.com/gridap/GridapEmbedded.jl/pull/100).
 
+### Changed
+
+- Swapped `LightGraphs.jl` dependency to `Graphs.jl`, due to the former being deprecated. Since PR[#108](https://github.com/gridap/GridapEmbedded.jl/pull/108).
+
 ## [0.9.5] - 2024-10-18
 
 ### Added
