@@ -108,6 +108,8 @@ trian_sΩo = SkeletonTriangulation(trian_s,cutgeo_facets,PHYSICAL_OUT,geo)
 
 Γu = EmbeddedBoundary(cutgeo)
 face_model = get_active_model(Γu)
+Σb = BoundaryTriangulation(Γu)
+Σi = SkeletonTriangulation(Γu)
 
 d = mktempdir()
 try
