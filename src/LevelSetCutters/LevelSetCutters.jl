@@ -15,6 +15,7 @@ import GridapEmbedded.Interfaces: compute_bgfacet_to_inoutcut
 using GridapEmbedded.Interfaces: Simplex
 using GridapEmbedded.Interfaces: merge_sub_face_data
 using GridapEmbedded.Interfaces: compute_inoutcut
+using GridapEmbedded.Interfaces: SubCellTriangulation, SubFacetTriangulation
 
 using LinearAlgebra
 using MiniQhull
@@ -54,6 +55,8 @@ include("DiscreteGeometries.jl")
 include("LookupTables.jl")
 
 include("CutTriangulations.jl")
+
+include("DifferentiableTriangulations.jl")
 
 struct LevelSetCutter <: Cutter end
 
