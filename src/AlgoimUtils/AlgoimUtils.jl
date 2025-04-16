@@ -1015,19 +1015,15 @@ end
     maximum(ccv) * minimum(ccv) < 0.0 ? true : false
   end
 
-function active_triangulation(Ω::DistributedTriangulation,
-                              φ::DistributedSingleFieldFEFunction,
-                              Vbg::DistributedFESpace,
+function active_triangulation(Ω::Triangulation,
+                              φ::SingleFieldFEFunction,
+                              Vbg::SingleFieldFESpace,
                               is_a::AbstractArray,
                               δ::Float64)
   φʳ = interpolate_everywhere(φ-δ,Vbg)
   is_aʳ = apply_mask(φʳ,active_mask)
-  is_nᵃ = map(local_views(is_a),local_views(is_aʳ)) do is_a,is_aʳ
-    lazy_map((a,aʳ)->a|aʳ,is_a,is_aʳ)
-  end
-  Ωˡ = map((lt,ca)->Triangulation(lt,ca),local_views(Ω),is_nᵃ)
-  Mbg = get_background_model(Ω)
-  DistributedTriangulation(Ωˡ,Mbg),is_nᵃ
+  is_nᵃ = lazy_map((a,aʳ)->a|aʳ,is_a,is_aʳ)
+  Triangulation(Ω,is_nᵃ),is_nᵃ
 end
 
 function active_triangulation(Ω::DistributedTriangulation,
@@ -1048,6 +1044,19 @@ function active_triangulation(Ω::DistributedTriangulation,
   Ωˡ = map((lt,ca)->Triangulation(lt,ca),local_views(Ω),is_nᵃ)
   Mbg = get_background_model(Ω)
   DistributedTriangulation(Ωˡ,Mbg),is_nᵃ
+end
+
+function narrow_band_triangulation(Ω::Triangulation,
+                                   φ::SingleFieldFEFunction,
+                                   Vbg::SingleFieldFESpace,
+                                   is_c::AbstractArray,
+                                   δ::Float64)
+  φʳ = interpolate_everywhere(φ-δ,Vbg)
+  φˡ = interpolate_everywhere(φ+δ,Vbg)
+  is_cʳ = apply_mask(φʳ,narrow_band_mask)
+  is_cˡ = apply_mask(φˡ,narrow_band_mask)    
+  is_nᶜ = lazy_map((c,cʳ,cˡ)->c|cʳ|cˡ,is_c,is_cʳ,is_cˡ)
+  Triangulation(Ω,is_nᶜ),is_nᶜ
 end
 
 function narrow_band_triangulation(Ω::DistributedTriangulation,
