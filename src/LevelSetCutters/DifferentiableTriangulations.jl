@@ -221,7 +221,7 @@ function compute_cell_maps(cell_coords,cell_reffes)
   cell_q0 = lazy_map(p->zero(first(get_vertex_coordinates(p))),cell_poly)
   origins = lazy_map(evaluate,default_cell_map,cell_q0)
   gradients = lazy_map(evaluate,default_cell_grad,cell_q0)
-  cell_map = lazy_map(Gridap.Fields.affine_map,gradients,origins)
+  cell_map = lazy_map(Fields.affine_map,gradients,origins)
   return cell_map
 end
 
