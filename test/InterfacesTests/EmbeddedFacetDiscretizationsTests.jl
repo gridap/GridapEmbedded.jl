@@ -76,7 +76,7 @@ celldata_Λ = [
  "bgcell_right"=>collect(Int,get_glue(Λ.⁻,Val(D)).tface_to_mface)]
 cellfields_Λ = ["normal"=> n_Λ.⁺,"jump_v"=>jump(v),"jump_u"=>jump(u)]
 
-d = "./dev"#mktempdir()
+d = mktempdir()
 try
   writevtk(Ωbg,joinpath(d,"trian"),append=false)
   writevtk(Ω,joinpath(d,"trian_O"),celldata=celldata_Ω,cellfields=cellfields_Ω,append=false)
@@ -84,7 +84,7 @@ try
   writevtk(Λ,joinpath(d,"trian_sO"),celldata=celldata_Λ,cellfields=cellfields_Λ,append=false)
   writevtk(Γf,joinpath(d,"trian_Gf"),append=false)
 finally
-  #rm(d,recursive=true)
+  rm(d,recursive=true)
 end
 
 ##########################################
