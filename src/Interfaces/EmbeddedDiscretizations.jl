@@ -1,6 +1,42 @@
-
+"""
+    abstract type EmbeddedDiscretization <: GridapType end
+"""
 abstract type AbstractEmbeddedDiscretization <: GridapType end
 
+"""
+    struct EmbeddedDiscretization{Dc,T} <: AbstractEmbeddedDiscretization
+      bgmodel::DiscreteModel
+      ls_to_bgcell_to_inoutcut::Vector{Vector{Int8}}
+      subcells::SubCellData{Dc,Dc,T}
+      ls_to_subcell_to_inout::Vector{Vector{Int8}}
+      subfacets::SubFacetData{Dc,T}
+      ls_to_subfacet_to_inout::Vector{Vector{Int8}}
+      oid_to_ls::Dict{UInt,Int}
+      geo::CSG.Geometry
+    end
+
+This structure contains all the required information to build integration `Triangulation`s 
+for a cut model.
+
+## Constructors
+
+    EmbeddedDiscretization(cutter::Cutter,background,geom)
+
+## Properties
+
+- `bgmodel::DiscreteModel`: the background mesh
+- `geo::CSG.Geometry`: the geometry used to cut the background mesh
+- `subcells::SubCellData`: collection of cut subcells, attached to the background mesh
+- `subfacets::SubFacetData`: collection of cut facets, attached to the background mesh
+- `ls_to_X_to_inoutcut::Vector{Vector{Int8}}`: list of IN/OUT/CUT states for each cell/facet 
+   in the background mesh, for each node in the geometry tree.
+
+## Methods
+
+- [`Triangulation(cut::EmbeddedDiscretization,in_or_out)`](@ref)
+- [`EmbeddedBoundary(cut::EmbeddedDiscretization)`](@ref)
+
+"""
 struct EmbeddedDiscretization{Dc,T} <: AbstractEmbeddedDiscretization
   bgmodel::DiscreteModel
   ls_to_bgcell_to_inoutcut::Vector{Vector{Int8}}
@@ -224,6 +260,9 @@ function Triangulation(cut::EmbeddedDiscretization)
   Triangulation(cut,PHYSICAL_IN,cut.geo)
 end
 
+"""
+    Triangulation(cut::EmbeddedDiscretization[,in_or_out=PHYSICAL_IN])
+"""
 function Triangulation(cut::EmbeddedDiscretization,in_or_out)
   Triangulation(cut,in_or_out,cut.geo)
 end
@@ -355,6 +394,9 @@ function _compute_inout_complementary(inout_1)
   end
 end
 
+"""
+    EmbeddedBoundary(cut::EmbeddedDiscretization)
+"""
 function EmbeddedBoundary(cut::EmbeddedDiscretization)
   EmbeddedBoundary(cut,cut.geo)
 end

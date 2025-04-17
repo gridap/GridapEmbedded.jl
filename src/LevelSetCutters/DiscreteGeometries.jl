@@ -1,4 +1,16 @@
 
+"""
+    struct DiscreteGeometry{D,T} <: CSG.Geometry
+      tree::Node
+      point_to_coords::Vector{Point{D,T}}
+    end
+
+## Constructors
+
+    DiscreteGeometry(φh::FEFunction,model::DiscreteModel;name::String="")
+    DiscreteGeometry(f::Function,model::DiscreteModel;name::String="")
+
+"""
 struct DiscreteGeometry{D,T} <: CSG.Geometry
   tree::Node
   point_to_coords::Vector{Point{D,T}}
@@ -59,6 +71,11 @@ function _find_unique_leaves(tree)
   oid_to_j = Dict{UInt,Int}( [oid=>j for (j,oid) in enumerate(j_to_oid)] )
 
   j_to_fun, oid_to_j
+end
+
+function DiscreteGeometry(f::Function,model::DiscreteModel;name::String="")
+  geo = AnalyticalGeometry(f;name=name)
+  discretize(geo,model)
 end
 
 function DiscreteGeometry(
