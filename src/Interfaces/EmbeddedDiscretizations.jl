@@ -1,26 +1,17 @@
 """
-    abstract type EmbeddedDiscretization <: GridapType end
+    abstract type EmbeddedDiscretization <: GridapType
 """
 abstract type AbstractEmbeddedDiscretization <: GridapType end
 
 """
     struct EmbeddedDiscretization{Dc,T} <: AbstractEmbeddedDiscretization
-      bgmodel::DiscreteModel
-      ls_to_bgcell_to_inoutcut::Vector{Vector{Int8}}
-      subcells::SubCellData{Dc,Dc,T}
-      ls_to_subcell_to_inout::Vector{Vector{Int8}}
-      subfacets::SubFacetData{Dc,T}
-      ls_to_subfacet_to_inout::Vector{Vector{Int8}}
-      oid_to_ls::Dict{UInt,Int}
-      geo::CSG.Geometry
-    end
 
 This structure contains all the required information to build integration `Triangulation`s 
 for a cut model.
 
 ## Constructors
 
-    EmbeddedDiscretization(cutter::Cutter,background,geom)
+    cut(cutter::Cutter,background,geom)
 
 ## Properties
 
@@ -28,13 +19,18 @@ for a cut model.
 - `geo::CSG.Geometry`: the geometry used to cut the background mesh
 - `subcells::SubCellData`: collection of cut subcells, attached to the background mesh
 - `subfacets::SubFacetData`: collection of cut facets, attached to the background mesh
-- `ls_to_X_to_inoutcut::Vector{Vector{Int8}}`: list of IN/OUT/CUT states for each cell/facet 
+- `ls_to_bgcell_to_inoutcut::Vector{Vector{Int8}}`: list of IN/OUT/CUT states for each cell 
    in the background mesh, for each node in the geometry tree.
+- `ls_to_subcell_to_inoutcut::Vector{Vector{Int8}}`: list of IN/OUT/CUT states for each subcell 
+   in the cut part of the mesh, for each node in the geometry tree.
+- `ls_to_subfacet_to_inoutcut::Vector{Vector{Int8}}`: list of IN/OUT/CUT states for each subfacet 
+   in the cut part of the mesh, for each node in the geometry tree.
 
 ## Methods
 
 - [`Triangulation(cut::EmbeddedDiscretization,in_or_out)`](@ref)
 - [`EmbeddedBoundary(cut::EmbeddedDiscretization)`](@ref)
+- [`GhostSkeleton(cut::EmbeddedDiscretization)`](@ref)
 
 """
 struct EmbeddedDiscretization{Dc,T} <: AbstractEmbeddedDiscretization
@@ -456,6 +452,9 @@ function EmbeddedBoundary(cut::EmbeddedDiscretization,geo1::CSG.Geometry,geo2::C
 
 end
 
+"""
+    GhostSkeleton(cut::EmbeddedDiscretization[,in_or_out=ACTIVE_IN])
+"""
 function GhostSkeleton(cut::EmbeddedDiscretization)
   GhostSkeleton(cut,ACTIVE_IN)
 end

@@ -8,7 +8,7 @@ pages = [
     "Aggregated FEM" => "AggregatedFEM.md",
     "Moment-Fitted Quadratures" => "MomentFittedQuadratures.md",
     "Distributed computing" => "Distributed.md",
-],
+]
 
 makedocs(;
     modules = [GridapEmbedded],

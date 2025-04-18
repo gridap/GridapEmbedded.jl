@@ -1,4 +1,30 @@
 
+"""
+    struct EmbeddedFacetDiscretization{Dc,Dp,T} <: AbstractEmbeddedDiscretization
+
+This structure contains all the required information to build integration `Triangulations` 
+for a cut model boundary.
+
+## Constructors
+
+    cut_facets(cutter::Cutter,background,geom)
+
+## Properties
+
+- `bgmodel::DiscreteModel`: the background mesh
+- `geo::CSG.Geometry`: the geometry used to cut the background mesh
+- `subfacets::SubFacetData`: collection of cut facets, attached to the background mesh
+- `ls_to_facet_to_inoutcut::Vector{Vector{Int8}}`: list of IN/OUT/CUT states for each facet 
+   in the background mesh, for each node in the geometry tree.
+- `ls_to_subfacet_to_inoutcut::Vector{Vector{Int8}}`: list of IN/OUT/CUT states for each subfacet 
+   in the cut part of the mesh, for each node in the geometry tree.
+
+## Methods
+
+- [`BoundaryTriangulation(cut::EmbeddedFacetDiscretization,in_or_out)`](@ref)
+- [`SkeletonTriangulation(cut::EmbeddedFacetDiscretization,in_or_out)`](@ref)
+
+"""
 struct EmbeddedFacetDiscretization{Dc,Dp,T} <: AbstractEmbeddedDiscretization
   bgmodel::DiscreteModel{Dp,Dp}
   ls_to_facet_to_inoutcut::Vector{Vector{Int8}}
@@ -20,6 +46,9 @@ function SkeletonTriangulation(cut::EmbeddedFacetDiscretization)
   SkeletonTriangulation(cut,PHYSICAL_IN)
 end
 
+"""
+    SkeletonTriangulation(cut::EmbeddedFacetDiscretization[, in_or_out=PHYSICAL_IN])
+"""
 function SkeletonTriangulation(
   cut::EmbeddedFacetDiscretization,
   in_or_out)
@@ -75,6 +104,9 @@ function BoundaryTriangulation(
   BoundaryTriangulation(cut,PHYSICAL_IN;tags=tags)
 end
 
+"""
+    BoundaryTriangulation(cut::EmbeddedFacetDiscretization[, in_or_out=PHYSICAL_IN; tags=nothing])
+"""
 function BoundaryTriangulation(
   cut::EmbeddedFacetDiscretization,
   in_or_out;
@@ -232,10 +264,10 @@ in this triangulation is part of a background facet that has been cut by the geo
 This differs from the the `SubFacetTriangulation` in that the facets in the `SubFacetTriangulation` 
 are not cut background facets, but rather subfacets on the interior of a background cell.
 
-They result from calling `Boundary` or `Skeleton` on an `EmbeddedFacetDiscretization` object, 
-for instance: 
+They result from calling `Boundary` or `Skeleton` on an `EmbeddedFacetDiscretization` object.
 
-    BoundaryTriangulation(cut::EmbeddedFacetDiscretization,in_or_out,geo;tags=nothing)
+    BoundaryTriangulation(cut::EmbeddedFacetDiscretization,in_or_out;tags=nothing)
+    SkeletonTriangulation(cut::EmbeddedFacetDiscretization,in_or_out)
 
 """
 struct SubFacetBoundaryTriangulation{Dc,Dp,T} <: Triangulation{Dc,Dp}

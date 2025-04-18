@@ -111,7 +111,7 @@ Triangulation containing the interfaces between subfacets. We always have dimens
   - Df = Dc-1 :: Dimension of the cut subfacets
   - Di = Dc-2 :: Dimension of the subfacet interfaces
 
-Description of the different components:
+# Properties
 
 - `face_trian` :: Original SubFacetTriangulation, built on top of the background mesh.
 - `face_model` :: Subfacet model. Active model for `face_trian`.
