@@ -13,6 +13,7 @@ Pages = [
   "LevelSetCutters.md",
   "AggregatedFEM.md",
   "MomentFittedQuadratures.md",
+  "GeometricalDerivatives.md",
   "Distributed.md",
 ]
 ```

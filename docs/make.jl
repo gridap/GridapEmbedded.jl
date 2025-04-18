@@ -7,6 +7,7 @@ pages = [
     "Level Set Cutters" => "LevelSetCutters.md",
     "Aggregated FEM" => "AggregatedFEM.md",
     "Moment-Fitted Quadratures" => "MomentFittedQuadratures.md",
+    "Geometrical Derivatives" => "GeometricalDerivatives.md",
     "Distributed computing" => "Distributed.md",
 ]
 
@@ -18,7 +19,7 @@ makedocs(;
     sitename = "GridapEmbedded.jl",
     authors = "Francesc Verdugo <f.verdugo.rojano@vu.nl>, Eric Neiva <eric.neiva@college-de-france.fr> and Santiago Badia <santiago.badia@monash.edu>",
     pages = pages,
-    warnonly = true,
+    warnonly = false,
 )
 
 deploydocs(;

@@ -81,5 +81,7 @@ EmbeddedBoundary(::EmbeddedDiscretization)
 GhostSkeleton(::EmbeddedDiscretization)
 Gridap.Geometry.BoundaryTriangulation(::EmbeddedFacetDiscretization,::Any)
 Gridap.Geometry.SkeletonTriangulation(::EmbeddedFacetDiscretization,::Any)
+SubCellTriangulation
+SubFacetTriangulation
 SubFacetBoundaryTriangulation
 ```
