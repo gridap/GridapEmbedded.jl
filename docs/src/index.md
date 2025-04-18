@@ -8,8 +8,8 @@ GridapEmbedded.jl is a package for the simulation of PDEs on embedded domains wi
 
 ```@contents
 Pages = [
+  "CSG.md",
   "Interfaces.md",
-  "CSGCutters.md",
   "LevelSetCutters.md",
   "AggregatedFEM.md",
   "MomentFittedQuadratures.md",

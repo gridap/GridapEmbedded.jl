@@ -22,6 +22,11 @@ end
 
 # Implementation of the Gridap.Triangulation interface
 
+"""
+    struct SubFacetTriangulation{Dc,Dp,T,A} <: Triangulation{Dc,Dp}
+
+A triangulation for subfacets.
+"""
 struct SubFacetTriangulation{Dc,Dp,T,A} <: Triangulation{Dc,Dp}
   subfacets::SubFacetData{Dp,T}
   bgmodel::A

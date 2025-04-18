@@ -258,6 +258,15 @@ end
 
 """
     Triangulation(cut::EmbeddedDiscretization[,in_or_out=PHYSICAL_IN])
+
+Creates a triangulation containing the cell and subcells of the embedded domain selected by 
+`in_or_out`.
+
+- If only background cells are selected, the result will be a regular Gridap triangulation.
+- If only subcells are selected, the result will be a [`SubCellTriangulation`](@ref).
+- If both background cells and subcells are selected, the result will be an `AppendedTriangulation`, 
+  containing a [`SubCellTriangulation`](@ref) and a regular Gridap triangulation.
+
 """
 function Triangulation(cut::EmbeddedDiscretization,in_or_out)
   Triangulation(cut,in_or_out,cut.geo)
@@ -392,6 +401,9 @@ end
 
 """
     EmbeddedBoundary(cut::EmbeddedDiscretization)
+
+Creates a triangulation containing the cut facets of the embedded domain boundary.
+The result is a [`SubFacetTriangulation`](@ref).
 """
 function EmbeddedBoundary(cut::EmbeddedDiscretization)
   EmbeddedBoundary(cut,cut.geo)
@@ -419,7 +431,6 @@ function EmbeddedBoundary(cut::EmbeddedDiscretization,geo::CSG.Geometry)
   neworientation = orientation[newsubfacets]
   fst = SubFacetData(cut.subfacets,newsubfacets,neworientation)
   SubFacetTriangulation(fst,cut.bgmodel)
-
 end
 
 function EmbeddedBoundary(cut::EmbeddedDiscretization,name1::String,name2::String)
@@ -449,11 +460,15 @@ function EmbeddedBoundary(cut::EmbeddedDiscretization,geo1::CSG.Geometry,geo2::C
   neworientation = orientation[newsubfacets]
   fst = SubFacetData(cut.subfacets,newsubfacets,neworientation)
   SubFacetTriangulation(fst,cut.bgmodel)
-
 end
 
 """
     GhostSkeleton(cut::EmbeddedDiscretization[,in_or_out=ACTIVE_IN])
+
+Creates a triangulation containing the ghost facets. Ghosts facets are defined as the facets 
+of the **background mesh** that are adjacent to at least one `CUT` background cell.
+
+Mostly used for CUT-FEM stabilisation. 
 """
 function GhostSkeleton(cut::EmbeddedDiscretization)
   GhostSkeleton(cut,ACTIVE_IN)

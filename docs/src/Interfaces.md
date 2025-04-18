@@ -9,7 +9,7 @@ CurrentModule = GridapEmbedded.Interfaces
 
 Throughout this documentation, many methods accept arguments that select different parts of the cut domain. We split the domain into the following parts:
 
-The background mesh entities (cells, facets, nodes) are classified as `IN`, `OUT` or `CUT`. The `IN` and `OUT` background cells are uncut, i.e completely inside or outside the geometry, respectively. These states are internally defined as constants:
+**The background mesh entities** (cells, facets, nodes) are classified as `IN`, `OUT` or `CUT`. The `IN` and `OUT` background cells are uncut, i.e completely inside or outside the geometry, respectively. These states are internally defined as constants:
 
 ```julia
   const IN = -1
@@ -17,7 +17,7 @@ The background mesh entities (cells, facets, nodes) are classified as `IN`, `OUT
   const CUT = 0
 ```
 
-The `CUT` background cells are cut by the embedded boundary, and split into subcells/subfacets. The subcells/subfacets are classified as `IN` or `OUT` depending on whether they are inside or outside the geometry. `CUT-IN` and `CUT-OUT` subentities can be accessed using the `CutInOrOut` objects:
+**The `CUT` background cells** are cut by the embedded boundary, and split into subcells/subfacets. The subcells/subfacets are classified as `IN` or `OUT` depending on whether they are inside or outside the geometry. `CUT_IN` and `CUT_OUT` subentities can be accessed using the `CutInOrOut` objects:
 
 ```julia
   struct CutInOrOut
@@ -58,8 +58,7 @@ Pages   = [
 
 We provide several types of cutters, including:
 
-- **CSG Cutters**: Constructive Solid Geometry (CSG) Cutters. See [Constructive Solid Geometry (CSG) Cutters](@ref).
-- **Level-Set Cutters**: Level-Set Cutters. See [Level-Set Cutters](@ref).
+- **Level-Set Cutters**: Cutters for Level-Set and function-defined geometries. See [Level-Set Cutters](@ref).
 - **STL Cutters**: Cutters for STL based geometries. Provided by [STLCutters.jl](https://github.com/gridap/STLCutters.jl).
 
 ## Embedded Discretizations

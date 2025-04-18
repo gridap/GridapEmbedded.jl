@@ -1,5 +1,5 @@
 
-# Constructive Solid Geometry (CSG) Cutters
+# Constructive Solid Geometry (CSG)
 
 ```@meta
 CurrentModule = GridapEmbedded.CSG

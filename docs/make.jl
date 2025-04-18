@@ -2,9 +2,9 @@ using Documenter, GridapEmbedded
 
 pages = [
     "Home" => "index.md",
-    "Interfaces" => "Interfaces.md",
-    "Constructive Solid Geometry (CSG)" => "CSGCutters.md",
-    "Level Sets" => "LevelSetCutters.md",
+    "Constructive Solid Geometry (CSG)" => "CSG.md",
+    "Embedded Interfaces" => "Interfaces.md",
+    "Level Set Cutters" => "LevelSetCutters.md",
     "Aggregated FEM" => "AggregatedFEM.md",
     "Moment-Fitted Quadratures" => "MomentFittedQuadratures.md",
     "Distributed computing" => "Distributed.md",
