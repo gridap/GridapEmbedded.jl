@@ -30,7 +30,7 @@ FillArrays = "0.10, 0.11, 0.12, 0.13, 1"
 FiniteDiff = "2.27.0"
 ForwardDiff = "0.10.38"
 Graphs = "1.12.0"
-Gridap = "0.17, 0.18"
+Gridap = "0.18.12"
 GridapDistributed = "0.3, 0.4"
 MPI = "0.20"
 MiniQhull = "0.1.0, 0.2, 0.3, 0.4"
@@ -42,4 +42,4 @@ FiniteDiff = "6a86dc24-6348-571c-b903-95158fe2bd41"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["Test","FiniteDiff"]
+test = ["Test", "FiniteDiff"]

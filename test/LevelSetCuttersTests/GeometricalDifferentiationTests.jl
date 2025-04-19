@@ -4,7 +4,7 @@ module GeometricalDifferentiationTests
 # level set defining the cut domain. 
 # They are based on the following work:
 # "Level-set topology optimisation with unfitted finite elements and automatic shape differentiation"
-#   by Z. J. Wegert, J. Manyer, C. Mallon, S. Badia, V. J. Challis, CMAME (2025)
+#   by Z. J. Wegert, J. Manyer, C. Mallon, S. Badia, V. J. Challis (2025)
 ############################################################################################
 using Test, FiniteDiff
 
@@ -16,23 +16,6 @@ using GridapEmbedded.Interfaces: get_subfacet_normal_vector
 using GridapEmbedded.Interfaces: get_ghost_normal_vector
 
 using GridapEmbedded.LevelSetCutters: DifferentiableTriangulation
-
-
-using Gridap.Fields, Gridap.Polynomials
-function Arrays.return_cache(
-  fg::Fields.FieldGradientArray{1,Polynomials.MonomialBasis{D,V}},
-  x::AbstractVector{<:Point}) where {D,V}
-  xi = testitem(x)
-  T = gradient_type(V,xi)
-  Polynomials._return_cache(fg,x,T,Val(false))
-end
-
-function Arrays.evaluate!(
-  cache,
-  fg::Fields.FieldGradientArray{1,Polynomials.MonomialBasis{D,V}},
-  x::AbstractVector{<:Point}) where {D,V}
-  Polynomials._evaluate!(cache,fg,x,Val(false))
-end
 
 # We general a simplicial model where the simplices are created in a symmetric way using 
 # varycentric refinement of QUADs and HEXs.
