@@ -17,6 +17,8 @@ using Gridap.Arrays: Operation
 using Gridap.CellData: get_tangent_vector, get_normal_vector
 using GridapEmbedded.Interfaces: get_conormal_vector, get_subfacet_normal_vector, get_ghost_normal_vector
 
+using GridapEmbedded.LevelSetCutters: DifferentiableTriangulation
+
 function generate_model(D,n,ranks,mesh_partition)
   domain = (D==2) ? (0,1,0,1) : (0,1,0,1,0,1)
   cell_partition = (D==2) ? (n,n) : (n,n,n)
