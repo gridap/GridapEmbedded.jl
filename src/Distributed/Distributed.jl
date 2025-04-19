@@ -31,6 +31,7 @@ using GridapEmbedded.MomentFittedQuadratures: MomentFitted
 using GridapEmbedded.LevelSetCutters: DifferentiableTriangulation
 using GridapEmbedded.LevelSetCutters: DifferentiableAppendedTriangulation
 using GridapEmbedded.LevelSetCutters: DifferentiableTriangulationView
+using GridapEmbedded.LevelSetCutters: update_trian!
 using Gridap.Geometry: AppendedTriangulation, TriangulationView
 using Gridap.Geometry: get_face_to_parent_face
 using Gridap.Arrays: find_inverse_index_map, testitem, return_type
