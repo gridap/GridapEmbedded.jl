@@ -9,6 +9,7 @@ include("../AggregatesTests.jl")
 include("../DistributedDiscreteGeometryPoissonTest.jl")
 include("../DistributedLSDiscreteGeometryPoissonTest.jl")
 include("../PeriodicDistributedDiscreteGeometryPoissonTest.jl")
+include("../GeometricalDifferentiationTests.jl")
 
 if ! MPI.Initialized()
   MPI.Init()
@@ -41,6 +42,7 @@ function all_tests(distribute,parts)
 
   if prod(parts) == 4
     DistributedAggregatesTests.main(distribute,parts)
+    DistributedGeometricalDifferentitationTests.main(distribute,4)
   end
   PArrays.toc!(t,"Aggregates")
 

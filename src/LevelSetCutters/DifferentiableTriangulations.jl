@@ -473,6 +473,8 @@ end
 # This is mostly used in distributed, where we remove ghost cells by taking a view 
 # of the local triangulations. 
 
+const DifferentiableTriangulationView{Dc,Dp} = Geometry.TriangulationView{Dc,Dp,<:Union{<:DifferentiableTriangulation,<:DifferentiableAppendedTriangulation}}
+
 function DifferentiableTriangulation(
   trian :: Geometry.TriangulationView,
   fe_space :: FESpace
@@ -487,7 +489,7 @@ function update_trian!(trian::Geometry.TriangulationView,U,φh)
 end
 
 function FESpaces._change_argument(
-  op,f,trian::Geometry.TriangulationView,uh
+  op,f,trian::DifferentiableTriangulationView,uh
 )
   U = get_fe_space(uh)
   function g(cell_u)
@@ -499,42 +501,3 @@ function FESpaces._change_argument(
   end
   g
 end
-
-#### DistributedTriangulations
-
-# function DifferentiableTriangulation(trian::DistributedTriangulation,fe_space)
-#   model = get_background_model(trian)
-#   trians = map(DifferentiableTriangulation,local_views(trian),local_views(fe_space))
-#   return DistributedTriangulation(trians,model)
-# end
-# 
-# function FESpaces._change_argument(
-#   op,f,
-#   local_trians::AbstractArray{<:Union{<:DifferentiableTriangulation,<:DifferentiableAppendedTriangulation,<:TriangulationView}},
-#   uh::GridapDistributed.DistributedADTypes
-# )
-#   function dist_cf(uh::DistributedCellField,cfs)
-#     DistributedCellField(cfs,get_triangulation(uh))
-#   end
-#   function dist_cf(uh::DistributedMultiFieldCellField,cfs)
-#     sf_cfs = map(DistributedCellField,
-#       [tuple_of_arrays(map(cf -> Tuple(cf.single_fields),cfs))...],
-#       map(get_triangulation,uh)
-#     )
-#     DistributedMultiFieldCellField(sf_cfs,cfs)
-#   end
-# 
-#   uhs = local_views(uh)
-#   spaces = map(get_fe_space,uhs)
-#   function g(cell_u)
-#     cfs = map(CellField,spaces,cell_u)
-#     cf = dist_cf(uh,cfs)
-#     map(update_trian!,local_trians,spaces,local_views(cf))
-#     cg = f(cf)
-#     map(local_trians,spaces) do Ω, V
-#       update_trian!(Ω,V,nothing)
-#     end
-#     map(get_contribution,local_views(cg),local_trians)
-#   end
-#   g
-# end

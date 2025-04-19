@@ -89,6 +89,12 @@ for TT in (:Triangulation,:SkeletonTriangulation,:BoundaryTriangulation,:Embedde
 end
 
 # TODO: This should go to GridapDistributed
+function get_tangent_vector(a::DistributedTriangulation)
+  fields = map(get_tangent_vector,local_views(a))
+  DistributedCellField(fields,a)
+end
+
+# TODO: This should go to GridapDistributed
 function remove_ghost_cells(trian::AppendedTriangulation,gids)
   a = remove_ghost_cells(trian.a,gids)
   b = remove_ghost_cells(trian.b,gids)
