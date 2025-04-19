@@ -14,7 +14,8 @@ using GridapEmbedded, GridapEmbedded.Interfaces, GridapEmbedded.LevelSetCutters
 using GridapDistributed, PartitionedArrays
 
 using Gridap.Arrays: Operation
-using GridapTopOpt: get_conormal_vector,get_subfacet_normal_vector,get_ghost_normal_vector
+using Gridap.CellData: get_tangent_vector, get_normal_vector
+using GridapEmbedded.Interfaces: get_conormal_vector, get_subfacet_normal_vector, get_ghost_normal_vector
 
 function generate_model(D,n,ranks,mesh_partition)
   domain = (D==2) ? (0,1,0,1) : (0,1,0,1,0,1)
