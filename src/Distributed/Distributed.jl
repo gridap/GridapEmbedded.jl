@@ -60,6 +60,7 @@ import Gridap.Geometry: Triangulation
 import Gridap.Geometry: SkeletonTriangulation
 import Gridap.Geometry: BoundaryTriangulation
 import Gridap.Geometry: get_background_model
+import Gridap.Geometry: num_cells
 import Gridap.CellData: get_tangent_vector
 import GridapDistributed: local_views
 import GridapDistributed: remove_ghost_cells

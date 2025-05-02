@@ -61,3 +61,22 @@ function GridapDistributed.add_ghost_cells(
   end
   return ghosted_trian
 end
+
+function num_cells(trian::DistributedSubFacetTriangulation)
+  model = get_background_model(trian)
+  Dc = num_cell_dims(model)
+  gids = get_face_gids(model,Dc)
+  n_loc_ocells = map(local_views(trian),partition(gids)) do trian, gids
+    glue = get_glue(trian,Val(Dc))
+    @assert isa(glue,FaceToFaceGlue)
+    tcell_to_mcell = glue.tface_to_mface
+    if isa(tcell_to_mcell,IdentityVector)
+      own_length(gids)
+    else
+      mcell_to_owned = local_to_own(gids)
+      is_owned(mcell) = !iszero(mcell_to_owned[mcell])
+      sum(is_owned,tcell_to_mcell;init=0)
+    end
+  end
+  return sum(n_loc_ocells)
+end

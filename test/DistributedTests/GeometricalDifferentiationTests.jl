@@ -18,6 +18,7 @@ using Gridap.CellData: get_tangent_vector, get_normal_vector
 using GridapEmbedded.Interfaces: get_conormal_vector, get_subfacet_normal_vector, get_ghost_normal_vector
 
 using GridapEmbedded.LevelSetCutters: DifferentiableTriangulation
+using GridapDistributed: i_am_main
 
 function generate_model(D,n,ranks,mesh_partition)
   domain = (D==2) ? (0,1,0,1) : (0,1,0,1,0,1)
@@ -69,6 +70,12 @@ function main_generic(
   fh = interpolate(f,V_φ)
   uh = interpolate(x->x[1]+x[2],U)
 
+  map(partition(get_free_dof_values(φh))) do x_φ
+    idx = findall(isapprox(0.0;atol=10^-10),x_φ)
+    !isempty(idx) && @info "Correcting level values!"
+    x_φ[idx] .+= 100*eps(eltype(x_φ))
+  end
+
   geo = DiscreteGeometry(φh,model)
   cutgeo = cut(model,geo)
 
@@ -102,7 +109,6 @@ function main_generic(
 
   @test norm(dJ_bulk_1_AD_vec - dJ_bulk_1_exact_vec) < 1e-10
 
-  J_bulk_1(u,φ) = ∫(u+fh)dΩ
   dJ_bulk_1_AD_in_u = gradient(u->J_bulk_1(u,φh),uh)
   dJ_bulk_1_AD_in_u_vec = assemble_vector(dJ_bulk_1_AD_in_u,U)
 
@@ -158,20 +164,19 @@ function main_generic(
   @test norm(dJ_int_AD_vec - dJ_int_exact_vec) < 1e-10
 
   # B.2) Facet integral
-  g(fh) = ∇(fh)⋅∇(fh)
 
-  J_int2(φ) = ∫(g(fh))dΓ_AD
+  h(fh) = ∇(fh)⋅∇(fh)
+  J_int2(φ) = ∫(h(fh))dΓ_AD
   dJ_int_AD2 = gradient(J_int2,φh)
   dJ_int_AD_vec2 = assemble_vector(dJ_int_AD2,V_φ)
 
   ∇g(∇∇f,∇f) = ∇∇f⋅∇f + ∇f⋅∇∇f
   dJ_int_exact2(w) = ∫((-n_Γ⋅ (∇g ∘ (∇∇(fh),∇(fh))))*w/(abs(n_Γ ⋅ ∇(φh))))dΓ +
-                    ∫(-n_S_Λ ⋅ (jump(g(fh)*m_k_Λ) * mean(w) / ∇ˢφ_Λ))dΛ +
-                    ∫(-n_S_Σ ⋅ (g(fh)*m_k_Σ * w / ∇ˢφ_Σ))dΣ
+                    ∫(-n_S_Λ ⋅ (jump(h(fh)*m_k_Λ) * mean(w) / ∇ˢφ_Λ))dΛ +
+                    ∫(-n_S_Σ ⋅ (h(fh)*m_k_Σ * w / ∇ˢφ_Σ))dΣ
   dJ_int_exact_vec2 = assemble_vector(dJ_int_exact2,V_φ)
 
   @test norm(dJ_int_AD_vec2 - dJ_int_exact_vec2) < 1e-10
-
 end
 
 ## Concering integrals of the form `φ->∫(f ⋅ n(φ))dΓ(φ)`
@@ -258,15 +263,14 @@ function main(distribute,np)
 
   φ0 = level_set(:circle_2)
   f0((x,y)) = VectorValue((1-x)^2,(1-y)^2)
-  main_normal(model,φ0,f0;vtk=true)
+  main_normal(model,φ0,f0)
 
   φ1 = level_set(:circle)
-  f1 = x -> 1.0
+  f1(x) = 1.0
   main_generic(model,φ1,f1)
 
-  model = generate_model(D,n,ranks,mesh_partition)
   φ2 = level_set(:circle)
-  f2 = x -> x[1]+x[2]
+  f2(x) = x[1] + x[2]
   main_generic(model,φ2,f2)
 
   # 3D
@@ -277,7 +281,7 @@ function main(distribute,np)
   model = generate_model(D,n,ranks,mesh_partition)
 
   φ3 = level_set(:regular_3d)
-  f3 = x -> x[1]+x[2]
+  f3(x) = x[1] + x[2] + x[3]
   main_generic(model,φ3,f3)
 end
 

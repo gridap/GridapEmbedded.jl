@@ -423,6 +423,39 @@ function extract_dualized_cell_values(
   return bgcell_to_values
 end
 
+# TriangulationView
+# This is mostly used in distributed, where we remove ghost cells by taking a view 
+# of the local triangulations. 
+
+const DifferentiableTriangulationView{Dc,Dp} = Geometry.TriangulationView{Dc,Dp,<:DifferentiableTriangulation}
+
+function DifferentiableTriangulation(
+  trian :: Geometry.TriangulationView,
+  fe_space :: FESpace
+)
+  parent = DifferentiableTriangulation(trian.parent,fe_space)
+  return Geometry.TriangulationView(parent,trian.cell_to_parent_cell)
+end
+
+function update_trian!(trian::Geometry.TriangulationView,U,φh)
+  update_trian!(trian.parent,U,φh)
+  return trian
+end
+
+function FESpaces._change_argument(
+  op,f,trian::DifferentiableTriangulationView,uh
+)
+  U = get_fe_space(uh)
+  function g(cell_u)
+    cf = CellField(U,cell_u)
+    update_trian!(trian,U,cf)
+    cell_grad = f(cf)
+    update_trian!(trian,U,nothing)
+    get_contribution(cell_grad,trian)
+  end
+  g
+end
+
 # AppendedTriangulation
 #
 # When cutting an embedded domain, we will usually end up with an AppendedTriangulation
@@ -432,7 +465,8 @@ end
 # We only need to propagate the dual numbers to the CUT cells, which is what the
 # following implementation does:
 
-const DifferentiableAppendedTriangulation{Dc,Dp,A} = AppendedTriangulation{Dc,Dp,<:DifferentiableTriangulation}
+const DifferentiableAppendedTriangulation{Dc,Dp,A} = 
+  AppendedTriangulation{Dc,Dp,<:Union{<:DifferentiableTriangulation,<:DifferentiableTriangulationView{Dc,Dp}}}
 
 function DifferentiableTriangulation(
   trian::AppendedTriangulation, fe_space::FESpace
@@ -467,37 +501,4 @@ function FESpaces._compute_cell_ids(uh,ttrian::AppendedTriangulation)
   ids_a = FESpaces._compute_cell_ids(uh,ttrian.a)
   ids_b = FESpaces._compute_cell_ids(uh,ttrian.b)
   lazy_append(ids_a,ids_b)
-end
-
-# TriangulationView
-# This is mostly used in distributed, where we remove ghost cells by taking a view 
-# of the local triangulations. 
-
-const DifferentiableTriangulationView{Dc,Dp} = Geometry.TriangulationView{Dc,Dp,<:Union{<:DifferentiableTriangulation,<:DifferentiableAppendedTriangulation}}
-
-function DifferentiableTriangulation(
-  trian :: Geometry.TriangulationView,
-  fe_space :: FESpace
-)
-  parent = DifferentiableTriangulation(trian.parent,fe_space)
-  return Geometry.TriangulationView(parent,trian.cell_to_parent_cell)
-end
-
-function update_trian!(trian::Geometry.TriangulationView,U,φh)
-  update_trian!(trian.parent,U,φh)
-  return trian
-end
-
-function FESpaces._change_argument(
-  op,f,trian::DifferentiableTriangulationView,uh
-)
-  U = get_fe_space(uh)
-  function g(cell_u)
-    cf = CellField(U,cell_u)
-    update_trian!(trian,U,cf)
-    cell_grad = f(cf)
-    update_trian!(trian,U,nothing)
-    get_contribution(cell_grad,trian)
-  end
-  g
 end
