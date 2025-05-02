@@ -258,18 +258,21 @@ function main(distribute,np)
   mesh_partition = (2,2)
   ranks = distribute(LinearIndices((prod(mesh_partition),)))
   D = 2
-  n = 10
+  n = 12
   model = generate_model(D,n,ranks,mesh_partition)
 
+  i_am_main(ranks) && println(" >> Case 0")
   φ0 = level_set(:circle_2)
   f0((x,y)) = VectorValue((1-x)^2,(1-y)^2)
   main_normal(model,φ0,f0)
 
-  φ1 = level_set(:circle)
+  i_am_main(ranks) && println(" >> Case 1")
+  φ1 = level_set(:circle_2)
   f1(x) = 1.0
   main_generic(model,φ1,f1)
 
-  φ2 = level_set(:circle)
+  i_am_main(ranks) && println(" >> Case 2")
+  φ2 = level_set(:circle_2)
   f2(x) = x[1] + x[2]
   main_generic(model,φ2,f2)
 
@@ -280,6 +283,7 @@ function main(distribute,np)
   n = 8
   model = generate_model(D,n,ranks,mesh_partition)
 
+  i_am_main(ranks) && println(" >> Case 3")
   φ3 = level_set(:regular_3d)
   f3(x) = x[1] + x[2] + x[3]
   main_generic(model,φ3,f3)

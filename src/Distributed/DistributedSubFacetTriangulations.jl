@@ -24,6 +24,19 @@ function GridapDistributed.generate_cell_gids(
   return PRange(fgids)
 end
 
+# function GridapDistributed.generate_cell_gids(
+#   trian::DistributedSubFacetTriangulation{Df,Dc},
+# ) where {Df,Dc}
+#   model = get_background_model(trian)
+#   ctrians = map(local_views(trian),local_views(model)) do trian, model
+#     glue = get_glue(trian,Val(Dc)) # Glue from cut facets to background cells 
+#     facet_to_bgcell = glue.tface_to_mface
+#     Triangulation(model,facet_to_bgcell)
+#   end
+#   ctrian = GridapDistributed.DistributedTriangulation(ctrians,model)
+#   return GridapDistributed.generate_cell_gids(ctrian)
+# end
+
 function GridapDistributed.add_ghost_cells(
   trian::DistributedSubFacetTriangulation{Df,Dc},
 ) where {Df,Dc}
