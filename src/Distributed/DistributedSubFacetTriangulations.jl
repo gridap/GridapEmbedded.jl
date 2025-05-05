@@ -8,34 +8,33 @@ function GridapDistributed.generate_cell_gids(
 ) where {Df,Dc}
   model = get_background_model(trian)
   cgids = get_cell_gids(model)
-  
-  n_lfacets = map(num_cells,local_views(trian))
-  first_gid = scan(+,n_lfacets,type=:exclusive,init=one(eltype(n_lfacets)))
-  n_facets = reduce(+,n_lfacets,init=zero(eltype(n_lfacets)))
 
-  fgids = map(local_views(trian),partition(cgids),first_gid,n_lfacets) do trian, cgids, first_gid, n_lfacets
-    glue = get_glue(trian,Val(Dc)) # Glue from cut facets to background cells 
-    facet_to_bgcell = glue.tface_to_mface
+  n_lfacets, bgcell_to_lfacets = map(local_views(trian)) do trian
+    model = get_background_model(trian)
+    lfacet_to_bgcell = get_glue(trian,Val(Dc)).tface_to_mface
+    n_lfacets = length(lfacet_to_bgcell)
 
-    facet_to_gid = collect(first_gid:(first_gid+n_lfacets-1))
-    facet_to_owner = local_to_owner(cgids)[facet_to_bgcell]
-    LocalIndices(n_facets,part_id(cgids),facet_to_gid,facet_to_owner)
-  end
-  return PRange(fgids)
+    ptrs  = zeros(Int32,num_cells(model)+1)
+    for bgcell in lfacet_to_bgcell
+      ptrs[bgcell+1] += 1
+    end
+    Arrays.length_to_ptrs!(ptrs)
+    @assert ptrs[end] == n_lfacets+1
+
+    data = zeros(Int32,n_lfacets)
+    for (lfacet,bgcell) in enumerate(lfacet_to_bgcell)
+      data[ptrs[bgcell]] = lfacet
+      ptrs[bgcell] += 1
+    end
+    Arrays.rewind_ptrs!(ptrs)
+
+    return n_lfacets, Table(data,ptrs)
+  end |> tuple_of_arrays
+
+  return GridapDistributed.generate_gids(
+    cgids, bgcell_to_lfacets, n_lfacets
+  )
 end
-
-# function GridapDistributed.generate_cell_gids(
-#   trian::DistributedSubFacetTriangulation{Df,Dc},
-# ) where {Df,Dc}
-#   model = get_background_model(trian)
-#   ctrians = map(local_views(trian),local_views(model)) do trian, model
-#     glue = get_glue(trian,Val(Dc)) # Glue from cut facets to background cells 
-#     facet_to_bgcell = glue.tface_to_mface
-#     Triangulation(model,facet_to_bgcell)
-#   end
-#   ctrian = GridapDistributed.DistributedTriangulation(ctrians,model)
-#   return GridapDistributed.generate_cell_gids(ctrian)
-# end
 
 function GridapDistributed.add_ghost_cells(
   trian::DistributedSubFacetTriangulation{Df,Dc},
