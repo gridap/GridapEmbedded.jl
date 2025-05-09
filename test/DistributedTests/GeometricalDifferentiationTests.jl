@@ -284,8 +284,8 @@ function main(distribute,np)
   model = generate_model(D,n,ranks,mesh_partition)
 
   i_am_main(ranks) && println(" >> Case 3")
-  φ3 = level_set(:regular_3d)
-  f3(x) = x[1] + x[2] + x[3]
+  φ3 = level_set(:sphere)
+  f3(x) = x[1] + x[2]
   main_generic(model,φ3,f3)
 end
 
