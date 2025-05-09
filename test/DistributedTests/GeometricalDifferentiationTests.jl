@@ -267,12 +267,12 @@ function main(distribute,np)
   main_normal(model,φ0,f0)
 
   i_am_main(ranks) && println(" >> Case 1")
-  φ1 = level_set(:circle_2)
+  φ1 = level_set(:circle)
   f1(x) = 1.0
   main_generic(model,φ1,f1)
 
   i_am_main(ranks) && println(" >> Case 2")
-  φ2 = level_set(:circle_2)
+  φ2 = level_set(:circle)
   f2(x) = x[1] + x[2]
   main_generic(model,φ2,f2)
 
