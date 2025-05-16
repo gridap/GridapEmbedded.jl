@@ -1,6 +1,38 @@
-
+"""
+    abstract type EmbeddedDiscretization <: GridapType
+"""
 abstract type AbstractEmbeddedDiscretization <: GridapType end
 
+"""
+    struct EmbeddedDiscretization{Dc,T} <: AbstractEmbeddedDiscretization
+
+This structure contains all the required information to build integration `Triangulation`s 
+for a cut model.
+
+## Constructors
+
+    cut(cutter::Cutter,background,geom)
+
+## Properties
+
+- `bgmodel::DiscreteModel`: the background mesh
+- `geo::CSG.Geometry`: the geometry used to cut the background mesh
+- `subcells::SubCellData`: collection of cut subcells, attached to the background mesh
+- `subfacets::SubFacetData`: collection of cut facets, attached to the background mesh
+- `ls_to_bgcell_to_inoutcut::Vector{Vector{Int8}}`: list of IN/OUT/CUT states for each cell 
+   in the background mesh, for each node in the geometry tree.
+- `ls_to_subcell_to_inoutcut::Vector{Vector{Int8}}`: list of IN/OUT/CUT states for each subcell 
+   in the cut part of the mesh, for each node in the geometry tree.
+- `ls_to_subfacet_to_inoutcut::Vector{Vector{Int8}}`: list of IN/OUT/CUT states for each subfacet 
+   in the cut part of the mesh, for each node in the geometry tree.
+
+## Methods
+
+- [`Triangulation(cut::EmbeddedDiscretization,in_or_out)`](@ref)
+- [`EmbeddedBoundary(cut::EmbeddedDiscretization)`](@ref)
+- [`GhostSkeleton(cut::EmbeddedDiscretization)`](@ref)
+
+"""
 struct EmbeddedDiscretization{Dc,T} <: AbstractEmbeddedDiscretization
   bgmodel::DiscreteModel
   ls_to_bgcell_to_inoutcut::Vector{Vector{Int8}}
@@ -224,6 +256,18 @@ function Triangulation(cut::EmbeddedDiscretization)
   Triangulation(cut,PHYSICAL_IN,cut.geo)
 end
 
+"""
+    Triangulation(cut::EmbeddedDiscretization[,in_or_out=PHYSICAL_IN])
+
+Creates a triangulation containing the cell and subcells of the embedded domain selected by 
+`in_or_out`.
+
+- If only background cells are selected, the result will be a regular Gridap triangulation.
+- If only subcells are selected, the result will be a [`SubCellTriangulation`](@ref).
+- If both background cells and subcells are selected, the result will be an `AppendedTriangulation`, 
+  containing a [`SubCellTriangulation`](@ref) and a regular Gridap triangulation.
+
+"""
 function Triangulation(cut::EmbeddedDiscretization,in_or_out)
   Triangulation(cut,in_or_out,cut.geo)
 end
@@ -355,6 +399,12 @@ function _compute_inout_complementary(inout_1)
   end
 end
 
+"""
+    EmbeddedBoundary(cut::EmbeddedDiscretization)
+
+Creates a triangulation containing the cut facets of the embedded domain boundary.
+The result is a [`SubFacetTriangulation`](@ref).
+"""
 function EmbeddedBoundary(cut::EmbeddedDiscretization)
   EmbeddedBoundary(cut,cut.geo)
 end
@@ -381,7 +431,6 @@ function EmbeddedBoundary(cut::EmbeddedDiscretization,geo::CSG.Geometry)
   neworientation = orientation[newsubfacets]
   fst = SubFacetData(cut.subfacets,newsubfacets,neworientation)
   SubFacetTriangulation(fst,cut.bgmodel)
-
 end
 
 function EmbeddedBoundary(cut::EmbeddedDiscretization,name1::String,name2::String)
@@ -411,9 +460,16 @@ function EmbeddedBoundary(cut::EmbeddedDiscretization,geo1::CSG.Geometry,geo2::C
   neworientation = orientation[newsubfacets]
   fst = SubFacetData(cut.subfacets,newsubfacets,neworientation)
   SubFacetTriangulation(fst,cut.bgmodel)
-
 end
 
+"""
+    GhostSkeleton(cut::EmbeddedDiscretization[,in_or_out=ACTIVE_IN])
+
+Creates a triangulation containing the ghost facets. Ghosts facets are defined as the facets 
+of the **background mesh** that are adjacent to at least one `CUT` background cell.
+
+Mostly used for CUT-FEM stabilisation. 
+"""
 function GhostSkeleton(cut::EmbeddedDiscretization)
   GhostSkeleton(cut,ACTIVE_IN)
 end
