@@ -215,12 +215,15 @@ end
 
 function _restrict_boundary_triangulation(model,facets,bgfacet_to_mask)
   facet_to_bgfacet = facets.glue.face_to_bgface
-  facet_to_mask = lazy_map(Reindex(bgfacet_to_mask),facet_to_bgfacet)
+  
   n_bgfacets = length(bgfacet_to_mask)
-  bgfacet_to_mask2 = fill(false,n_bgfacets)
-  bgfacet_to_mask2[facet_to_bgfacet] .= facet_to_mask
+  new_bgfacet_to_mask = fill(false,n_bgfacets)
+  new_bgfacet_to_mask[facet_to_bgfacet] .= view(bgfacet_to_mask,facet_to_bgfacet)
 
-  BoundaryTriangulation(model,bgfacet_to_mask2,facets.glue.bgface_to_lcell)
+  new_bgfacet_to_lcell = fill(Int8(1),n_bgfacets)
+  new_bgfacet_to_lcell[facet_to_bgfacet] .= facets.glue.face_to_lcell
+
+  BoundaryTriangulation(model,new_bgfacet_to_mask,new_bgfacet_to_lcell)
 end
 
 function compute_bgfacet_to_inoutcut(cut::EmbeddedFacetDiscretization,geo::CSG.Geometry)
