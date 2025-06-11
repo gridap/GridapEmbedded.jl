@@ -1,7 +1,7 @@
 name = "GridapEmbedded"
 uuid = "8838a6a3-0006-4405-b874-385995508d5d"
 authors = ["Francesc Verdugo <f.verdugo.rojano@vu.nl>", "Eric Neiva <eric.neiva@college-de-france.fr>", "Pere Antoni Martorell <pere.antoni.martorell@upc.edu>", "Santiago Badia <santiago.badia@monash.edu>"]
-version = "0.9.6"
+version = "0.9.7"
 
 [deps]
 AbstractTrees = "1520ce14-60c1-5f80-bbc7-55ef81b5835c"
