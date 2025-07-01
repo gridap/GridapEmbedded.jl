@@ -1028,6 +1028,21 @@ end
 
 function active_triangulation(Ω::DistributedTriangulation,
                               φ::DistributedSingleFieldFEFunction,
+                              Vbg::DistributedFESpace,
+                              is_a::AbstractArray,
+                              δ::Float64)
+  φʳ = interpolate_everywhere(φ-δ,Vbg)
+  is_aʳ = apply_mask(φʳ,active_mask)
+  is_nᵃ = map(local_views(is_a),local_views(is_aʳ)) do is_a,is_aʳ
+    lazy_map((a,aʳ)->a|aʳ,is_a,is_aʳ)
+  end
+  Ωˡ = map((lt,ca)->Triangulation(lt,ca),local_views(Ω),is_nᵃ)
+  Mbg = get_background_model(Ω)
+  DistributedTriangulation(Ωˡ,Mbg),is_nᵃ
+end
+
+function active_triangulation(Ω::DistributedTriangulation,
+                              φ::DistributedSingleFieldFEFunction,
                               ηʳ::DistributedSingleFieldFEFunction,
                               Vbg::DistributedFESpace,
                               is_a::AbstractArray,
