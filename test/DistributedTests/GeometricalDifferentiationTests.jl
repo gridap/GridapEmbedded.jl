@@ -128,7 +128,7 @@ function main_generic(
   dJ_bulk_exact_mult((dφ,du)) = ∫(-fh*dφ/(abs(n_Γ ⋅ ∇(φh))))dΓ
   dJ_bulk_exact_vec = assemble_vector(dJ_bulk_exact_mult,V_φu)
 
-  @test norm(dJ_bulk_AD_vec - dJ_bulk_exact_vec,Inf) < 1e-10
+  @test norm(dJ_bulk_AD_vec - dJ_bulk_exact_vec) < 1e-10
 
   # A.2) Volume integral
 
