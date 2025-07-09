@@ -1,7 +1,7 @@
 module DistributedGeometricalDifferentitationTests
 ############################################################################################
-# These tests are meant to verify the correctness differentiation of functionals w.r.t the 
-# level set defining the cut domain. 
+# These tests are meant to verify the correctness differentiation of functionals w.r.t the
+# level set defining the cut domain.
 # They are based on the following work:
 # "Level-set topology optimisation with unfitted finite elements and automatic shape differentiation"
 #   by Z. J. Wegert, J. Manyer, C. Mallon, S. Badia, V. J. Challis (2025)
@@ -116,6 +116,19 @@ function main_generic(
   dJ_bulk_1_exact_in_u_vec = assemble_vector(q->dJ_bulk_1_exact_in_u(q,uh),U)
 
   @test norm(dJ_bulk_1_AD_in_u_vec - dJ_bulk_1_exact_in_u_vec) < 1e-10
+
+  # Multifield case
+  U = TestFESpace(model,reffe)
+  V_φu = MultiFieldFESpace([V_φ,U])
+  φuh = interpolate([φh,x->x[1]],V_φu)
+  J_bulk_mult((φ,u)) = ∫(fh)dΩ
+  dJ_bulk_AD = gradient(J_bulk_mult,φuh)
+  dJ_bulk_AD_vec = assemble_vector(dJ_bulk_AD,V_φu)
+
+  dJ_bulk_exact_mult((dφ,du)) = ∫(-fh*dφ/(abs(n_Γ ⋅ ∇(φh))))dΓ
+  dJ_bulk_exact_vec = assemble_vector(dJ_bulk_exact_mult,V_φu)
+
+  @test norm(dJ_bulk_AD_vec - dJ_bulk_exact_vec,Inf) < 1e-10
 
   # A.2) Volume integral
 

@@ -31,6 +31,9 @@ using Gridap.CellData
 using Gridap.Polynomials
 using Gridap.Visualization
 using Gridap.FESpaces
+using Gridap.MultiField
+
+using GridapDistributed: DistributedMultiFieldFESpace
 
 export LevelSetCutter
 export AnalyticalGeometry
