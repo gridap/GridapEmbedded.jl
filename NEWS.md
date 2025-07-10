@@ -9,7 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Added missing update_trian! method for MultiField. Since PR[#112](https://github.com/gridap/GridapEmbedded.jl/pull/112).
-- Fix failed precompilation due to Gridap v0.19.2. Since PR[#112](https://github.com/gridap/GridapEmbedded.jl/pull/112).
+
+### Fixed
+
+- Fixed failed precompilation due to Gridap v0.19.2. Since PR[#112](https://github.com/gridap/GridapEmbedded.jl/pull/112).
 
 ## [0.9.7] - 2025-6-11
 
