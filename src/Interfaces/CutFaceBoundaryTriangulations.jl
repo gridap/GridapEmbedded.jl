@@ -395,38 +395,38 @@ end
 
 ############################################################################################
 # This will go to Gridap
+#
+# function Arrays.evaluate!(cache,k::Operation,a::SkeletonPair{<:CellField})
+#   plus = k(a.plus)
+#   minus = k(a.minus)
+#   SkeletonPair(plus,minus)
+# end
 
-function Arrays.evaluate!(cache,k::Operation,a::SkeletonPair{<:CellField})
-  plus = k(a.plus)
-  minus = k(a.minus)
-  SkeletonPair(plus,minus)
-end
+# function Arrays.evaluate!(cache,k::Operation,a::SkeletonPair{<:CellField},b::SkeletonPair{<:CellField})
+#   plus = k(a.plus,b.plus)
+#   minus = k(a.minus,b.minus)
+#   SkeletonPair(plus,minus)
+# end
 
-function Arrays.evaluate!(cache,k::Operation,a::SkeletonPair{<:CellField},b::SkeletonPair{<:CellField})
-  plus = k(a.plus,b.plus)
-  minus = k(a.minus,b.minus)
-  SkeletonPair(plus,minus)
-end
+# import Gridap.TensorValues: inner, outer
+# import LinearAlgebra: dot
+# import Base: abs, *, +, -, /
 
-import Gridap.TensorValues: inner, outer
-import LinearAlgebra: dot
-import Base: abs, *, +, -, /
+# for op in (:/,)
+#   @eval begin
+#     ($op)(a::CellField,b::SkeletonPair{<:CellField}) = Operation($op)(a,b)
+#     ($op)(a::SkeletonPair{<:CellField},b::CellField) = Operation($op)(a,b)
+#   end
+# end
 
-for op in (:/,)
-  @eval begin
-    ($op)(a::CellField,b::SkeletonPair{<:CellField}) = Operation($op)(a,b)
-    ($op)(a::SkeletonPair{<:CellField},b::CellField) = Operation($op)(a,b)
-  end
-end
+# for op in (:outer,:*,:dot,:/)
+#   @eval begin
+#     ($op)(a::SkeletonPair{<:CellField},b::SkeletonPair{<:CellField}) = Operation($op)(a,b)
+#   end
+# end
 
-for op in (:outer,:*,:dot,:/)
-  @eval begin
-    ($op)(a::SkeletonPair{<:CellField},b::SkeletonPair{<:CellField}) = Operation($op)(a,b)
-  end
-end
-
-function CellData.change_domain(a::SkeletonPair, ::ReferenceDomain, ::PhysicalDomain)
-  plus = change_domain(a.plus,ReferenceDomain(),PhysicalDomain())
-  minus = change_domain(a.minus,ReferenceDomain(),PhysicalDomain())
-  return SkeletonPair(plus,minus)
-end
+# function CellData.change_domain(a::SkeletonPair, ::ReferenceDomain, ::PhysicalDomain)
+#   plus = change_domain(a.plus,ReferenceDomain(),PhysicalDomain())
+#   minus = change_domain(a.minus,ReferenceDomain(),PhysicalDomain())
+#   return SkeletonPair(plus,minus)
+# end
