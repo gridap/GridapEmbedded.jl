@@ -1,14 +1,14 @@
 module GeometricalDifferentiationTests
 ############################################################################################
-# These tests are meant to verify the correctness differentiation of functionals w.r.t the 
-# level set defining the cut domain. 
+# These tests are meant to verify the correctness differentiation of functionals w.r.t the
+# level set defining the cut domain.
 # They are based on the following work:
 # "Level-set topology optimisation with unfitted finite elements and automatic shape differentiation"
 #   by Z. J. Wegert, J. Manyer, C. Mallon, S. Badia, V. J. Challis (2025)
 ############################################################################################
 using Test, FiniteDiff
 
-using Gridap, Gridap.Geometry, Gridap.Adaptivity, Gridap.Arrays
+using Gridap, Gridap.Geometry, Gridap.Adaptivity, Gridap.Arrays, Gridap.MultiField
 using GridapEmbedded, GridapEmbedded.LevelSetCutters, GridapEmbedded.Interfaces
 
 using GridapEmbedded.Interfaces: get_conormal_vector
@@ -17,7 +17,7 @@ using GridapEmbedded.Interfaces: get_ghost_normal_vector
 
 using GridapEmbedded.LevelSetCutters: DifferentiableTriangulation
 
-# We general a simplicial model where the simplices are created in a symmetric way using 
+# We general a simplicial model where the simplices are created in a symmetric way using
 # varycentric refinement of QUADs and HEXs.
 function generate_model(D,n)
   domain = (D==2) ? (0,1,0,1) : (0,1,0,1,0,1)
@@ -122,6 +122,23 @@ function main(
     fdm && println("  - norm(dJ_AD - dJ_FDM,Inf) = ",abs_error_fdm)
   end
 
+  @test abs_error < 1e-10
+
+  # Multifield case
+  U = TestFESpace(model,reffe)
+  V_φu = MultiFieldFESpace([V_φ,U])
+  φuh = interpolate([φh,x->x[1]],V_φu)
+  J_bulk_mult((φ,u)) = ∫(fh)dΩ
+  dJ_bulk_AD = gradient(J_bulk_mult,φuh)
+  dJ_bulk_AD_vec = assemble_vector(dJ_bulk_AD,V_φu)
+
+  dJ_bulk_exact_mult((dφ,du)) = ∫(-fh*dφ/(abs(n_Γ ⋅ ∇(φh))))dΓ
+  dJ_bulk_exact_vec = assemble_vector(dJ_bulk_exact_mult,V_φu)
+
+  abs_error = norm(dJ_bulk_AD_vec - dJ_bulk_exact_vec,Inf)
+  if verbose
+    println("  - norm(dJ_AD - dJ_exact,Inf) = ",abs_error,"    | Multifield test")
+  end
   @test abs_error < 1e-10
 
   # A.1.1) Volume integral with another field

@@ -10,11 +10,11 @@ methods to compute derivatives w.r.t. deformations of the embedded mesh.
 To do so, it propagates dual numbers into the geometric maps mapping cut subcells/subfacets
 to the background mesh.
 
-## Constructor: 
+## Constructor:
 
     DifferentiableTriangulation(trian::Triangulation,fe_space::FESpace)
 
-where `trian` must be an embedded triangulation and `fe_space` is the `FESpace` where 
+where `trian` must be an embedded triangulation and `fe_space` is the `FESpace` where
 the level-set function lives.
 
 """
@@ -59,6 +59,18 @@ function update_trian!(trian::DifferentiableTriangulation,space::FESpace,φh)
 end
 
 function update_trian!(trian::DifferentiableTriangulation,::FESpace,::Nothing)
+  trian.cell_values = nothing
+  return trian
+end
+
+const MultiFieldSpaceTypes = Union{<:MultiFieldFESpace,<:DistributedMultiFieldFESpace}
+
+function update_trian!(trian::DifferentiableTriangulation,space::MultiFieldSpaceTypes,φh)
+  map((Ui,φi)->update_trian!(trian,Ui,φi),space,φh)
+  return trian
+end
+
+function update_trian!(trian::DifferentiableTriangulation,::MultiFieldSpaceTypes,::Nothing)
   trian.cell_values = nothing
   return trian
 end
@@ -424,8 +436,8 @@ function extract_dualized_cell_values(
 end
 
 # TriangulationView
-# This is mostly used in distributed, where we remove ghost cells by taking a view 
-# of the local triangulations. 
+# This is mostly used in distributed, where we remove ghost cells by taking a view
+# of the local triangulations.
 
 const DifferentiableTriangulationView{Dc,Dp} = Geometry.TriangulationView{Dc,Dp,<:DifferentiableTriangulation}
 
@@ -465,7 +477,7 @@ end
 # We only need to propagate the dual numbers to the CUT cells, which is what the
 # following implementation does:
 
-const DifferentiableAppendedTriangulation{Dc,Dp,A} = 
+const DifferentiableAppendedTriangulation{Dc,Dp,A} =
   AppendedTriangulation{Dc,Dp,<:Union{<:DifferentiableTriangulation,<:DifferentiableTriangulationView{Dc,Dp}}}
 
 function DifferentiableTriangulation(
