@@ -30,7 +30,7 @@ geo = union(geo1,geo2)
 
 n = 16
 mesh_partition = (n,n)
-bgmodel = CartesianDiscreteModel(ranks,np,pmin,pmax,mesh_partition)
+bgmodel = CartesianDiscreteModel(ranks,np,pmin,pmax,mesh_partition;ghost=(2,2))
 
 cutgeo = cut(bgmodel,geo)
 
