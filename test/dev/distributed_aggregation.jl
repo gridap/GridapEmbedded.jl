@@ -121,9 +121,17 @@ lcell_to_root, lcell_to_value = find_optimal_root!(lcell_to_root,lcell_to_value,
 
 display(lcell_to_root)
 
+gids = get_cell_gids(bgmodel)
+ocell_to_root = map(lcell_to_root,own_to_local(gids)) do agg,o_to_l
+  map(Reindex(agg),o_to_l)
+end
+ocell_to_lroot = map(lcell_to_lroot,own_to_local(gids)) do agg,o_to_l
+  map(Reindex(agg),o_to_l)
+end
+
 writevtk(EmbeddedBoundary(cutgeo),"data/bnd");
 writevtk(
   Triangulation(bgmodel), "data/dumbell_aggregates", 
-  celldata = ["aggregate" => lcell_to_root, "local_aggregates" => lcell_to_lroot],
+  celldata = ["aggregate" => ocell_to_root, "local_aggregates" => ocell_to_lroot],
 );
 
