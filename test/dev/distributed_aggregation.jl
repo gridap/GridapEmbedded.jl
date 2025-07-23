@@ -32,12 +32,12 @@ function exchange_impl!(vector_partition,cache)
   buffer_snd = map(vector_partition,cache) do values, cache
     local_indices_snd = cache.local_indices_snd
     for (p,lid) in enumerate(local_indices_snd.data)
-        cache.buffer_snd.data[p] = values[lid]
+      cache.buffer_snd.data[p] = values[lid]
     end
     cache.buffer_snd
   end
   neighbors_snd, neighbors_rcv, buffer_rcv = map(cache) do cache
-      cache.neighbors_snd, cache.neighbors_rcv, cache.buffer_rcv
+    cache.neighbors_snd, cache.neighbors_rcv, cache.buffer_rcv
   end |> tuple_of_arrays
   graph = ExchangeGraph(neighbors_snd,neighbors_rcv)
   t = exchange!(buffer_rcv,buffer_snd,graph)
@@ -104,6 +104,7 @@ lcell_to_value = map(local_views(bgmodel),lcell_to_lroot) do bgmodel, lcell_to_l
   end
   return lcell_to_value
 end
+lcell_to_value_copy = map(copy,lcell_to_value)
 
 # This can also be done in place, but we duplicate infor for now
 lcell_to_root = map(lcell_to_lroot,cell_indices) do lcell_to_lroot, cell_indices
@@ -135,3 +136,9 @@ writevtk(
   celldata = ["aggregate" => ocell_to_root, "local_aggregates" => ocell_to_lroot],
 );
 
+map(ranks,local_views(bgmodel),lcell_to_lroot,lcell_to_value_copy) do r,bgmodel, lcell_to_lroot, lcell_to_value
+  writevtk(
+    Triangulation(bgmodel), "data/dumbell_aggregates_$(r)", 
+    celldata = ["values" => lcell_to_value, "roots" => lcell_to_lroot],
+  );
+end

@@ -31,7 +31,7 @@ Once we have our patches, the question is how we distribute the ownership of the
 Some preliminary observations:
 
 - The ConstrainedFESpace eliminates the slave DoFs before assembly. That is during assembly all the cell contributions on a patch get assembled to the master DoFs, i.e the DoFs on the root cell. This means that all slave DoFs of a patch de-facto belong to the same processor as the master DoFs they are tied to.
-- We can easily create a patch-conforming cell-partition, where cells are owned by the owner of the patch they belong to. The owner of the patch is taken as the owner of the root cell in the original cell-partition. This new partition does NOT require any communication. It is just a re-partitioning of the local cells with a processor.
+- We can easily create a patch-conforming cell-partition, where cells are owned by the owner of the patch they belong to. The owner of the patch is taken as the owner of the root cell in the original cell-partition. This new partition does NOT require any communication. It is just a re-partitioning of the local cells within a processor.
 - Something I don't know, but should be possible and even required for this to work is that local DoFs can be constrained by DoFs that do not belong to the original space. TODO: Check this.
 
 Given the above, this is how we can create the DoF constraints:
