@@ -44,25 +44,31 @@ function exchange_impl!(vector_partition,cache)
   return t
 end
 
-function find_optimal_root!(lcell_to_root,lcell_to_value,cell_indices)
+function find_optimal_roots!(lcell_to_root,lcell_to_value,cell_indices)
   # Bring all root candidates to the owner of the cut cell
   roots_cache = PartitionedArrays.p_vector_cache(lcell_to_lroot,cell_indices)
   t1 = exchange_impl!(lcell_to_lroot,roots_cache)
   values_cache = PartitionedArrays.p_vector_cache(lcell_to_value,cell_indices)
   t2 = exchange_impl!(lcell_to_value,values_cache)
+  lcell_to_owner = map(copy∘local_to_owner,cell_indices)
+  owners_cache = PartitionedArrays.p_vector_cache(lcell_to_owner,cell_indices)
   wait(t1)
   wait(t2)
 
   # Select the optimal root for each local cut cell
-  map(lcell_to_root,lcell_to_value,roots_cache,values_cache) do lcell_to_root, lcell_to_value, roots_cache, values_cache
-    local_indices_rcv = roots_cache.local_indices_rcv.data
-    values_rcv = values_cache.buffer_rcv.data
-    roots_rcv = roots_cache.buffer_rcv.data
-    for (p, lcell) in enumerate(local_indices_rcv)
-      value, root = values_rcv[p], roots_rcv[p]
-      if lcell_to_value[lcell] > value # Take the minimum
-        lcell_to_root[lcell] = root
-        lcell_to_value[lcell] = value
+  map(
+    lcell_to_root,lcell_to_value,lcell_to_owner,roots_cache,values_cache
+  ) do lcell_to_root, lcell_to_value, lcell_to_owner, roots_cache, values_cache
+    lids_rcv = roots_cache.local_indices_rcv
+    values_rcv = values_cache.buffer_rcv
+    roots_rcv = roots_cache.buffer_rcv
+    for (k, nbor) in enumerate(roots_cache.neighbors_rcv)
+      for (lcell,root,value) in zip(lids_rcv[k], roots_rcv[k], values_rcv[k])
+        if lcell_to_value[lcell] > value # Take the minimum
+          lcell_to_root[lcell] = root
+          lcell_to_value[lcell] = value
+          lcell_to_owner[lcell] = nbor
+        end
       end
     end
   end
@@ -70,12 +76,20 @@ function find_optimal_root!(lcell_to_root,lcell_to_value,cell_indices)
   # Scatter the optimal roots and values
   # Technically, we do not need to scatter the values, it can be removed after 
   # we are done debugging
-  t1 = consistent!(PVector(lcell_to_root,cell_indices,roots_cache))
-  t2 = consistent!(PVector(lcell_to_value,cell_indices,values_cache))
+  t1 = consistent!(PVector(lcell_to_owner,cell_indices,owners_cache))
+  t2 = consistent!(PVector(lcell_to_root,cell_indices,roots_cache))
+  t3 = consistent!(PVector(lcell_to_value,cell_indices,values_cache))
+  
   wait(t1)
-  wait(t2)
 
-  return lcell_to_root, lcell_to_value
+  agg_cell_indices = map(cell_indices,lcell_to_owner) do cell_indices, lcell_to_owner
+    LocalIndices(global_length(cell_indices),part_id(cell_indices),local_to_global(cell_indices),lcell_to_owner)
+  end
+
+  wait(t2)
+  wait(t3)
+
+  return lcell_to_root, lcell_to_value, agg_cell_indices
 end
 
 
@@ -106,7 +120,7 @@ lcell_to_value = map(local_views(bgmodel),lcell_to_lroot) do bgmodel, lcell_to_l
 end
 lcell_to_value_copy = map(copy,lcell_to_value)
 
-# This can also be done in place, but we duplicate infor for now
+# This can also be done in place, but we duplicate info for now
 lcell_to_root = map(lcell_to_lroot,cell_indices) do lcell_to_lroot, cell_indices
   lcell_to_root = fill(0, length(cell_indices))
   lid_to_gid = local_to_global(cell_indices)
@@ -118,9 +132,9 @@ lcell_to_root = map(lcell_to_lroot,cell_indices) do lcell_to_lroot, cell_indices
   return lcell_to_root
 end
 
-lcell_to_root, lcell_to_value = find_optimal_root!(lcell_to_root,lcell_to_value,cell_indices);
+lcell_to_root, lcell_to_value, agg_cell_indices = find_optimal_roots!(lcell_to_root,lcell_to_value,cell_indices);
 
-display(lcell_to_root)
+# Creating aggregate-conforming cell partition
 
 gids = get_cell_gids(bgmodel)
 ocell_to_root = map(lcell_to_root,own_to_local(gids)) do agg,o_to_l
@@ -142,3 +156,7 @@ map(ranks,local_views(bgmodel),lcell_to_lroot,lcell_to_value_copy) do r,bgmodel,
     celldata = ["values" => lcell_to_value, "roots" => lcell_to_lroot],
   );
 end
+
+
+
+
