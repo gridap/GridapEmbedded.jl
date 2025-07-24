@@ -46,8 +46,8 @@ end
 
 function find_optimal_roots!(lcell_to_root,lcell_to_value,cell_indices)
   # Bring all root candidates to the owner of the cut cell
-  roots_cache = PartitionedArrays.p_vector_cache(lcell_to_lroot,cell_indices)
-  t1 = exchange_impl!(lcell_to_lroot,roots_cache)
+  roots_cache = PartitionedArrays.p_vector_cache(lcell_to_root,cell_indices)
+  t1 = exchange_impl!(lcell_to_root,roots_cache)
   values_cache = PartitionedArrays.p_vector_cache(lcell_to_value,cell_indices)
   t2 = exchange_impl!(lcell_to_value,values_cache)
   lcell_to_owner = map(copy∘local_to_owner,cell_indices)
