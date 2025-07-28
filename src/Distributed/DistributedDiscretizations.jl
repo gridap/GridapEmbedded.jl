@@ -3,11 +3,12 @@ struct DistributedEmbeddedDiscretization{A,B} <: GridapType
   discretizations::A
   model::B
   function DistributedEmbeddedDiscretization(
-    d::AbstractArray{<:AbstractEmbeddedDiscretization},
-    model::DistributedDiscreteModel)
-    A = typeof(d)
+    discretizations::AbstractArray{<:AbstractEmbeddedDiscretization},
+    model::DistributedDiscreteModel
+  )
+    A = typeof(discretizations)
     B = typeof(model)
-    new{A,B}(d,model)
+    new{A,B}(discretizations,model)
   end
 end
 
@@ -16,22 +17,25 @@ local_views(a::DistributedEmbeddedDiscretization) = a.discretizations
 get_background_model(a::DistributedEmbeddedDiscretization) = a.model
 
 function get_geometry(a::DistributedEmbeddedDiscretization)
-  cut = local_views(a) |> PartitionedArrays.getany
-  get_geometry(cut)
+  geometries = map(get_geometry,local_views(a))
+  distributed_geometry(geometries)
+end
+
+# Needed for dispatching between analytical geometries and discrete geometries
+function distributed_geometry(geometries::AbstractArray{<:CSG.Geometry})
+  PartitionedArrays.getany(geometries)
 end
 
 function cut(bgmodel::DistributedDiscreteModel,args...)
   cut(LevelSetCutter(),bgmodel,args...)
 end
 
-function cut(cutter::Cutter,bgmodel::DistributedDiscreteModel,args...)
-  gids = get_cell_gids(bgmodel)
-  cuts = map(local_views(bgmodel),local_views(gids)) do bgmodel,gids
-    ownmodel = remove_ghost_cells(bgmodel,gids)
-    cutgeo = cut(cutter,ownmodel,args...)
-    change_bgmodel(cutgeo,bgmodel,own_to_local(gids))
+function cut(cutter::Cutter,bgmodel::DistributedDiscreteModel{Dc},args...) where Dc
+  gids = get_face_gids(bgmodel,Dc)
+  cuts = map(local_views(bgmodel)) do bgmodel
+    cut(cutter,bgmodel,args...)
   end
-  consistent_bgcell_to_inoutcut!(cuts,gids)
+  @notimplementedif !isconsistent_bgcell_to_inoutcut(cuts,partition(gids))
   DistributedEmbeddedDiscretization(cuts,bgmodel)
 end
 
@@ -39,288 +43,69 @@ function cut_facets(bgmodel::DistributedDiscreteModel,args...)
   cut_facets(LevelSetCutter(),bgmodel,args...)
 end
 
-function cut_facets(cutter::Cutter,bgmodel::DistributedDiscreteModel,args...)
-  D = map(num_dims,local_views(bgmodel)) |> PartitionedArrays.getany
-  cell_gids = get_cell_gids(bgmodel)
-  facet_gids = get_face_gids(bgmodel,D-1)
-  cuts = map(
-    local_views(bgmodel),
-    local_views(cell_gids),
-    local_views(facet_gids)) do bgmodel,cell_gids,facet_gids
-    ownmodel = remove_ghost_cells(bgmodel,cell_gids)
-    facet_to_pfacet = get_face_to_parent_face(ownmodel,D-1)
-    cutfacets = cut_facets(cutter,ownmodel,args...)
-    cutfacets = change_bgmodel(cutfacets,bgmodel,facet_to_pfacet)
-    remove_ghost_subfacets(cutfacets,facet_gids)
+function cut_facets(cutter::Cutter,bgmodel::DistributedDiscreteModel{Dc},args...) where Dc
+  gids = get_face_gids(bgmodel,Dc-1)
+  cuts = map(local_views(bgmodel)) do bgmodel
+    cut_facets(cutter,bgmodel,args...)
   end
-  consistent_bgfacet_to_inoutcut!(cuts,facet_gids)
+  @notimplementedif !isconsistent_bgcell_to_inoutcut(cuts,partition(gids))
   DistributedEmbeddedDiscretization(cuts,bgmodel)
 end
 
+# Note on distributed triangulations:
+#
+# - We allow for more one argument, `portion`, which allows the user to filter
+# some of the cells/faces. In particular, this is used to remove ghosts from the
+# local triangulations.
+# - The default for `portion` is `NoGhost()`, wich filters out all ghost cells, except
+# when we have the argument `in_or_out`.
+
 function Triangulation(
-  cutgeo::DistributedEmbeddedDiscretization,
-  in_or_out::ActiveInOrOut,
-  args...)
-
-  distributed_embedded_triangulation(Triangulation,cutgeo,in_or_out,args...)
+  cutgeo::DistributedEmbeddedDiscretization,in_or_out::ActiveInOrOut,args...
+)
+  Triangulation(WithGhost(),cutgeo,in_or_out,args...)
 end
 
-function Triangulation(cutgeo::DistributedEmbeddedDiscretization,args...)
-  trian = distributed_embedded_triangulation(Triangulation,cutgeo,args...)
-  remove_ghost_cells(trian)
-end
+for TT in (:Triangulation,:SkeletonTriangulation,:BoundaryTriangulation,:EmbeddedBoundary,:GhostSkeleton)
+  @eval begin
+    function $TT(cutgeo::DistributedEmbeddedDiscretization,args...)
+      $TT(NoGhost(),cutgeo,args...)
+    end
 
-function EmbeddedBoundary(cutgeo::DistributedEmbeddedDiscretization,args...)
-  trian = distributed_embedded_triangulation(EmbeddedBoundary,cutgeo,args...)
-  remove_ghost_cells(trian)
-end
+    function $TT(portion,cutgeo::DistributedEmbeddedDiscretization,args...)
+      model = get_background_model(cutgeo)
+      gids  = get_cell_gids(model)
+      trians = map(local_views(cutgeo),partition(gids)) do cutgeo, gids
+        $TT(portion,gids,cutgeo,args...)
+      end
+      DistributedTriangulation(trians,model)
+    end
 
-function SkeletonTriangulation(cutgeo::DistributedEmbeddedDiscretization,args...)
-  trian = distributed_embedded_triangulation(SkeletonTriangulation,cutgeo,args...)
-  remove_ghost_cells(trian)
-end
-
-function BoundaryTriangulation(cutgeo::DistributedEmbeddedDiscretization,args...)
-  trian = distributed_embedded_triangulation(BoundaryTriangulation,cutgeo,args...)
-  remove_ghost_cells(trian)
-end
-
-function distributed_embedded_triangulation(
-  T,
-  cutgeo::DistributedEmbeddedDiscretization,
-  args...)
-
-  trians = map(local_views(cutgeo)) do lcutgeo
-    T(lcutgeo,args...)
-  end
-  bgmodel = get_background_model(cutgeo)
-  DistributedTriangulation(trians,bgmodel)
-end
-
-function compute_bgfacet_to_inoutcut(
-  bgmodel::DistributedDiscreteModel,
-  bgf_to_ioc::AbstractArray{<:AbstractVector})
-
-  D = num_dims(eltype(local_views(bgmodel)))
-  gids = get_cell_gids(bgmodel)
-  bgf_to_ioc = map(
-    local_views(bgmodel),
-    local_views(gids),
-    bgf_to_ioc) do bgmodel,gids,bgf_to_ioc
-
-    ownmodel = remove_ghost_cells(bgmodel,gids)
-    f_to_pf = Gridap.Geometry.get_face_to_parent_face(ownmodel,D-1)
-    _bgf_to_ioc = Vector{eltype(bgf_to_ioc)}(undef,num_faces(bgmodel,D-1))
-    _bgf_to_ioc[f_to_pf] .= bgf_to_ioc
-    _bgf_to_ioc
-  end
-  facet_gids = get_face_gids(bgmodel,D-1)
-  pbgf_to_ioc = PVector(bgf_to_ioc,partition(facet_gids))
-  consistent!(pbgf_to_ioc) |> wait
-  local_values(pbgf_to_ioc)
-end
-
-function compute_bgfacet_to_inoutcut(
-  cutter::Cutter,
-  bgmodel::DistributedDiscreteModel,
-  geo)
-
-  gids = get_cell_gids(bgmodel)
-  bgf_to_ioc = map(local_views(bgmodel),local_views(gids)) do model,gids
-    ownmodel = remove_ghost_cells(model,gids)
-    compute_bgfacet_to_inoutcut(cutter,ownmodel,geo)
-  end
-  compute_bgfacet_to_inoutcut(bgmodel,bgf_to_ioc)
-end
-
-function compute_bgfacet_to_inoutcut(bgmodel::DistributedDiscreteModel,args...)
-  cutter = LevelSetCutter()
-  compute_bgfacet_to_inoutcut(cutter,bgmodel,args...)
-end
-
-function compute_bgcell_to_inoutcut(cutgeo::DistributedEmbeddedDiscretization,args...)
-  map(local_views(cutgeo)) do cutgeo
-    compute_bgcell_to_inoutcut(cutgeo,args...)
-  end
-end
-
-function compute_bgfacet_to_inoutcut(cutgeo::DistributedEmbeddedDiscretization,args...)
-  map(local_views(cutgeo)) do cutgeo
-    compute_bgfacet_to_inoutcut(cutgeo,args...)
-  end
-end
-
-function remove_ghost_cells(trian::DistributedTriangulation)
-  model = get_background_model(trian)
-  gids = get_cell_gids(model)
-  trians = map(local_views(trian),local_views(gids)) do trian,gids
-    remove_ghost_cells(trian,gids)
-  end
-  DistributedTriangulation(trians,model)
-end
-
-function remove_ghost_cells(trian::AppendedTriangulation,gids)
-  a = remove_ghost_cells(trian.a,gids)
-  b = remove_ghost_cells(trian.b,gids)
-  lazy_append(a,b)
-end
-
-function remove_ghost_cells(trian::SubFacetTriangulation,gids)
-  model = get_background_model(trian)
-  D     = num_cell_dims(model)
-  glue  = get_glue(trian,Val{D}())
-  remove_ghost_cells(glue,trian,gids)
-end
-
-function remove_ghost_cells(model::DiscreteModel,gids::AbstractLocalIndices)
-  DiscreteModelPortion(model,own_to_local(gids))
-end
-
-function consistent_bgcell_to_inoutcut!(
-  cuts::AbstractArray{<:AbstractEmbeddedDiscretization},
-  gids::PRange)
-
-  ls_to_bgcell_to_inoutcut = map(get_ls_to_bgcell_to_inoutcut,cuts)
-  _consistent!(ls_to_bgcell_to_inoutcut,gids)
-end
-
-function get_ls_to_bgcell_to_inoutcut(cut::EmbeddedDiscretization)
-  cut.ls_to_bgcell_to_inoutcut
-end
-
-function consistent_bgfacet_to_inoutcut!(
-  cuts::AbstractArray{<:AbstractEmbeddedDiscretization},
-  gids::PRange)
-
-  ls_to_bgfacet_to_inoutcut = map(get_ls_to_bgfacet_to_inoutcut,cuts)
-  _consistent!(ls_to_bgfacet_to_inoutcut,gids)
-end
-
-function get_ls_to_bgfacet_to_inoutcut(cut::EmbeddedFacetDiscretization)
-  cut.ls_to_facet_to_inoutcut
-end
-
-function _consistent!(
-  p_to_i_to_a::AbstractArray{<:Vector{<:Vector}},
-  prange::PRange)
-
-  n = map(length,p_to_i_to_a) |> PartitionedArrays.getany
-  for i in 1:n
-    p_to_a = map(i_to_a->i_to_a[i],p_to_i_to_a)
-    PVector(p_to_a,partition(prange)) |> consistent! |> wait
-    map(p_to_a,p_to_i_to_a) do p_to_a,p_to_ia
-      copyto!(p_to_ia[i],p_to_a)
+    function $TT(portion,gids::AbstractLocalIndices,cutgeo::AbstractEmbeddedDiscretization,args...)
+      trian = $TT(cutgeo,args...)
+      filter_cells_when_needed(portion,gids,trian)
     end
   end
 end
 
-function change_bgmodel(
-  cutgeo::DistributedEmbeddedDiscretization,
-  model::DistributedDiscreteModel,
-  args...)
-
-  cuts = _change_bgmodels(cutgeo,model,args...)
-  gids = get_cell_gids(model)
-  ls_to_bgcell_to_inoutcut = map(c->c.ls_to_bgcell_to_inoutcut,cuts)
-  _consistent!(ls_to_bgcell_to_inoutcut,gids)
-  DistributedEmbeddedDiscretization(cuts,model)
+# TODO: This should go to GridapDistributed
+function get_tangent_vector(a::DistributedTriangulation)
+  fields = map(get_tangent_vector,local_views(a))
+  DistributedCellField(fields,a)
 end
 
-function change_bgmodel(
-  cutgeo::DistributedEmbeddedDiscretization{<:AbstractArray{<:EmbeddedFacetDiscretization}},
-  model::DistributedDiscreteModel,
-  args...)
-
-  D = map(num_dims,local_views(model)) |> PartitionedArrays.getany
-  cuts = _change_bgmodels(cutgeo,model,args...)
-  gids = get_face_gids(model,D-1)
-  ls_to_facet_to_inoutcut = map(c->c.ls_to_facet_to_inoutcut,cuts)
-  _consistent!(ls_to_facet_to_inoutcut,gids)
-  DistributedEmbeddedDiscretization(cuts,model)
+# TODO: This should go to GridapDistributed
+function remove_ghost_cells(trian::AppendedTriangulation,gids)
+  a = remove_ghost_cells(trian.a,gids)
+  b = remove_ghost_cells(trian.b,gids)
+  iszero(num_cells(a)) && return b
+  iszero(num_cells(b)) && return a
+  return lazy_append(a,b)
 end
 
-
-function _change_bgmodels(
-  cutgeo::DistributedEmbeddedDiscretization,
-  model::DistributedDiscreteModel,
-  cell_to_newcell)
-
-  map(local_views(cutgeo),local_views(model),cell_to_newcell) do c,m,c_to_nc
-    change_bgmodel(c,m,c_to_nc)
-  end
-end
-
-function _change_bgmodels(
-  cutgeo::DistributedEmbeddedDiscretization,
-  model::DistributedDiscreteModel)
-
-  map(local_views(cutgeo),local_views(model)) do c,m
-    change_bgmodel(c,m)
-  end
-end
-
-function change_bgmodel(
-  cut::EmbeddedDiscretization,
-  newmodel::DiscreteModel,
-  cell_to_newcell=1:num_cells(get_background_model(cut)))
-
-  ls_to_bgc_to_ioc = map(cut.ls_to_bgcell_to_inoutcut) do bgc_to_ioc
-    new_bgc_to_ioc = Vector{Int8}(undef,num_cells(newmodel))
-    new_bgc_to_ioc[cell_to_newcell] = bgc_to_ioc
-    new_bgc_to_ioc
-  end
-  subcells = change_bgmodel(cut.subcells,cell_to_newcell)
-  subfacets = change_bgmodel(cut.subfacets,cell_to_newcell)
-  EmbeddedDiscretization(
-    newmodel,
-    ls_to_bgc_to_ioc,
-    subcells,
-    cut.ls_to_subcell_to_inout,
-    subfacets,
-    cut.ls_to_subfacet_to_inout,
-    cut.oid_to_ls,
-    cut.geo)
-end
-
-function change_bgmodel(
-  cut::EmbeddedFacetDiscretization,
-  newmodel::DiscreteModel,
-  facet_to_newfacet=1:num_facets(get_background_model(cut)))
-
-  nfacets = num_facets(newmodel)
-
-  ls_to_bgf_to_ioc = map(cut.ls_to_facet_to_inoutcut) do bgf_to_ioc
-    new_bgf_to_ioc = Vector{Int8}(undef,nfacets)
-    new_bgf_to_ioc[facet_to_newfacet] = bgf_to_ioc
-    new_bgf_to_ioc
-  end
-  subfacets = change_bgmodel(cut.subfacets,facet_to_newfacet)
-  EmbeddedFacetDiscretization(
-    newmodel,
-    ls_to_bgf_to_ioc,
-    subfacets,
-    cut.ls_to_subfacet_to_inout,
-    cut.oid_to_ls,
-    cut.geo)
-end
-
-function change_bgmodel(cells::SubCellData,cell_to_newcell)
-  cell_to_bgcell = lazy_map(Reindex(cell_to_newcell),cells.cell_to_bgcell)
-  SubCellData(
-    cells.cell_to_points,
-    collect(Int32,cell_to_bgcell),
-    cells.point_to_coords,
-    cells.point_to_rcoords)
-end
-
-function change_bgmodel(facets::SubFacetData,cell_to_newcell)
-  facet_to_bgcell = lazy_map(Reindex(cell_to_newcell),facets.facet_to_bgcell)
-  SubFacetData(
-    facets.facet_to_points,
-    facets.facet_to_normal,
-    collect(Int32,facet_to_bgcell),
-    facets.point_to_coords,
-    facets.point_to_rcoords)
+function remove_ghost_cells(trian::SubFacetTriangulation{Df,Dc},gids) where {Df,Dc}
+  glue  = get_glue(trian,Val{Dc}())
+  remove_ghost_cells(glue,trian,gids)
 end
 
 function remove_ghost_subfacets(cut::EmbeddedFacetDiscretization,facet_gids)
@@ -337,8 +122,82 @@ function remove_ghost_subfacets(cut::EmbeddedFacetDiscretization,facet_gids)
     subfacets,
     ls_to_subfacet_to_inout,
     cut.oid_to_ls,
-    cut.geo)
+    cut.geo
+  )
 end
+
+# Distributed InOutCut flag methods
+
+#     isconsistent_bgcell_to_inoutcut(cut::DistributedEmbeddedDiscretization)
+#     isconsistent_bgcell_to_inoutcut(cuts::AbstractArray{<:AbstractEmbeddedDiscretization},indices)
+#
+# Returns true if the local `ls_to_bgcell_to_inoutcut` arrays are consistent
+# accross processors.
+function isconsistent_bgcell_to_inoutcut(
+  cut::DistributedEmbeddedDiscretization{Dc}
+) where Dc
+  model = get_background_model(cut)
+  gids = get_face_gids(model,Dc)
+  isconsistent_bgcell_to_inoutcut(local_views(cut),partition(gids))
+end
+
+function isconsistent_bgcell_to_inoutcut(
+  cuts::AbstractArray{<:AbstractEmbeddedDiscretization},indices::AbstractArray
+)
+  get_inoutcut(cut::EmbeddedDiscretization) = Tuple(cut.ls_to_bgcell_to_inoutcut)
+  get_inoutcut(cut::EmbeddedFacetDiscretization) = Tuple(cut.ls_to_facet_to_inoutcut)
+  ls_to_bgcell_to_inoutcut = tuple_of_arrays(map(get_inoutcut,cuts))
+  return isconsistent_bgcell_to_inoutcut(ls_to_bgcell_to_inoutcut,indices)
+end
+
+function isconsistent_bgcell_to_inoutcut(
+  ls_to_bgcell_to_inoutcut::NTuple{N,<:AbstractArray{<:Vector}},indices::AbstractArray
+) where N
+  for bgcell_to_inoutcut in ls_to_bgcell_to_inoutcut
+    if !isconsistent_bgcell_to_inoutcut(bgcell_to_inoutcut,indices)
+      return false
+    end
+  end
+  return true
+end
+
+function isconsistent_bgcell_to_inoutcut(
+  bgcell_to_inoutcut::AbstractArray{<:Vector},indices::AbstractArray
+)
+  # TODO: Some allocations can be avoided by going to the low-level communication API
+  ref = map(copy,bgcell_to_inoutcut)
+  wait(consistent!(PVector(ref,indices)))
+  is_consistent = map(bgcell_to_inoutcut,ref) do bgcell_to_inoutcut,ref
+    bgcell_to_inoutcut == ref
+  end
+  return reduce(&,is_consistent,init=true)
+end
+
+# TODO: Should we check for consistency here?
+function compute_bgfacet_to_inoutcut(bgmodel::DistributedDiscreteModel,args...)
+  cutter = LevelSetCutter()
+  compute_bgfacet_to_inoutcut(cutter,bgmodel,args...)
+end
+
+function compute_bgfacet_to_inoutcut(cutter::Cutter,bgmodel::DistributedDiscreteModel,args...)
+  map(local_views(bgmodel)) do bgmodel
+    compute_bgfacet_to_inoutcut(cutter,bgmodel,args...)
+  end
+end
+
+function compute_bgcell_to_inoutcut(cutgeo::DistributedEmbeddedDiscretization,args...)
+  map(local_views(cutgeo)) do cutgeo
+    compute_bgcell_to_inoutcut(cutgeo,args...)
+  end
+end
+
+function compute_bgfacet_to_inoutcut(cutgeo::DistributedEmbeddedDiscretization,args...)
+  map(local_views(cutgeo)) do cutgeo
+    compute_bgfacet_to_inoutcut(cutgeo,args...)
+  end
+end
+
+# AMR
 
 function compute_redistribute_wights(
   cut::DistributedEmbeddedDiscretization,

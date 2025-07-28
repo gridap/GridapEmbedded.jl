@@ -1,4 +1,4 @@
-module PoissonTests
+module DistributedLSDiscreteGeometryPoissonTest
 
 using Gridap
 using GridapEmbedded
@@ -7,25 +7,27 @@ using PartitionedArrays
 using Test
 
 using GridapEmbedded.CSG
+using GridapEmbedded.LevelSetCutters
 
 function main(distribute,parts;
   threshold=1,
-  n=8,
-  cells=(n,n),
-  geometry=:circle)
+  n=21,
+  cells=(n,n))
 
+  order = 2
   ranks = distribute(LinearIndices((prod(parts),)))
+  domain = (0,1,0,1)
+  bgmodel = CartesianDiscreteModel(ranks,parts,domain,cells)
 
-  u(x) = x[1] - x[2]
+  u(x) = (x[1]-0.5)^2 + (x[2]-0.5)^2
   f(x) = -Δ(u)(x)
   ud(x) = u(x)
 
-  geometries = Dict(
-    :circle => circle_geometry,
-    :remotes => remotes_geometry,
-  )
-
-  bgmodel,geo = geometries[geometry](ranks,parts,cells)
+  reffe = ReferenceFE(lagrangian,Float64,order)
+  Ω_bg = Triangulation(bgmodel)
+  V_bg = FESpace(Ω_bg,reffe)
+  φh = interpolate(x->sqrt((x[1]-0.5)^2+(x[2]-0.5)^2)-0.35,V_bg)
+  geo = DiscreteGeometry(φh,bgmodel)
 
   D = 2
   cell_meas = map(get_cell_measure∘Triangulation,local_views(bgmodel))
@@ -38,25 +40,20 @@ function main(distribute,parts;
   strategy = AggregateCutCellsByThreshold(threshold)
   bgmodel,cutgeo,aggregates = aggregate(strategy,cutgeo)
 
-  Ω_bg = Triangulation(bgmodel)
   Ω_act = Triangulation(cutgeo,ACTIVE)
   Ω = Triangulation(cutgeo,PHYSICAL)
   Γ = EmbeddedBoundary(cutgeo)
 
   n_Γ = get_normal_vector(Γ)
 
-  order = 1
+  order = 2
   degree = 2*order
   dΩ = Measure(Ω,degree)
   dΓ = Measure(Γ,degree)
 
-  reffe = ReferenceFE(lagrangian,Float64,order)
-
   Vstd = FESpace(Ω_act,reffe)
-
   V = AgFEMSpace(bgmodel,Vstd,aggregates)
   U = TrialFESpace(V)
-
 
   γd = 10.0
 
@@ -104,42 +101,11 @@ function main(distribute,parts;
       "gid"=>own_to_global(gids)])#,
   #  cellfields=["uh"=>uh])
 
-  writevtk(Ω,joinpath(path,"trian_O"),cellfields=["uh"=>uh,"eh"=>e])
+  writevtk(Ω,joinpath(path,"trian_O"),cellfields=["uh"=>uh])
   writevtk(Γ,joinpath(path,"trian_G"))
   @test el2/ul2 < 1.e-8
   @test eh1/uh1 < 1.e-7
 
 end
-
-function circle_geometry(ranks,parts,cells)
-  L = 1
-  p0 = Point(0.0,0.0)
-  pmin = p0-L/2
-  pmax = p0+L/2
-  R = 0.35
-  geo = disk(R,x0=p0)
-  bgmodel = CartesianDiscreteModel(ranks,parts,pmin,pmax,cells)
-  bgmodel,geo
-end
-
-function remotes_geometry(ranks,parts,cells)
-  x0 = Point(0.05,0.05)
-  d1 = VectorValue(0.9,0.0)
-  d2 = VectorValue(0.0,0.1)
-  geo1 = quadrilateral(;x0=x0,d1=d1,d2=d2)
-
-  x0 = Point(0.15,0.1)
-  d1 = VectorValue(0.25,0.0)
-  d2 = VectorValue(0.0,0.6)
-  geo2 = quadrilateral(;x0=x0,d1=d1,d2=d2)
-  geo = union(geo1,geo2)
-
-  domain = (0, 1, 0, 1)
-  bgmodel = CartesianDiscreteModel(ranks,parts,domain,cells)
-  bgmodel,geo
-end
-
-
-
 
 end # module

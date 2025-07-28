@@ -4,12 +4,44 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.9.8] - 2025-7-10
+
+### Added
+
+- Added missing update_trian! method for MultiField. Since PR[#112](https://github.com/gridap/GridapEmbedded.jl/pull/112).
+
+### Fixed
+
+- Fixed failed precompilation due to Gridap v0.19.2. Since PR[#112](https://github.com/gridap/GridapEmbedded.jl/pull/112).
+
+## [0.9.7] - 2025-6-11
+
+### Added
+
+- Added support for Gridap v0.19. Since PR[#110](https://github.com/gridap/GridapEmbedded.jl/pull/110).
+
+## [0.9.6] - 2025-04-19
+
+### Added
+
+- Added support for distributed level-set geometries. Since PR[#99](https://github.com/gridap/GridapEmbedded.jl/pull/99).
+- Refactored the distributed code to allow for ghosted/unghosted geometries and triangulations. Since PR[#100](https://github.com/gridap/GridapEmbedded.jl/pull/100).
+- Implemented geometrical derivatives. Since PR[#109](https://github.com/gridap/GridapEmbedded.jl/pull/109).
+- Added a proper documentation. Since PR[#109](https://github.com/gridap/GridapEmbedded.jl/pull/109).
+
+### Changed
+
+- Swapped `LightGraphs.jl` dependency to `Graphs.jl`, due to the former being deprecated. Since PR[#108](https://github.com/gridap/GridapEmbedded.jl/pull/108).
+
+## [0.9.5] - 2024-10-18
 
 ### Added
 
 - Adding `compute_redistribute_weights` and `compute_adaptive_flags` functions for load balancing and adaptive mesh refinement, respectively. Since PR [#95](https://github.com/gridap/GridapEmbedded.jl/pull/95).
 
+### Changed
+
+- Updated to Algoim v0.2.2, which runs on Julia 1.11. Since PR [#97](https://github.com/gridap/GridapEmbedded.jl/pull/97).
 
 ## [0.9.4] - 2024-07-09
 
