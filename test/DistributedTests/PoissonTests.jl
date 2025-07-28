@@ -96,15 +96,16 @@ function main(distribute,parts;
     map(Reindex(col),oid)
   end
 
-  writevtk(Ω_bg,"trian",
+  path = mktempdir()
+  writevtk(Ω_bg,joinpath(path,"trian"),
     celldata=[
       "aggregate"=>own_aggregates,
       "color"=>own_colors,
       "gid"=>own_to_global(gids)])#,
   #  cellfields=["uh"=>uh])
 
-  writevtk(Ω,"trian_O",cellfields=["uh"=>uh,"eh"=>e])
-  writevtk(Γ,"trian_G")
+  writevtk(Ω,joinpath(path,"trian_O"),cellfields=["uh"=>uh,"eh"=>e])
+  writevtk(Γ,joinpath(path,"trian_G"))
   @test el2/ul2 < 1.e-8
   @test eh1/uh1 < 1.e-7
 

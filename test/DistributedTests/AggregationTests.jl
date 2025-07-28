@@ -38,8 +38,6 @@ bgf_to_ioc = compute_bgfacet_to_inoutcut(bgmodel,geo)
 
 Ω = Triangulation(cutgeo)
 
-writevtk(Ω,"trian")
-
 strategy = AggregateCutCellsByThreshold(1.0)
 aggregates,aggregate_owner,aggregate_neig = distributed_aggregate(
   strategy,cutgeo,geo,IN)
@@ -74,9 +72,10 @@ end
 Ωin = Triangulation(cutgeo,IN)
 Γ = EmbeddedBoundary(cutgeo)
 
-writevtk(Ωin,"trian_in")
-writevtk(Γ,"bnd")
-writevtk(Ωbg,"bgtrian",celldata=
+path = mktempdir()
+writevtk(Ωin,joinpath(path,"trian_in"))
+writevtk(Γ,joinpath(path,"bnd"))
+writevtk(Ωbg,joinpath(path,"bgtrian"),celldata=
    ["aggregate"=>oaggregates,
     "aggregate_owner"=>oaggregate_owner])
 

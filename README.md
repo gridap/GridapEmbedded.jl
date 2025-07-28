@@ -2,6 +2,7 @@
 
 Embedded finite element methods, level set surface descriptions and constructive solid geometry.
 
+[![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://gridap.github.io/GridapEmbedded.jl/stable)
 [![Build Status](https://github.com/gridap/GridapEmbedded.jl/workflows/CI/badge.svg?branch=master)](https://github.com/gridap/GridapEmbedded.jl/actions?query=workflow%3ACI)
 [![Codecov](https://codecov.io/gh/gridap/GridapEmbedded.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/gridap/GridapEmbedded.jl)
 
@@ -40,4 +41,3 @@ julia> BimaterialLinElastCutFEM.main(n=4,outputfile="results3")
 ```
 
 <img src="https://raw.githubusercontent.com/gridap/GridapEmbedded.jl/master/examples/BimaterialLinElastCutFEM/BimaterialLinElastCutFEM_solution.png" width="400">
-

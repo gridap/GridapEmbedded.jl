@@ -1,6 +1,6 @@
 module AgFEM
 
-using LightGraphs
+using Graphs
 using LinearAlgebra
 
 using Gridap
