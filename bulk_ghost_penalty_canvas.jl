@@ -122,8 +122,6 @@ vbb=get_fe_basis(Vbb)
 # Numerical integration (Measures)
 dΩbg_agg_cells = Measure(Ωbg_agg_cells,degree)
 
-# # LHS of L2 projection on bounding boxes.
-
 # Selecting relevant global dofs ids of aggregate cells (from background mesh)
 Ωbg_agg_cell_dof_ids   = get_cell_dof_ids(X,Ωbg_agg_cells)
 U_Ωbg_agg_cell_dof_ids = _restrict_to_block(Ωbg_agg_cell_dof_ids, 1) 
@@ -194,7 +192,7 @@ dp_proj_Qbb, dq_proj_Qbb = setup_L2_proj_in_bb_space(
    identity,                   # operation to be applied to u and v
    P_agg_cells_local_dof_ids)  # aggregates local dof ids for space P   
 
-div_du_proj_Vbb, div_dv_proj_Vbb = setup_L2_proj_in_bb_space(
+div_du_proj_Qbb, div_dv_proj_Qbb = setup_L2_proj_in_bb_space(
    dΩbg_agg_cells,             # measure of aggregated cells in background domain
    ref_agg_cell_to_ref_bb_map, # map
    agg_cells_to_aggregate,     # 
@@ -271,8 +269,8 @@ w_divu_diff, r_divu_diff, c_divu_diff = bulk_ghost_penalty_stabilization_collect
    γ,
    du,
    dv,
-   div_du_proj_Vbb,
-   div_dv_proj_Vbb,
+   div_du_proj_Qbb,
+   div_dv_proj_Qbb,
    U_Ωbg_cut_cell_dof_ids,
    U_Ωbg_cut_cell_dof_ids,
    U_cut_cells_to_aggregate_dof_ids,
@@ -285,7 +283,7 @@ w_divuq_diff, r_divuq_diff, c_divuq_diff = bulk_ghost_penalty_stabilization_coll
    γ,
    du,
    dq,
-   div_du_proj_Vbb,
+   div_du_proj_Qbb,
    dq_proj_Qbb,
    U_Ωbg_cut_cell_dof_ids,
    P_Ωbg_cut_cell_dof_ids,
@@ -300,7 +298,7 @@ w_pdivv_diff, r_pdivv_diff, c_pdivv_diff = bulk_ghost_penalty_stabilization_coll
    dp,
    dv,
    dp_proj_Qbb,
-   div_dv_proj_Vbb,
+   div_dv_proj_Qbb,
    P_Ωbg_cut_cell_dof_ids,
    U_Ωbg_cut_cell_dof_ids,
    P_cut_cells_to_aggregate_dof_ids,
@@ -340,7 +338,7 @@ w_divu_full, r_divu_full, c_divu_full = bulk_ghost_penalty_stabilization_collect
    γ,
    du,
    dv,
-   div_du_proj_Vbb,
+   div_du_proj_Qbb,
    U_Ωbg_cut_cell_dof_ids,
    U_Ωbg_cut_cell_dof_ids,
    U_cut_cells_to_aggregate_dof_ids,
@@ -352,7 +350,7 @@ w_divuq_full, r_divuq_full, c_divuq_full = bulk_ghost_penalty_stabilization_coll
    γ,
    du,
    dq,
-   div_du_proj_Vbb,
+   div_du_proj_Qbb,
    U_Ωbg_cut_cell_dof_ids,
    P_Ωbg_cut_cell_dof_ids,
    U_cut_cells_to_aggregate_dof_ids,
@@ -374,21 +372,32 @@ w_pdivv_full, r_pdivv_full, c_pdivv_full = bulk_ghost_penalty_stabilization_coll
 ##########################################
 ### Setup rhs stabilization            ###
 ##########################################
+rhs_func = divuex
+rhs_func_proj_Qbb = setup_L2_proj_in_bb_space(dΩbg_agg_cells,
+   ref_agg_cell_to_ref_bb_map, 
+   agg_cells_to_aggregate,      
+   aggregate_to_local_cells,    
+   rhs_func,                   
+   pbb,                        
+   qbb) 
+
 w_rhsq_diff, r_rhsq_diff = bulk_ghost_penalty_stabilization_collect_cell_vector_on_D(dΩbg_cut_cells,
    γ,  
-   dq, 
+   dq,
    dq_proj_Qbb,
    P_Ωbg_cut_cell_dof_ids,
    P_cut_cells_to_aggregate_dof_ids,
    identity,
-   divuex)
+   rhs_func,
+   rhs_func_proj_Qbb)
 
 w_rhsq_full, r_rhsq_full = bulk_ghost_penalty_stabilization_collect_cell_vector_on_D(dΩbg_cut_cells,
    γ,  
    dq, 
    P_Ωbg_cut_cell_dof_ids,
    identity,
-   divuex)
+   rhs_func,
+   rhs_func_proj_Qbb)
 
 ## WEAK FORM
 if problem==0
@@ -544,7 +553,7 @@ res_stab_p_diff
 res_stab_divu_full
 res_stab_divu_diff
 res_stab_pdivv_full # THIS IS OK. 
-res_stab_divuq_full_rhs #THIS SEEMS TO BE INCORRECT 
+res_stab_divuq_full_rhs # ERRORS SEEM TO BE OF SAME ORDER NOW.
 
 # Alternatives for res_stab_divuq_full_rhs
 res_stab_divuq_full #THIS SEEMS BETTER
@@ -555,3 +564,93 @@ res_stab_divuq_diff_rhs # seems incorrect
 # Lastly compare these:
 res_stab_pdivv_full 
 res_stab_pdivv_diff 
+
+###
+# UFULL + PFULL + DIVUFULL
+wrc=Gridap.FESpaces.collect_cell_matrix(X,Y,a(dx,dy))
+push!(wrc[1], w_u_full...)
+push!(wrc[2], r_u_full...)
+push!(wrc[3], c_u_full...)
+push!(wrc[1], w_p_full...)
+push!(wrc[2], r_p_full...)
+push!(wrc[3], c_p_full...)
+push!(wrc[1], w_divu_full...)
+push!(wrc[2], r_divu_full...)
+push!(wrc[3], c_divu_full...)
+A = assemble_matrix(assem, wrc)
+res_stab_updivu_full = compute_quantities(problem,A,b,dΩ) #ok
+
+# UDIFF+ PDIFF + DIVUDIFF
+wrc=Gridap.FESpaces.collect_cell_matrix(X,Y,a(dx,dy))
+push!(wrc[1], w_u_diff...)
+push!(wrc[2], r_u_diff...)
+push!(wrc[3], c_u_diff...)
+push!(wrc[1], w_p_diff...)
+push!(wrc[2], r_p_diff...)
+push!(wrc[3], c_p_diff...)
+push!(wrc[1], w_divu_diff...)
+push!(wrc[2], r_divu_diff...)
+push!(wrc[3], c_divu_diff...)
+A = assemble_matrix(assem, wrc)
+res_stab_updivu_diff = compute_quantities(problem,A,b,dΩ) #ok
+
+# UFULL + DIVUFULL + "MIX"
+wrc=Gridap.FESpaces.collect_cell_matrix(X,Y,a(dx,dy))
+push!(wrc[1], w_u_full...)
+push!(wrc[2], r_u_full...)
+push!(wrc[3], c_u_full...)
+push!(wrc[1], w_divu_full...)
+push!(wrc[2], r_divu_full...)
+push!(wrc[3], c_divu_full...)
+push!(wrc[1], w_divuq_full...)
+push!(wrc[2], r_divuq_full...)
+push!(wrc[3], c_divuq_full...)
+push!(wrc[1], w_pdivv_full...)
+push!(wrc[2], r_pdivv_full...)
+push!(wrc[3], c_pdivv_full...)
+A = assemble_matrix(assem, wrc)
+res_stab_udivumix_full = compute_quantities(problem,A,b,dΩ)
+
+# UDIFF + DIVUDIFF + "MIX"
+wrc=Gridap.FESpaces.collect_cell_matrix(X,Y,a(dx,dy))
+push!(wrc[1], w_u_diff...)
+push!(wrc[2], r_u_diff...)
+push!(wrc[3], c_u_diff...)
+push!(wrc[1], w_divu_diff...)
+push!(wrc[2], r_divu_diff...)
+push!(wrc[3], c_divu_diff...)
+A = assemble_matrix(assem, wrc)
+res_stab_udivumix_rhs_diff= compute_quantities(problem,A,b_rhsq_diff,dΩ)
+res_stab_udivumix_diff = compute_quantities(problem,A,b,dΩ) # this is the same for rhs_func = constant
+@assert res_stab_udivumix_rhs_diff == res_stab_udivumix_diff
+
+# UFULL + DIVUFULL + "MIX"
+wrc=Gridap.FESpaces.collect_cell_matrix(X,Y,a(dx,dy))
+push!(wrc[1], w_u_full...)
+push!(wrc[2], r_u_full...)
+push!(wrc[3], c_u_full...)
+push!(wrc[1], w_divu_full...)
+push!(wrc[2], r_divu_full...)
+push!(wrc[3], c_divu_full...)
+A = assemble_matrix(assem, wrc)
+res_stab_udivumix_rhs_full= compute_quantities(problem,A,b_rhsq_full,dΩ)
+res_stab_udivumix_full = compute_quantities(problem,A,b,dΩ) # this is the same for rhs_func = constant
+@assert res_stab_udivumix_rhs_full == res_stab_udivumix_full
+
+## GENERATE EXCEL SHEET RESULTS``
+print("results")
+res_nostab
+res_stab_u_full
+res_stab_u_diff
+res_stab_p_full
+res_stab_p_diff
+res_stab_divu_full
+res_stab_divu_diff
+res_stab_pdivv_full # THIS IS OK. 
+res_stab_divuq_full_rhs # ERRORS SEEM TO BE OF SAME ORDER NOW.
+
+res_stab_updivu_full
+res_stab_updivu_diff
+res_stab_udivumix_full
+res_stab_udivumix_rhs_diff
+res_stab_udivumix_rhs_full
