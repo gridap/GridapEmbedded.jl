@@ -17,11 +17,11 @@ function generate_dumbell(ranks, np, nc, ng)
 
   geo1 = disk(R,x0=p0)
   geo2 = quadrilateral(;x0=Point(-L/4+h/4,5*h/4),
-                        d1=VectorValue(6*h+h/2,0.0),
-                        d2=VectorValue(0.0,4*h+h/2))
+                        d1=VectorValue(8*h+h/2,0.0),
+                        d2=VectorValue(0.0,5*h+h/2))
   geo3 = quadrilateral(;x0=Point(-L/4+3*h/4,7*h/4),
-                        d1=VectorValue(6*h-h/2,0.0),
-                        d2=VectorValue(0.0,4*h-h/2))
+                        d1=VectorValue(8*h-h/2,0.0),
+                        d2=VectorValue(0.0,5*h-h/2))
   geo = union(geo1,intersect(geo2,!geo3))
   bgmodel = CartesianDiscreteModel(ranks,np,pmin,pmax,(nc,nc);ghost=(ng,ng))
   return bgmodel, geo
@@ -71,6 +71,7 @@ function find_optimal_roots!(lcell_to_root,lcell_to_path_length,lcell_to_bbox_di
 
     for (k,nbor) in enumerate(roots_cache.neighbors_rcv)
       for (lcell,root,len,bb_diam) in zip(lids_rcv[k],roots_rcv[k],lengths_rcv[k],bb_diams_rcv[k])
+        root == 0 && continue
         if lcell_to_path_length[lcell] > len
           lcell_to_root[lcell] = root
           lcell_to_owner[lcell] = nbor
@@ -108,9 +109,9 @@ function find_optimal_roots!(lcell_to_root,lcell_to_path_length,lcell_to_bbox_di
 end
 
 distribute = PartitionedArrays.DebugArray
-np = (2,1)
+np = (3,1)
 ranks = distribute(LinearIndices((prod(np),)))
-bgmodel, geo = generate_dumbell(ranks, np, 8, 2)
+bgmodel, geo = generate_dumbell(ranks, np, 9, 2)
 cutgeo = cut(bgmodel, geo)
 
 cell_indices = partition(get_cell_gids(bgmodel))
