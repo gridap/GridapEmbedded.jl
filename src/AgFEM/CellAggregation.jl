@@ -78,8 +78,9 @@ function aggregate(
 
   facet_to_inoutcut = compute_bgfacet_to_inoutcut(cut.bgmodel,geo)
   lid_to_gid = 1:num_cells(get_background_model(cut))
-  cell_to_cellin,_ =
+  cell_to_cellin,_,_,all_aggregated =
     _aggregate_by_threshold(strategy.threshold,cut,geo,in_or_out,facet_to_inoutcut,lid_to_gid)
+  @assert all_aggregated "Not all cells were aggregated"
   cell_to_cellin
 end
 
@@ -91,7 +92,7 @@ function aggregate(
   in_or_out)
 
   facet_to_inoutcut = compute_bgfacet_to_inoutcut(cut.bgmodel,geo)
-  cell_to_cellin, cell_to_path_length, cell_to_bbox_diam =
+  cell_to_cellin, cell_to_path_length, cell_to_bbox_diam, _ =
     _aggregate_by_threshold(strategy.threshold,cut,geo,in_or_out,facet_to_inoutcut,lid_to_gid)
   for i in eachindex(cell_to_cellin)
     if !iszero(cell_to_cellin[i])
@@ -110,8 +111,9 @@ function aggregate(
 
   facet_to_inoutcut = compute_bgfacet_to_inoutcut(cut_facets,geo)
   lid_to_gid = 1:num_cells(get_background_model(cut))
-  cell_to_cellin,_ =
+  cell_to_cellin,_,_,all_aggregated =
     _aggregate_by_threshold(strategy.threshold,cut,geo,in_or_out,facet_to_inoutcut,lid_to_gid)
+  @assert all_aggregated "Not all cells were aggregated"
   cell_to_cellin
 end
 
@@ -123,8 +125,9 @@ function aggregate(
   facet_to_inoutcut::AbstractVector)
 
   lid_to_gid = 1:num_cells(get_background_model(cut))
-  cell_to_cellin,_ =
+  cell_to_cellin,_,_,all_aggregated =
     _aggregate_by_threshold(strategy.threshold,cut,geo,in_or_out,facet_to_inoutcut,lid_to_gid)
+  @assert all_aggregated "Not all cells were aggregated"
   cell_to_cellin
 end
 
@@ -207,9 +210,7 @@ function _aggregate_by_threshold_barrier(
     _touch_aggregated_cells!(cell_to_touched,cell_to_cellin)
   end
 
-  @assert all_aggregated
-
-  cell_to_cellin, cell_to_path_length, cell_to_bbox_diam
+  cell_to_cellin, cell_to_path_length, cell_to_bbox_diam, all_aggregated
 end
 
 function _find_best_neighbor(
