@@ -369,9 +369,10 @@ function aggregate(bgtrian,cell_to_is_active,cell_to_is_cut,in_or_out)
   facet_to_inoutcut = fill(in_or_out,num_faces(model,D-1)) 
 
   threshold = 1.0
+  lid_to_gid = 1:num_cells(bgtrian)
   _aggregate_by_threshold_barrier(
     threshold,cell_to_unit_cut_meas,facet_to_inoutcut,cell_to_inoutcut,
-    in_or_out,cell_to_coords,cell_to_faces,face_to_cells)
+    in_or_out,cell_to_coords,cell_to_faces,face_to_cells,lid_to_gid)
 end
 
 function aggregate_narrow_band(bgtrian,cell_to_is_in_narrow,cell_to_is_active,cell_to_is_cut,in_or_out)
@@ -397,7 +398,8 @@ function aggregate_narrow_band(bgtrian,cell_to_is_in_narrow,cell_to_is_active,ce
   facet_to_inoutcut = fill(in_or_out,num_faces(model,D-1)) 
 
   threshold = 1.0
+  lid_to_gid = 1:num_cells(bgtrian)
   _aggregate_by_threshold_barrier(
     threshold,cell_to_unit_cut_meas,facet_to_inoutcut,cell_to_inoutcut,
-    in_or_out,cell_to_coords,cell_to_faces,face_to_cells)
+    in_or_out,cell_to_coords,cell_to_faces,face_to_cells,lid_to_gid)
 end
