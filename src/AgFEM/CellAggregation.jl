@@ -369,10 +369,12 @@ function aggregate(bgtrian,cell_to_is_active,cell_to_is_cut,in_or_out)
   facet_to_inoutcut = fill(in_or_out,num_faces(model,D-1)) 
 
   threshold = 1.0
-  lid_to_gid = 1:num_cells(bgtrian)
-  _aggregate_by_threshold_barrier(
+  lid_to_gid = 1:num_cells(model)
+  cell_to_cellin,_,_,all_aggregated = _aggregate_by_threshold_barrier(
     threshold,cell_to_unit_cut_meas,facet_to_inoutcut,cell_to_inoutcut,
     in_or_out,cell_to_coords,cell_to_faces,face_to_cells,lid_to_gid)
+  @assert all_aggregated "Not all cells were aggregated"
+  cell_to_cellin
 end
 
 function aggregate_narrow_band(bgtrian,cell_to_is_in_narrow,cell_to_is_active,cell_to_is_cut,in_or_out)
@@ -398,8 +400,10 @@ function aggregate_narrow_band(bgtrian,cell_to_is_in_narrow,cell_to_is_active,ce
   facet_to_inoutcut = fill(in_or_out,num_faces(model,D-1)) 
 
   threshold = 1.0
-  lid_to_gid = 1:num_cells(bgtrian)
-  _aggregate_by_threshold_barrier(
+  lid_to_gid = 1:num_cells(model)
+  cell_to_cellin,_,_,all_aggregated = _aggregate_by_threshold_barrier(
     threshold,cell_to_unit_cut_meas,facet_to_inoutcut,cell_to_inoutcut,
     in_or_out,cell_to_coords,cell_to_faces,face_to_cells,lid_to_gid)
+  @assert all_aggregated "Not all cells were aggregated"
+  cell_to_cellin
 end
