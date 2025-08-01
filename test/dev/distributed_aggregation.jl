@@ -85,7 +85,6 @@ function find_optimal_roots!(lcell_to_root,lcell_to_value,cell_indices)
     roots_rcv = roots_cache.buffer_rcv
     for (k, nbor) in enumerate(roots_cache.neighbors_rcv)
       for (lcell,root,value) in zip(lids_rcv[k], roots_rcv[k], values_rcv[k])
-        root == 0 && continue
         if lcell_to_value[lcell] > value # Take the minimum
           lcell_to_root[lcell] = root
           lcell_to_value[lcell] = value
