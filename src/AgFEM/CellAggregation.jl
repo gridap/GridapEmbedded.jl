@@ -161,7 +161,7 @@ function _aggregate_by_threshold_barrier(
 
   n_cells = length(cell_to_unit_cut_meas)
   cell_to_cellin = zeros(Int32,n_cells)
-  cell_to_value = zeros(Int128,n_cells)
+  cell_to_value = fill(typemax(Int128),n_cells)
   cell_to_touched = fill(false,n_cells)
 
   for cell in 1:n_cells
