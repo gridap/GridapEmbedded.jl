@@ -5,6 +5,7 @@ using GridapDistributed
 using PartitionedArrays
 
 using GridapEmbedded: aggregate
+using GridapEmbedded.Distributed: _local_aggregates
 
 function generate_asymmetric_kettlebell(ranks, np, nc, ng)
   L = 1
@@ -65,30 +66,32 @@ function exchange_impl!(vector_partition,cache)
   return t
 end
 
-function find_optimal_roots!(lcell_to_root,lcell_to_value,cell_indices)
+function find_optimal_roots!(lcell_to_root,lcell_to_value,lcell_to_owner,cell_indices)
   # Bring all root candidates to the owner of the cut cell
   roots_cache = PartitionedArrays.p_vector_cache(lcell_to_root,cell_indices)
   t1 = exchange_impl!(lcell_to_root,roots_cache)
   values_cache = PartitionedArrays.p_vector_cache(lcell_to_value,cell_indices)
   t2 = exchange_impl!(lcell_to_value,values_cache)
-  lcell_to_owner = map(copy∘local_to_owner,cell_indices)
   owners_cache = PartitionedArrays.p_vector_cache(lcell_to_owner,cell_indices)
+  t3 = exchange_impl!(lcell_to_owner,owners_cache)
   wait(t1)
   wait(t2)
+  wait(t3)
 
   # Select the optimal root for each local cut cell
   map(
-    lcell_to_root,lcell_to_value,lcell_to_owner,roots_cache,values_cache
-  ) do lcell_to_root, lcell_to_value, lcell_to_owner, roots_cache, values_cache
+    lcell_to_root,lcell_to_value,lcell_to_owner,roots_cache,values_cache,owners_cache
+  ) do lcell_to_root, lcell_to_value, lcell_to_owner, roots_cache, values_cache, owners_cache
     lids_rcv = roots_cache.local_indices_rcv
     values_rcv = values_cache.buffer_rcv
     roots_rcv = roots_cache.buffer_rcv
-    for (k, nbor) in enumerate(roots_cache.neighbors_rcv)
-      for (lcell,root,value) in zip(lids_rcv[k], roots_rcv[k], values_rcv[k])
+    owners_rcv = owners_cache.buffer_rcv
+    for k in eachindex(roots_cache.neighbors_rcv)
+      for (lcell,root,value,owner) in zip(lids_rcv[k], roots_rcv[k], values_rcv[k], owners_rcv[k])
         if lcell_to_value[lcell] > value # Take the minimum
-          lcell_to_root[lcell] = root
+          lcell_to_root[lcell] = root # Global ID
           lcell_to_value[lcell] = value
-          lcell_to_owner[lcell] = nbor
+          lcell_to_owner[lcell] = owner
         end
       end
     end
@@ -119,23 +122,33 @@ ranks = distribute(LinearIndices((prod(np),)))
 bgmodel, geo = generate_symmetric_kettlebell(ranks, np, 9, 2)
 cutgeo = cut(bgmodel, geo)
 
-cell_indices = partition(get_cell_gids(bgmodel))
+gids = get_cell_gids(bgmodel)
+cell_indices = partition(gids)
 
 strategy = AggregateCutCellsByThreshold(1.0)
-lcell_to_root, lcell_to_value =
+lcell_to_lroot, lcell_to_root, lcell_to_value =
   map(local_views(cutgeo),cell_indices) do cutgeo,cell_indices
     lid_to_gid = local_to_global(cell_indices)
     aggregate(strategy,cutgeo,geo,lid_to_gid,IN)
   end |> tuple_of_arrays
 
+lcell_to_owner = map(copy∘local_to_owner,cell_indices)
+lcell_to_owner = map(lcell_to_owner,lcell_to_lroot) do lcell_to_owner,lcell_to_lroot
+  for i in eachindex(lcell_to_owner)
+    if !iszero(lcell_to_lroot[i])
+      lcell_to_owner[i] = lcell_to_owner[lcell_to_lroot[i]]
+    end
+  end
+  lcell_to_owner
+end
+
 lcell_to_inconsistent_root = map(copy,lcell_to_root)
 
 lcell_to_root, lcell_to_owner, lcell_to_value, agg_cell_indices =
-  find_optimal_roots!(lcell_to_root,lcell_to_value,cell_indices);
+  find_optimal_roots!(lcell_to_root,lcell_to_value,lcell_to_owner,cell_indices);
 
-# Creating aggregate-conforming cell partition
+# Output for verification of Lcell_to_root map
 
-gids = get_cell_gids(bgmodel)
 ocell_to_root = map(lcell_to_root,own_to_local(gids)) do agg,o_to_l
   map(Reindex(agg),o_to_l)
 end
@@ -161,3 +174,49 @@ map(ranks,
                  "owners"             => lcell_to_owner ],
   );
 end
+
+# "Creating" aggregate-conforming cell partition
+
+function owned_aggregate_trian(ranks,model,lcell_to_root,lcell_to_owner)
+  cell_ids = get_cell_gids(model)
+  trians = map( ranks,
+                local_views(model),
+                local_views(lcell_to_root),
+                local_views(lcell_to_owner),
+                partition(cell_ids) ) do rank, model, lcell_to_root, lcell_to_owner, ids
+    cell_mask = map((r,o)->(r>0)&(o==rank),lcell_to_root,lcell_to_owner)
+    Triangulation(model,cell_mask)
+  end
+  GridapDistributed.DistributedTriangulation(trians,model)
+end
+
+aggtrian = owned_aggregate_trian(ranks,bgmodel,lcell_to_root,lcell_to_owner)
+writevtk(aggtrian,"data/kettlebell_aggtrian");
+
+order = 1
+reffe = ReferenceFE(lagrangian,Float64,order)
+
+# Current distributed AgFEM construction is on the 
+# local portion and assumes the root cells of all 
+# ghost cells are found in the local portion.
+
+lcell_to_lroot = _local_aggregates(lcell_to_root,gids) # (TMP) When root is not local?
+
+spaces = map( local_views(aggtrian),
+              local_views(lcell_to_lroot),
+              local_views(gids)  ) do aggtrian, lcell_to_lroot, gids
+  space = TestFESpace(aggtrian,reffe)
+  AgFEMSpace(space,lcell_to_lroot,space,local_to_global(gids))
+end
+
+map(ranks,local_views(spaces)) do r,space
+  aggtrian = get_triangulation(space)
+  writevtk(
+    aggtrian,
+    "data/kettlebell_aggtrian_$(r)",
+    celldata=[
+      "part" => fill(r,num_cells(aggtrian)),
+      "dof_ids" => string.(get_cell_dof_ids(space))
+    ],
+  );
+end;

@@ -92,14 +92,15 @@ function aggregate(
   in_or_out)
 
   facet_to_inoutcut = compute_bgfacet_to_inoutcut(cut.bgmodel,geo)
-  cell_to_cellin, cell_to_value, _ =
+  cell_to_lcellin, cell_to_value, _ =
     _aggregate_by_threshold(strategy.threshold,cut,geo,in_or_out,facet_to_inoutcut,lid_to_gid)
-  for i in eachindex(cell_to_cellin)
-    if !iszero(cell_to_cellin[i])
-      cell_to_cellin[i] = lid_to_gid[cell_to_cellin[i]]
+  cell_to_gcellin = fill(0,length(lid_to_gid))
+  for i in eachindex(cell_to_gcellin)
+    if !iszero(cell_to_lcellin[i])
+      cell_to_gcellin[i] = lid_to_gid[cell_to_lcellin[i]]
     end
   end
-  cell_to_cellin, cell_to_value
+  cell_to_lcellin, cell_to_gcellin, cell_to_value
 end
 
 function aggregate(
