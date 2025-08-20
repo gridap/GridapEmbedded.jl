@@ -177,34 +177,32 @@ end
 
 # "Creating" aggregate-conforming cell partition
 
-function owned_aggregate_trian(ranks,model,lcell_to_root,lcell_to_owner)
-  cell_ids = get_cell_gids(model)
-  trians = map( ranks,
-                local_views(model),
-                local_views(lcell_to_root),
-                local_views(lcell_to_owner),
-                partition(cell_ids) ) do rank, model, lcell_to_root, lcell_to_owner, ids
-    cell_mask = map((r,o)->(r>0)&(o==rank),lcell_to_root,lcell_to_owner)
-    Triangulation(model,cell_mask)
+# RMK: Current distributed AgFEM is constructed on 
+# the local portion and assumes the root cells of  
+# all ghost cells are in the local portion.
+
+# For now, extract only owned cells (no_ghost).
+function active_aggregate_conforming_trian(model,cutgeo,agg_cell_indices)
+  trians = map( local_views(cutgeo),
+                local_views(agg_cell_indices) ) do cutgeo, agg_cell_indices
+    Triangulation(no_ghost,agg_cell_indices,cutgeo,ACTIVE)
   end
   GridapDistributed.DistributedTriangulation(trians,model)
 end
 
-aggtrian = owned_aggregate_trian(ranks,bgmodel,lcell_to_root,lcell_to_owner)
+aggtrian = active_aggregate_conforming_trian(bgmodel,cutgeo,agg_cell_indices)
+
 writevtk(aggtrian,"data/kettlebell_aggtrian");
 
 order = 1
 reffe = ReferenceFE(lagrangian,Float64,order)
 
-# Current distributed AgFEM construction is on the 
-# local portion and assumes the root cells of all 
-# ghost cells are found in the local portion.
-
-lcell_to_lroot = _local_aggregates(lcell_to_root,gids) # (TMP) When root is not local?
+# (TMP) This gives wrong output when root is not owned, but does not affect below.
+lcell_to_lroot = _local_aggregates(lcell_to_root,gids)
 
 spaces = map( local_views(aggtrian),
               local_views(lcell_to_lroot),
-              local_views(gids)  ) do aggtrian, lcell_to_lroot, gids
+              local_views(gids) ) do aggtrian, lcell_to_lroot, gids
   space = TestFESpace(aggtrian,reffe)
   AgFEMSpace(space,lcell_to_lroot,space,local_to_global(gids))
 end
@@ -216,7 +214,7 @@ map(ranks,local_views(spaces)) do r,space
     "data/kettlebell_aggtrian_$(r)",
     celldata=[
       "part" => fill(r,num_cells(aggtrian)),
-      "dof_ids" => string.(get_cell_dof_ids(space))
+      # "dof_ids" => string.(get_cell_dof_ids(space))
     ],
   );
 end;
