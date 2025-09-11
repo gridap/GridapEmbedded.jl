@@ -324,11 +324,13 @@ function run_distributed_agfem(distribute,
   # the local portion and assumes the root cells of  
   # all ghost cells are in the local portion.
 
-  # For now, extract only owned cells (no_ghost).
   function active_aggregate_conforming_trian(model,cutgeo,agg_cell_indices)
     trians = map( local_views(cutgeo),
                   local_views(agg_cell_indices) ) do cutgeo, agg_cell_indices
-      Triangulation(no_ghost,agg_cell_indices,cutgeo,ACTIVE)
+      # # This works; all root of owned are known
+      # Triangulation(no_ghost,agg_cell_indices,cutgeo,ACTIVE)
+      # # This fails; root cell of ghost is not known
+      Triangulation(with_ghost,agg_cell_indices,cutgeo,ACTIVE)
     end
     GridapDistributed.DistributedTriangulation(trians,model)
   end
