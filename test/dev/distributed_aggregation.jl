@@ -1,15 +1,23 @@
-module DistributedAggregationTest
+module DistributedAggregation
 
 using Gridap
 using GridapEmbedded
 using GridapDistributed
+
 using PartitionedArrays
+const PArrays = PartitionedArrays
 
 using GridapEmbedded: aggregate
 using GridapEmbedded.Distributed: _local_aggregates
 
+using MPI
+
 using Test
 using BenchmarkTools
+
+if ! MPI.Initialized()
+  MPI.Init()
+end
 
 function asymmetric_kettlebell(ranks, parts, nc, ng)
   L = 1
@@ -185,10 +193,37 @@ function run_benchmark_test(distribute,
                             problem)
 
   ranks = distribute(LinearIndices((prod(parts),)))
-  @btime obgmodel,olcell_to_root = run_old_distributed_aggregation(
-                                    $ranks,parts,ncells_x_dir,problem)
-  @btime nbgmodel,nlcell_to_root = run_new_distributed_aggregation(
-                                    $ranks,parts,ncells_x_dir,nghost_layers,problem)
+  verbose = i_am_main(ranks)
+
+  verbose && begin
+    @info "Parts per direction: $parts"
+    @info "Cells in x direction: $ncells_x_dir"
+    @info "Ghost layers: $nghost_layers"
+    @info "Problem: $(problem==symmetric_kettlebell ? "symmetric" : "asymmetric") kettlebell"
+  end
+  
+  # println("Benchmarking old and new distributed aggregation implementations")
+  # println("==============================================")
+  # println("Old distributed aggregation")
+  # @btime obgmodel,olcell_to_root = run_old_distributed_aggregation(
+  #         $ranks,$parts,$ncells_x_dir,$problem)
+  # println("New distributed aggregation")
+  # @btime nbgmodel,nlcell_to_root = run_new_distributed_aggregation(
+  #         $ranks,$parts,$ncells_x_dir,$nghost_layers,$problem)
+  # println("==============================================")
+
+  t = PArrays.PTimer(ranks,verbose=true)
+  PArrays.tic!(t)
+    obgmodel,olcell_to_root = run_old_distributed_aggregation(
+      ranks,parts,ncells_x_dir,problem)
+  PArrays.toc!(t,"Old aggregation")
+  
+  PArrays.tic!(t)
+    nbgmodel,nlcell_to_root = run_new_distributed_aggregation(
+      ranks,parts,ncells_x_dir,nghost_layers,problem)
+  PArrays.toc!(t,"New aggregation")
+
+  display(t)
 
   # ogids = get_cell_gids(obgmodel)
   # olcell_to_root = _global_aggregates(olcell_to_root,ogids)
@@ -333,16 +368,52 @@ function run_new_distributed_agfem(distribute,
 
 end
 
-distribute = PartitionedArrays.DebugArray
-parts = (3,1)
-ncells_x_dir = 9
-nghost_layers = 2
 problem = symmetric_kettlebell
 
-run_benchmark_test(distribute,
-                   parts,
-                   ncells_x_dir,
-                   nghost_layers,
-                   problem)
+if MPI.Comm_size(MPI.COMM_WORLD) == 3
+  with_mpi() do distribute
+    run_benchmark_test(distribute,(3,1),9,2,problem)
+    for ncells_x_dir in (9,18,36,72), nghost_layers in (2,3,4)
+      run_benchmark_test(distribute,
+                         (3,1),
+                         ncells_x_dir,
+                         nghost_layers,
+                         problem)
+    end
+  end
+elseif MPI.Comm_size(MPI.COMM_WORLD) == 4
+  with_mpi() do distribute
+    run_benchmark_test(distribute,(2,2),8,2,problem)
+    for ncells_x_dir in (8,16,32,64), nghost_layers in (2,3,4)
+      run_benchmark_test(distribute,
+                         (2,2),
+                         ncells_x_dir,
+                         nghost_layers,
+                         problem)
+    end
+  end
+elseif MPI.Comm_size(MPI.COMM_WORLD) == 8
+  with_mpi() do distribute
+    run_benchmark_test(distribute,(4,2),8,2,problem)
+    for ncells_x_dir in (16,32,64,128), nghost_layers in (2,3,4,5)
+      run_benchmark_test(distribute,
+                         (4,2),
+                         ncells_x_dir,
+                         nghost_layers,
+                         problem)
+    end
+  end
+elseif MPI.Comm_size(MPI.COMM_WORLD) == 12
+  with_mpi() do distribute
+    run_benchmark_test(distribute,(4,3),12,2,problem)
+    for ncells_x_dir in (24,48,96,192), nghost_layers in (2,3,4,5)
+      run_benchmark_test(distribute,
+                         (4,3),
+                         ncells_x_dir,
+                         nghost_layers,
+                         problem)
+    end
+  end
+end
 
 end
