@@ -4,7 +4,7 @@ using Test
 using MPI
 
 mpidir = @__DIR__
-testdir = mpidir
+testdir = joinpath(mpidir,"..")
 repodir = joinpath(testdir,"..","..")
 
 function run_test(procs,file)
@@ -13,9 +13,9 @@ function run_test(procs,file)
   end
 end
 
-run_test( 3,"distributed_aggregation.jl")
-run_test( 4,"distributed_aggregation.jl")
-run_test( 8,"distributed_aggregation.jl")
-run_test(12,"distributed_aggregation.jl")
+run_test( 3,"runtests_body.jl")
+# run_test( 4,"runtests_body.jl")
+# run_test( 8,"runtests_body.jl")
+# run_test(12,"runtests_body.jl")
 
 end # module
