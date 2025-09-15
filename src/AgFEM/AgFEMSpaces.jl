@@ -54,25 +54,173 @@ function AgFEMSpace(
   FESpaceWithLinearConstraints(aggdof_to_fdof,aggdof_to_dofs,aggdof_to_coeffs,f)
 end
 
+function _setup_agfem_constraints(
+  n_fdofs,
+  acell_to_acellin,
+  acell_to_dof_ids,
+  acell_to_coeffs,
+  acell_to_proj,
+  acell_to_gcell,
+  acell_to_is_owned=fill(true,length(acell_to_acellin)))
+
+  fdof_to_is_agg, fdof_to_acell, fdof_to_ldof = 
+    _allocate_fdof_to_data(n_fdofs)
+
+  _fill_fdof_to_data!(fdof_to_is_agg,
+                      fdof_to_acell,
+                      fdof_to_ldof,
+                      acell_to_acellin,
+                      acell_to_dof_ids,
+                      acell_to_gcell)
+
+  aggdof_to_fdof = findall(fdof_to_is_agg)
+
+  n_aggdofs = length(aggdof_to_fdof)
+  aggdof_to_dofs_ptrs = zeros(Int32,n_aggdofs+1)
+
+  _fill_aggdof_to_dofs_ptrs!(aggdof_to_dofs_ptrs,
+                             aggdof_to_fdof,
+                             fdof_to_acell,
+                             acell_to_acellin,
+                             acell_to_dof_ids,
+                             acell_to_is_owned)
+
+  aggdof_to_dofs_data, aggdof_to_coeffs_data = 
+    _allocate_aggdof_to_data(aggdof_to_dofs_ptrs,
+                             acell_to_coeffs)
+
+  _fill_aggdof_to_dofs_data!(aggdof_to_dofs_data,
+                             aggdof_to_dofs_ptrs,
+                             aggdof_to_fdof,
+                             fdof_to_acell,
+                             acell_to_acellin,
+                             acell_to_dof_ids,
+                             acell_to_is_owned)
+
+  _fill_aggdof_to_coeffs_data!(aggdof_to_coeffs_data,
+                               aggdof_to_dofs_ptrs,
+                               aggdof_to_fdof,
+                               fdof_to_acell,
+                               fdof_to_ldof,
+                               acell_to_coeffs,
+                               acell_to_proj,
+                               acell_to_is_owned)
+
+  aggdof_to_dofs   = Table(aggdof_to_dofs_data,  
+                           aggdof_to_dofs_ptrs)
+  aggdof_to_coeffs = Table(aggdof_to_coeffs_data,
+                           aggdof_to_dofs_ptrs)
+
+  aggdof_to_fdof, aggdof_to_dofs, aggdof_to_coeffs
+end
+
+function _alloc_and_fill_aggdof_to_dofs_ptrs(
+  n_fdofs,
+  acell_to_acellin,
+  acell_to_dof_ids,
+  acell_to_gcell,
+  acell_to_is_owned)
+
+  fdof_to_is_agg, fdof_to_acell, fdof_to_ldof = 
+    _allocate_fdof_to_data(n_fdofs)
+
+  _fill_fdof_to_data!(fdof_to_is_agg,
+                      fdof_to_acell,
+                      fdof_to_ldof,
+                      acell_to_acellin,
+                      acell_to_dof_ids,
+                      acell_to_gcell)
+
+  aggdof_to_fdof = findall(fdof_to_is_agg)
+
+  n_aggdofs = length(aggdof_to_fdof)
+  aggdof_to_dofs_ptrs = zeros(Int32,n_aggdofs+1)
+
+  _fill_aggdof_to_dofs_ptrs!(aggdof_to_dofs_ptrs,
+                             aggdof_to_fdof,
+                             fdof_to_acell,
+                             acell_to_acellin,
+                             acell_to_dof_ids,
+                             acell_to_is_owned)
+
+  aggdof_to_dofs_ptrs, aggdof_to_fdof, fdof_to_acell, fdof_to_ldof
+end
+
+function _alloc_and_fill_aggdof_to_dofs_data(
+  aggdof_to_fdof,
+  aggdof_to_dofs_ptrs,
+  acell_to_acellin,
+  acell_to_dof_ids,
+  acell_to_coeffs,
+  acell_to_proj,
+  acell_to_is_owned,
+  fdof_to_acell,
+  fdof_to_ldof)
+
+  aggdof_to_dofs_data, aggdof_to_coeffs_data = 
+    _allocate_aggdof_to_data(aggdof_to_dofs_ptrs,
+                             acell_to_coeffs)
+
+  _fill_aggdof_to_dofs_data!(aggdof_to_dofs_data,
+                             aggdof_to_dofs_ptrs,
+                             aggdof_to_fdof,
+                             fdof_to_acell,
+                             acell_to_acellin,
+                             acell_to_dof_ids,
+                             acell_to_is_owned)
+
+  _fill_aggdof_to_coeffs_data!(aggdof_to_coeffs_data,
+                               aggdof_to_dofs_ptrs,
+                               aggdof_to_fdof,
+                               fdof_to_acell,
+                               fdof_to_ldof,
+                               acell_to_coeffs,
+                               acell_to_proj,
+                               acell_to_is_owned)
+
+  aggdof_to_dofs   = Table(aggdof_to_dofs_data,  
+                           aggdof_to_dofs_ptrs)
+  aggdof_to_coeffs = Table(aggdof_to_coeffs_data,
+                           aggdof_to_dofs_ptrs)
+ 
+  aggdof_to_dofs, aggdof_to_coeffs
+end
+
+function _fill_acell_to_acellin_and_to_gcell(trian_a,bgcell_to_bgcellin,bgcell_to_gcell)
+  D = num_cell_dims(trian_a)
+  glue = get_glue(trian_a,Val(D))
+  acell_to_bgcell = glue.tface_to_mface
+  bgcell_to_acell = glue.mface_to_tface
+  acell_to_bgcellin = 
+    collect(lazy_map(Reindex(bgcell_to_bgcellin),acell_to_bgcell))
+  T = eltype(bgcell_to_acell)
+  acell_to_acellin = map(acell_to_bgcellin) do bgcin
+    iszero(bgcin) ? zero(T) : T(bgcell_to_acell[bgcin])
+  end
+  acell_to_gcell = lazy_map(Reindex(bgcell_to_gcell),acell_to_bgcell)
+  acell_to_acellin, acell_to_gcell
+end
+
 function _allocate_fdof_to_data(n_fdofs)
-  fdof_to_isagg = fill(true,n_fdofs)
+  fdof_to_is_agg = fill(true,n_fdofs)
   fdof_to_acell = zeros(Int32,n_fdofs)
   fdof_to_ldof = zeros(Int16,n_fdofs)
-  fdof_to_isagg, fdof_to_acell, fdof_to_ldof
+  fdof_to_is_agg, fdof_to_acell, fdof_to_ldof
 end
 
 function _fill_fdof_to_data!(
-  fdof_to_isagg,
+  fdof_to_is_agg,
   fdof_to_acell,
   fdof_to_ldof,
   acell_to_acellin,
   acell_to_dof_ids,
   acell_to_gcell)
 
-  n_acells = length(acell_to_acellin)
+  # RMK: There can be owned dofs sitting around non-owned 
+  # cells that are mapped to an acell for which acellin is
+  # zero (i.e., outside the ghost layer).
   cache = array_cache(acell_to_dof_ids)
-  for acell in 1:n_acells
-    acellin = acell_to_acellin[acell]
+  for (acell, acellin) in enumerate(acell_to_acellin)
     iscut = acell != acellin
     dofs = getindex!(cache,acell_to_dof_ids,acell)
     gcell = acell_to_gcell[acell]
@@ -80,7 +228,7 @@ function _fill_fdof_to_data!(
       if dof > 0
         fdof = dof
         acell_dof = fdof_to_acell[fdof]
-        fdof_to_isagg[fdof] &= iscut
+        fdof_to_is_agg[fdof] &= iscut
         if acell_dof == 0 || gcell > acell_to_gcell[acell_dof]
           fdof_to_acell[fdof] = acell
           fdof_to_ldof[fdof] = ldof
@@ -97,12 +245,12 @@ function _fill_aggdof_to_dofs_ptrs!(
   fdof_to_acell,
   acell_to_acellin,
   acell_to_dof_ids,
-  fdof_to_is_owned=fill(true,length(fdof_to_acell)))
+  acell_to_is_owned)
 
   cache = array_cache(acell_to_dof_ids)
   for (aggdof,fdof) in enumerate(aggdof_to_fdof)
-    ! fdof_to_is_owned[fdof] && continue
     acell = fdof_to_acell[fdof]
+    ! acell_to_is_owned[acell] && continue
     acellin = acell_to_acellin[acell]
     dofs = getindex!(cache,acell_to_dof_ids,acellin)
     aggdof_to_dofs_ptrs[aggdof+1] = length(dofs)
@@ -127,12 +275,12 @@ function _fill_aggdof_to_dofs_data!(
   fdof_to_acell,
   acell_to_acellin,
   acell_to_dof_ids,
-  fdof_to_is_owned=fill(true,length(fdof_to_acell)))
+  acell_to_is_owned)
 
   cache = array_cache(acell_to_dof_ids)
   for (aggdof,fdof) in enumerate(aggdof_to_fdof)
-    ! fdof_to_is_owned[fdof] && continue
     acell = fdof_to_acell[fdof]
+    ! acell_to_is_owned[acell] && continue
     acellin = acell_to_acellin[acell]
     dofs = getindex!(cache,acell_to_dof_ids,acellin)
     p = aggdof_to_dofs_ptrs[aggdof]-1
@@ -151,7 +299,7 @@ function _fill_aggdof_to_coeffs_data!(
   fdof_to_ldof,
   acell_to_coeffs,
   acell_to_proj,
-  fdof_to_is_owned=fill(true,length(fdof_to_acell)))
+  acell_to_is_owned)
 
   cache2 = array_cache(acell_to_coeffs)
   cache3 = array_cache(acell_to_proj)
@@ -160,8 +308,8 @@ function _fill_aggdof_to_coeffs_data!(
   z = zero(T)
 
   for (aggdof,fdof) in enumerate(aggdof_to_fdof)
-    ! fdof_to_is_owned[fdof] && continue
     acell = fdof_to_acell[fdof]
+    ! acell_to_is_owned[acell] && continue
     coeffs = getindex!(cache2,acell_to_coeffs,acell)
     proj = getindex!(cache3,acell_to_proj,acell)
     ldof = fdof_to_ldof[fdof]
@@ -175,60 +323,4 @@ function _fill_aggdof_to_coeffs_data!(
     end
   end
   nothing
-end
-
-function _setup_agfem_constraints(
-  n_fdofs,
-  acell_to_acellin,
-  acell_to_dof_ids,
-  acell_to_coeffs,
-  acell_to_proj,
-  acell_to_gcell)
-
-  fdof_to_isagg, fdof_to_acell, fdof_to_ldof = 
-    _allocate_fdof_to_data(n_fdofs)
-
-  _fill_fdof_to_data!(fdof_to_isagg,
-                      fdof_to_acell,
-                      fdof_to_ldof,
-                      acell_to_acellin,
-                      acell_to_dof_ids,
-                      acell_to_gcell)
-
-  aggdof_to_fdof = findall(fdof_to_isagg)
-
-  n_aggdofs = length(aggdof_to_fdof)
-  aggdof_to_dofs_ptrs = zeros(Int32,n_aggdofs+1)
-
-  _fill_aggdof_to_dofs_ptrs!(aggdof_to_dofs_ptrs,
-                             aggdof_to_fdof,
-                             fdof_to_acell,
-                             acell_to_acellin,
-                             acell_to_dof_ids)
-
-  aggdof_to_dofs_data, aggdof_to_coeffs_data = 
-    _allocate_aggdof_to_data(aggdof_to_dofs_ptrs,
-                             acell_to_coeffs)
-
-  _fill_aggdof_to_dofs_data!(aggdof_to_dofs_data,
-                             aggdof_to_dofs_ptrs,
-                             aggdof_to_fdof,
-                             fdof_to_acell,
-                             acell_to_acellin,
-                             acell_to_dof_ids)
-
-  _fill_aggdof_to_coeffs_data!(aggdof_to_coeffs_data,
-                               aggdof_to_dofs_ptrs,
-                               aggdof_to_fdof,
-                               fdof_to_acell,
-                               fdof_to_ldof,
-                               acell_to_coeffs,
-                               acell_to_proj)
-
-  aggdof_to_dofs   = Table(aggdof_to_dofs_data,  
-                           aggdof_to_dofs_ptrs)
-  aggdof_to_coeffs = Table(aggdof_to_coeffs_data,
-                           aggdof_to_dofs_ptrs)
-
-  aggdof_to_fdof, aggdof_to_dofs, aggdof_to_coeffs
 end

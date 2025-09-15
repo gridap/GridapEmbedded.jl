@@ -27,6 +27,9 @@ using GridapEmbedded.Interfaces: CutFaceBoundaryTriangulation
 using GridapEmbedded.Interfaces: CutFaceSkeletonTriangulation
 using GridapEmbedded.AgFEM: _touch_aggregated_cells!
 using GridapEmbedded.AgFEM: AggregateCutCellsByThreshold
+using GridapEmbedded.AgFEM: _fill_acell_to_acellin_and_to_gcell
+using GridapEmbedded.AgFEM: _alloc_and_fill_aggdof_to_dofs_ptrs
+using GridapEmbedded.AgFEM: _alloc_and_fill_aggdof_to_dofs_data
 using GridapEmbedded.MomentFittedQuadratures: MomentFitted
 using GridapEmbedded.LevelSetCutters: DifferentiableTriangulation
 using GridapEmbedded.LevelSetCutters: DifferentiableAppendedTriangulation
@@ -44,6 +47,10 @@ using GridapDistributed: DistributedCellField, DistributedMultiFieldCellField
 using GridapDistributed: NoGhost, WithGhost, filter_cells_when_needed, add_ghost_cells
 using GridapDistributed: generate_gids, generate_cell_gids
 using GridapDistributed: _find_vector_type
+using GridapDistributed: DistributedCellDof
+using GridapDistributed: dof_wise_to_cell_wise
+using GridapDistributed: fetch_vector_ghost_values_cache
+using GridapDistributed: fetch_vector_ghost_values!
 
 import GridapEmbedded.AgFEM: aggregate
 import GridapEmbedded.AgFEM: AgFEMSpace
@@ -64,6 +71,7 @@ import Gridap.Geometry: num_cells
 import Gridap.CellData: get_tangent_vector
 import GridapDistributed: local_views
 import GridapDistributed: remove_ghost_cells
+import GridapDistributed: cell_wise_to_dof_wise!
 
 include("DistributedDiscretizations.jl")
 

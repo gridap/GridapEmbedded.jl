@@ -265,8 +265,8 @@ function run_distributed_agfem(distribute,
   bgmodel, geo = problem(ranks, parts, ncells_x_dir, nghost_layers)
   cutgeo = cut(bgmodel, geo)
 
-  gids = get_cell_gids(bgmodel)
-  cell_indices = partition(gids)
+  cell_gids = get_cell_gids(bgmodel)
+  cell_indices = partition(cell_gids)
 
   strategy = AggregateCutCellsByThreshold(1.0)
   lcell_to_lroot, lcell_to_root, lcell_to_value =
@@ -292,7 +292,7 @@ function run_distributed_agfem(distribute,
 
   # Output for verification of lcell_to_root map
 
-  ocell_to_root = map(lcell_to_root,own_to_local(gids)) do agg,o_to_l
+  ocell_to_root = map(lcell_to_root,own_to_local(cell_gids)) do agg,o_to_l
     map(Reindex(agg),o_to_l)
   end
 
@@ -326,13 +326,15 @@ function run_distributed_agfem(distribute,
 
   function active_aggregate_conforming_trian(model,cutgeo,agg_cell_indices)
     trians = map( local_views(cutgeo),
-                  local_views(agg_cell_indices) ) do cutgeo, agg_cell_indices
+                  agg_cell_indices ) do cutgeo, agg_cell_indices
       # # This works; all root of owned are known
       # Triangulation(no_ghost,agg_cell_indices,cutgeo,ACTIVE)
       # # This fails; root cell of ghost is not known
       Triangulation(with_ghost,agg_cell_indices,cutgeo,ACTIVE)
     end
-    GridapDistributed.DistributedTriangulation(trians,model)
+    aggmodel = GridapDistributed.GenericDistributedDiscreteModel(
+      local_views(model),PRange(agg_cell_indices))
+    GridapDistributed.DistributedTriangulation(trians,aggmodel)
   end
 
   aggtrian = active_aggregate_conforming_trian(bgmodel,cutgeo,agg_cell_indices)
@@ -342,27 +344,29 @@ function run_distributed_agfem(distribute,
   order = 1
   reffe = ReferenceFE(lagrangian,Float64,order)
 
+  V = TestFESpace(aggtrian,reffe)
   # (TMP) This gives wrong output when root is not owned, but does not affect below.
-  lcell_to_lroot = _local_aggregates(lcell_to_root,gids)
+  lcell_to_lroot = _local_aggregates(lcell_to_root,cell_gids)
 
-  spaces = map( local_views(aggtrian),
-                local_views(lcell_to_lroot),
-                local_views(gids) ) do aggtrian, lcell_to_lroot, gids
-    space = TestFESpace(aggtrian,reffe)
-    AgFEMSpace(space,lcell_to_lroot,space,local_to_global(gids))
-  end
+  aggdof_to_fdof, aggdof_to_dofs, aggdof_to_coeffs = AgFEMSpace(V,lcell_to_lroot,agg_cell_indices)
 
-  map(ranks,local_views(spaces)) do r,space
-    aggtrian = get_triangulation(space)
-    writevtk(
-      aggtrian,
-      "data/kettlebell_aggtrian_$(r)",
-      celldata=[
-        "part" => fill(r,num_cells(aggtrian)),
-        # "dof_ids" => string.(get_cell_dof_ids(space))
-      ],
-    );
-  end;
+  # Vagg = AgFEMSpace(V,lcell_to_lroot,agg_cell_indices)
+  # u(x) = x[1]+x[2]
+  # uh = interpolate_everywhere(u,Vagg)
+  # dΩ = Measure(aggtrian,2)
+  # @test ∑(∫(u-uh)dΩ) < 1.0e-12
+
+  # map(ranks,local_views(spaces)) do r,space
+  #   aggtrian = get_triangulation(space)
+  #   writevtk(
+  #     aggtrian,
+  #     "data/kettlebell_aggtrian_$(r)",
+  #     celldata=[
+  #       "part" => fill(r,num_cells(aggtrian)),
+  #       # "dof_ids" => string.(get_cell_dof_ids(space))
+  #     ],
+  #   );
+  # end;
 
 end
 

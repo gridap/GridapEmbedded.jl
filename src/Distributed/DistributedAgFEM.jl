@@ -653,3 +653,204 @@ function change_bgmodel(facets::SubFacetData,cell_to_newcell)
     facets.point_to_rcoords
   )
 end
+
+function AgFEMSpace(
+  f::DistributedSingleFieldFESpace,
+  bgcell_to_bgcellin::AbstractVector,
+  cell_gids::AbstractVector,
+  g::DistributedSingleFieldFESpace=f,
+  args...
+)
+  @assert get_triangulation(f) === get_triangulation(g)
+  AgFEMSpace(f,
+             bgcell_to_bgcellin,
+             cell_gids,
+             get_fe_basis(g),
+             get_fe_dof_basis(g),
+             args...)
+end
+
+function AgFEMSpace(
+  f::DistributedSingleFieldFESpace,
+  bgcell_to_bgcellin::AbstractVector,
+  cell_gids::AbstractVector,
+  shfns_g::DistributedCellField,
+  dofs_g::DistributedCellDof,
+  g::DistributedSingleFieldFESpace=f,
+  args...
+)
+
+  trian_a = get_triangulation(f)
+  # Fill active cell to root cell and active cell to global cell maps
+  acell_to_acellin, acell_to_gcell = map( 
+      local_views(trian_a),
+      local_views(bgcell_to_bgcellin),
+      local_views(cell_gids) ) do t, bgcell_to_bgcellin, cell_gids
+    bgcell_to_gcell = local_to_global(cell_gids)
+    _fill_acell_to_acellin_and_to_gcell(t,bgcell_to_bgcellin,bgcell_to_gcell)
+  end |> tuple_of_arrays
+
+  # Fill array to restrict filling constraint data to owned cells
+  acell_to_is_owned = map(
+      local_views(trian_a),local_views(cell_gids) ) do t,cell_gids
+    D = num_cell_dims(t)
+    glue = get_glue(t,Val(D))
+    acell_to_bgcell = glue.tface_to_mface
+    me = part_id(cell_gids)
+    cell_to_owner = local_to_owner(cell_gids)
+    cell_to_is_owned = map(p->p==me,cell_to_owner)
+    collect(lazy_map(Reindex(cell_to_is_owned),acell_to_bgcell))
+  end
+
+  # Fill pointers of constraint tables and auxiliary maps
+  cell_to_dof_ids = map(get_cell_dof_ids,local_views(f))
+  aggdof_to_dofs_ptrs, aggdof_to_fdof, fdof_to_acell, fdof_to_ldof = 
+      map( local_views(f),
+           acell_to_acellin,
+           cell_to_dof_ids,
+           acell_to_gcell,
+           acell_to_is_owned ) do f,
+                                  acell_to_acellin,
+                                  cell_to_dof_ids,
+                                  acell_to_gcell,
+                                  acell_to_is_owned
+    _alloc_and_fill_aggdof_to_dofs_ptrs( num_free_dofs(f),
+                                         acell_to_acellin,
+                                         cell_to_dof_ids,
+                                         acell_to_gcell,
+                                         acell_to_is_owned )
+  end |> tuple_of_arrays
+
+  # aggdof_to_dofs_ptrs -> fdof_to_dofs_ptrs
+  fdof_to_dofs_ptrs = map( local_views(f),
+                           aggdof_to_dofs_ptrs,
+                           aggdof_to_fdof ) do f,aggdof_to_dofs_ptrs,aggdof_to_fdof
+    fdof_to_dofs_ptrs = zeros(Int32,num_free_dofs(f))
+    fdof_to_dofs_ptrs[aggdof_to_fdof] = aggdof_to_dofs_ptrs[2:end]
+    fdof_to_dofs_ptrs
+  end
+
+  # Communicate fdof_to_dofs_ptrs to extract num of constaining
+  # dofs on aggdofs that are mapped to a ghost cell around
+  cell_indices = generate_cell_gids(trian_a)
+  cell_ldof_to_dofs_ptrs = dof_wise_to_cell_wise(fdof_to_dofs_ptrs,
+                                                 cell_to_dof_ids,
+                                                 cell_indices)
+  cache_fetch = fetch_vector_ghost_values_cache(
+    cell_ldof_to_dofs_ptrs,partition(cell_indices))
+  fetch_vector_ghost_values!(cell_ldof_to_dofs_ptrs,cache_fetch) |> wait
+  # Only update the f_dof_to_dof_ptrs where the fdof_to_acell is not owned
+  cell_wise_to_dof_wise!(fdof_to_dofs_ptrs,
+                         cell_ldof_to_dofs_ptrs,
+                         cell_to_dof_ids,
+                         cell_indices,
+                         fdof_to_acell,
+                         acell_to_is_owned)
+
+  # fdof_to_dofs_ptrs -> aggdof_to_dofs_ptrs
+  map(fdof_to_dofs_ptrs,
+      aggdof_to_dofs_ptrs,
+      aggdof_to_fdof) do fdof_to_dofs_ptrs,aggdof_to_dofs_ptrs,aggdof_to_fdof
+    aggdof_to_dofs_ptrs[2:end] = fdof_to_dofs_ptrs[aggdof_to_fdof]
+    aggdof_to_dofs_ptrs
+  end
+
+  # Build shape funs of g by replacing local funs in cut cells by the ones at the root
+  # This needs to be done with shape functions in the physical domain
+  # otherwise shape funs in cut and root cells are the same
+  root_shfns_g = 
+      map(local_views(shfns_g),
+          acell_to_acellin,
+          local_views(trian_a)) do shfns_g, acell_to_acellin, trian_a
+    acell_phys_shapefuns_g = get_array(change_domain(shfns_g,PhysicalDomain()))
+    acell_phys_root_shapefuns_g = lazy_map(Reindex(acell_phys_shapefuns_g),acell_to_acellin)
+    GenericCellField(acell_phys_root_shapefuns_g,trian_a,PhysicalDomain())
+  end
+
+  # Compute data needed to compute the constraint coefficients
+  dofs_f = get_fe_dof_basis(f)
+  shfns_f = get_fe_basis(f)
+  acell_to_coeffs = map(evaluate,local_views(dofs_f),root_shfns_g)
+  acell_to_proj = map(evaluate,local_views(dofs_g),local_views(shfns_f))
+
+  # Compute constraining dofs and coefficents on aggdofs 
+  # that are mapped to an owned cell around
+  aggdof_to_dofs, aggdof_to_coeffs = map( aggdof_to_fdof,
+                                          aggdof_to_dofs_ptrs,
+                                          acell_to_acellin,
+                                          cell_to_dof_ids,
+                                          acell_to_coeffs,
+                                          acell_to_proj,
+                                          acell_to_is_owned,
+                                          fdof_to_acell,
+                                          fdof_to_ldof ) do aggdof_to_fdof,
+                                                            aggdof_to_dofs_ptrs,
+                                                            acell_to_acellin,
+                                                            cell_to_dof_ids,
+                                                            acell_to_coeffs,
+                                                            acell_to_proj,
+                                                            acell_to_is_owned,
+                                                            fdof_to_acell,
+                                                            fdof_to_ldof
+    _alloc_and_fill_aggdof_to_dofs_data( aggdof_to_fdof,
+                                         aggdof_to_dofs_ptrs,
+                                         acell_to_acellin,
+                                         cell_to_dof_ids,
+                                         acell_to_coeffs,
+                                         acell_to_proj,
+                                         acell_to_is_owned,
+                                         fdof_to_acell,
+                                         fdof_to_ldof )
+  end |> tuple_of_arrays
+
+  # # RMK: This fails when the partition does not know all root 
+  # # cells of local cells (in particular, the ghost ones)
+  # # TO-DO: Fill entries of aggdofs that are mapped to a 
+  # # ghost cell around with nearest neighbour comm.
+  # spaces = map( local_views(f),
+  #      aggdof_to_fdof,
+  #      aggdof_to_dofs,
+  #      aggdof_to_coeffs ) do f,
+  #                            aggdof_to_fdof,
+  #                            aggdof_to_dofs,
+  #                            aggdof_to_coeffs
+  #   FESpaceWithLinearConstraints(aggdof_to_fdof,aggdof_to_dofs,aggdof_to_coeffs,f)
+  # end
+  # gids = generate_gids(trian_a,spaces)
+  # vector_type = _find_vector_type(spaces,gids)
+  # DistributedSingleFieldFESpace(spaces,gids,trian_a,vector_type)
+  aggdof_to_fdof, aggdof_to_dofs, aggdof_to_coeffs
+end
+
+function cell_wise_to_dof_wise!(dof_wise_vector,
+                                cell_wise_vector,
+                                cell_to_ldofs,
+                                cell_range,
+                                fdof_to_acell,
+                                acell_to_is_owned)
+  map(dof_wise_vector,
+      cell_wise_vector,
+      cell_to_ldofs,
+      partition(cell_range),
+      fdof_to_acell,
+      acell_to_is_owned) do dwv,
+                            cwv,
+                            cell_to_ldofs,
+                            indices,
+                            fdof_to_acell,
+                            acell_to_is_owned
+    cache = array_cache(cell_to_ldofs)
+    cell_ghost_to_local = ghost_to_local(indices)
+    for cell in cell_ghost_to_local
+      ldofs = getindex!(cache,cell_to_ldofs,cell)
+      p = cwv.ptrs[cell]-1
+      for (i,ldof) in enumerate(ldofs)
+        if ldof > 0
+          if ! acell_to_is_owned[fdof_to_acell[ldof]]
+            dwv[ldof] = cwv.data[i+p]
+          end
+        end
+      end
+    end
+  end
+end
