@@ -319,17 +319,11 @@ function run_distributed_agfem(distribute,
   end
 
   # "Creating" aggregate-conforming cell partition
-
-  # RMK: Current distributed AgFEM is constructed on 
-  # the local portion and assumes the root cells of  
-  # all ghost cells are in the local portion.
-
+  # TO-DO: Jordi reviews if aggtrian can be created from aggmodel
+  # See if swapping the cell_gids of the cutgeo for the new ones
   function active_aggregate_conforming_trian(model,cutgeo,agg_cell_indices)
     trians = map( local_views(cutgeo),
                   agg_cell_indices ) do cutgeo, agg_cell_indices
-      # # This works; all root of owned are known
-      # Triangulation(no_ghost,agg_cell_indices,cutgeo,ACTIVE)
-      # # This fails; root cell of ghost is not known
       Triangulation(with_ghost,agg_cell_indices,cutgeo,ACTIVE)
     end
     aggmodel = GridapDistributed.GenericDistributedDiscreteModel(
@@ -350,6 +344,7 @@ function run_distributed_agfem(distribute,
 
   aggdof_to_fdof, aggdof_to_dofs, aggdof_to_coeffs = AgFEMSpace(V,lcell_to_lroot,agg_cell_indices)
 
+  # # Proper sanity check to use when full table of constraints computed
   # Vagg = AgFEMSpace(V,lcell_to_lroot,agg_cell_indices)
   # u(x) = x[1]+x[2]
   # uh = interpolate_everywhere(u,Vagg)

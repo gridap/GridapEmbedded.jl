@@ -739,7 +739,8 @@ function AgFEMSpace(
   cache_fetch = fetch_vector_ghost_values_cache(
     cell_ldof_to_dofs_ptrs,partition(cell_indices))
   fetch_vector_ghost_values!(cell_ldof_to_dofs_ptrs,cache_fetch) |> wait
-  # Only update the f_dof_to_dof_ptrs where the fdof_to_acell is not owned
+  # Only update the f_dof_to_dof_ptrs 
+  # whenever the fdof_to_acell is not owned
   cell_wise_to_dof_wise!(fdof_to_dofs_ptrs,
                          cell_ldof_to_dofs_ptrs,
                          cell_to_dof_ids,
