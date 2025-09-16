@@ -182,7 +182,7 @@ function _alloc_and_fill_aggdof_to_dofs_data(
                            aggdof_to_dofs_ptrs)
   aggdof_to_coeffs = Table(aggdof_to_coeffs_data,
                            aggdof_to_dofs_ptrs)
- 
+
   aggdof_to_dofs, aggdof_to_coeffs
 end
 
