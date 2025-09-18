@@ -235,7 +235,7 @@ fdof_to_posneg, nlpos, nlneg = map(fdof_to_is_agg) do fdof_to_is_agg
   nneg = 0
   fdof_to_posneg = zeros(Int,length(fdof_to_is_agg))
   for (fdof,is_agg) in enumerate(fdof_to_is_agg)
-    if is_agg
+    if !is_agg
       npos += 1
       fdof_to_posneg[fdof] = npos
     else
