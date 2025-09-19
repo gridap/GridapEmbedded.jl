@@ -5,9 +5,10 @@ using GridapDistributed
 using PartitionedArrays
 using MPI
 
-using Gridap.Arrays
+using Gridap.Arrays, Gridap.FESpaces
+using Gridap.Geometry, Gridap.CellData
 
-using GridapEmbedded: AgFEM
+using GridapEmbedded.AgFEM, GridapEmbedded.Distributed
 using GridapEmbedded: aggregate
 using GridapEmbedded.Distributed: _local_aggregates, DistributedEmbeddedDiscretization
 
@@ -190,99 +191,99 @@ V = TestFESpace(trian,reffe)
 lcell_to_lroot_bis = _local_aggregates(lcell_to_root,PRange(cell_indices))
 @assert lcell_to_lroot_bis == lcell_to_lroot
 
-aggdof_to_fdof, aggdof_to_dofs, aggdof_to_coeffs = AgFEMSpace(V,lcell_to_lroot,agg_cell_indices)
+bgcell_to_bgroot = lcell_to_lroot
+aggdof_to_fdof, aggdof_to_dofs, aggdof_to_coeffs, aggdof_gids, expanded_dof_gids = AgFEMSpace(V,bgcell_to_bgroot)
+
 
 ############################################################################################
 ############################################################################################
 ############################################################################################
 
+f = V
+bgcell_to_bgroot = lcell_to_lroot
+shfns_g = get_fe_basis(f)
+dofs_g = get_fe_dof_basis(f)
+spaces = local_views(f)
+cell_gids = GridapDistributed.generate_cell_gids(trian)
 
-reffe = ReferenceFE(lagrangian,Float64,1)
-spaces = map(local_views(trian)) do trian
-  FESpace(trian,reffe)
+trian = get_triangulation(f)
+bgcell_to_gcell = map(local_views(trian)) do trian
+  glue = get_glue(trian,Val(num_cell_dims(trian)))
+  glue.mface_to_tface
 end
 
-bgcell_to_bgcellin = lcell_to_lroot
-bgcell_to_gcell = map(eachindex,bgcell_to_bgcellin)
-
-nfdofs, acell_to_acellin, acell_to_dof_ids, acell_to_gcell = map(
-  spaces,bgcell_to_bgcellin,bgcell_to_gcell
-) do space,bgcell_to_bgcellin,bgcell_to_gcell
+# The following is the same as in serial, it's just some reindexing onto the triangulation
+nlfdofs, cell_to_root, cell_to_fdofs, cell_to_coeffs, cell_to_proj, cell_to_gcell = map(
+  spaces, bgcell_to_bgroot, local_views(shfns_g), local_views(dofs_g), bgcell_to_gcell
+) do space, bgcell_to_bgroot, shfns_g, dofs_g, bgcell_to_gcell
   trian = get_triangulation(space)
 
   glue = get_glue(trian,Val(num_cell_dims(trian)))
-  acell_to_bgcell = glue.tface_to_mface
-  bgcell_to_acell = glue.mface_to_tface
-  acell_to_bgcellin = collect(lazy_map(Reindex(bgcell_to_bgcellin),acell_to_bgcell))
-  acell_to_acellin = collect(lazy_map(Reindex(bgcell_to_acell),acell_to_bgcellin))
-  acell_to_gcell = lazy_map(Reindex(bgcell_to_gcell),acell_to_bgcell)
+  cell_to_bgcell = glue.tface_to_mface
+  bgcell_to_cell = glue.mface_to_tface
+  cell_to_bgroot = view(bgcell_to_bgroot,cell_to_bgcell)
+  cell_to_root = collect(Int32,lazy_map(Reindex(bgcell_to_cell),cell_to_bgroot))
+  cell_to_gcell = collect(Int32,lazy_map(Reindex(bgcell_to_gcell),cell_to_bgcell))
 
-  nfdofs = num_free_dofs(space)
-  acell_to_dof_ids = get_cell_dof_ids(space)
-  return nfdofs, acell_to_acellin, acell_to_dof_ids, acell_to_gcell
+  cell_phys_shfns_g = get_array(change_domain(shfns_g,PhysicalDomain()))
+  cell_phys_root_shfns_g = lazy_map(Reindex(cell_phys_shfns_g),cell_to_root)
+  root_shfns_g = GenericCellField(cell_phys_root_shfns_g,trian,PhysicalDomain())
+
+  # Compute data needed to compute the constraints
+  dofs_f = get_fe_dof_basis(space)
+  shfns_f = get_fe_basis(space)
+  cell_to_coeffs = dofs_f(root_shfns_g)
+  cell_to_proj = dofs_g(shfns_f)
+  cell_to_fdofs = get_cell_dof_ids(space)
+  nlfdofs = num_free_dofs(space)
+
+  return nlfdofs, cell_to_root, cell_to_fdofs, cell_to_coeffs, cell_to_proj, cell_to_gcell
 end |> tuple_of_arrays
 
-fdof_to_is_agg, fdof_to_acell, fdof_to_ldof = map(nfdofs, acell_to_acellin, acell_to_dof_ids, acell_to_gcell) do nfdofs, acell_to_acellin, acell_to_dof_ids, acell_to_gcell
-  fdof_to_is_agg, fdof_to_acell, fdof_to_ldof = AgFEM._allocate_fdof_to_data(nfdofs)
-  AgFEM._fill_fdof_to_data!(fdof_to_is_agg,fdof_to_acell,fdof_to_ldof,acell_to_acellin,acell_to_dof_ids,acell_to_gcell)
-  return fdof_to_is_agg, fdof_to_acell, fdof_to_ldof
+fdof_is_agg, fdof_to_cell, fdof_to_ldof = map(
+  nlfdofs, cell_to_root, cell_to_fdofs, cell_to_gcell
+) do nlfdofs, cell_to_root, cell_to_fdofs, cell_to_gcell
+  fdof_is_agg, fdof_to_cell, fdof_to_ldof = AgFEM._allocate_fdof_to_data(nlfdofs)
+  AgFEM._fill_fdof_to_data!(fdof_is_agg,fdof_to_cell,fdof_to_ldof,cell_to_root,cell_to_fdofs,cell_to_gcell)
+  return fdof_is_agg, fdof_to_cell, fdof_to_ldof
 end |> tuple_of_arrays
 
-# Create partition for slave and master dofs in one sweep
-
-fdof_to_posneg, nlpos, nlneg = map(fdof_to_is_agg) do fdof_to_is_agg
-  npos = 0
-  nneg = 0
-  fdof_to_posneg = zeros(Int,length(fdof_to_is_agg))
-  for (fdof,is_agg) in enumerate(fdof_to_is_agg)
-    if !is_agg
-      npos += 1
-      fdof_to_posneg[fdof] = npos
-    else
-      nneg += 1
-      fdof_to_posneg[fdof] = -nneg
-    end
-  end
-  fdof_to_posneg, npos, nneg
-end |> tuple_of_arrays
-
-acell_to_lposneg = map(acell_to_dof_ids,fdof_to_posneg) do acell_to_dof_ids,fdof_to_posneg
-  lazy_map(Broadcasting(Reindex(fdof_to_posneg)),acell_to_dof_ids)
-end
-
-acell_indices = partition(GridapDistributed.generate_cell_gids(trian))
-adof_gids, mdof_gids = GridapDistributed.generate_posneg_gids(
-  PRange(acell_indices), acell_to_lposneg, nlpos, nlneg
+mdof_gids, aggdof_gids, mdof_to_fdof, aggdof_to_fdof, fdof_to_posneg = GridapEmbedded.Distributed.generate_aggregated_gids(
+  cell_gids, cell_to_fdofs, fdof_is_agg
 )
 
-############################################################################################
-############################################################################################
-############################################################################################
+# Create aggdof to nldofs mapping
+ptrs, aggdof_to_nldofs = map(
+  aggdof_to_fdof,fdof_to_cell,cell_to_root,cell_to_fdofs,partition(aggdof_gids)
+) do aggdof_to_fdof,fdof_to_cell,cell_to_root,cell_to_fdofs,aggdof_ids
+  ptrs = GridapEmbedded.Distributed.get_aggdof_ptrs(
+    aggdof_to_fdof,fdof_to_cell,cell_to_root,cell_to_fdofs,own_to_local(aggdof_ids)
+  )
+  aggdof_to_nldofs = view(ptrs,2:length(ptrs))
+  return ptrs, aggdof_to_nldofs
+end |> tuple_of_arrays
+consistent!(PVector(aggdof_to_nldofs, partition(aggdof_gids))) |> wait
 
-rank = 1
-space = V.spaces[rank]
-trian = get_triangulation(space)
-bgcell_to_bgcellin = lcell_to_lroot[rank]
-bgcell_to_gcell = Base.OneTo(num_cells(trian))
+aggdof_to_dofs, aggdof_to_coeffs = map(
+  ptrs,aggdof_to_fdof,fdof_to_cell,fdof_to_ldof,cell_to_root,cell_to_fdofs,cell_to_coeffs,cell_to_proj,partition(aggdof_gids)
+) do ptrs,aggdof_to_fdof,fdof_to_cell,fdof_to_ldof,cell_to_root,cell_to_fdofs,cell_to_coeffs,cell_to_proj,aggdof_ids
+  aggdof_to_dofs_data, aggdof_to_coeffs_data = AgFEM._allocate_aggdof_to_data(ptrs,cell_to_coeffs)
+  GridapEmbedded.Distributed.aggdof_to_dofs!(
+    aggdof_to_dofs_data,ptrs,aggdof_to_fdof,fdof_to_cell,cell_to_root,cell_to_fdofs,own_to_local(aggdof_ids)
+  )
+  GridapEmbedded.Distributed.aggdof_to_coeffs!(
+    aggdof_to_coeffs_data,ptrs,aggdof_to_fdof,fdof_to_cell,fdof_to_ldof,cell_to_coeffs,cell_to_proj,own_to_local(aggdof_ids)
+  )
+  return JaggedArray(aggdof_to_dofs_data,ptrs), JaggedArray(aggdof_to_coeffs_data,ptrs)
+end |> tuple_of_arrays
 
-glue = get_glue(trian,Val(num_cell_dims(trian)))
-acell_to_bgcell = glue.tface_to_mface
-bgcell_to_acell = glue.mface_to_tface
-acell_to_bgcellin = collect(lazy_map(Reindex(bgcell_to_bgcellin),acell_to_bgcell))
-acell_to_acellin = collect(lazy_map(Reindex(bgcell_to_acell),acell_to_bgcellin))
-acell_to_gcell = lazy_map(Reindex(bgcell_to_gcell),acell_to_bgcell)
+map(GridapEmbedded.Distributed.to_global_dofs!, aggdof_to_dofs, partition(mdof_gids), fdof_to_posneg)
+t1 = consistent!(PVector(aggdof_to_dofs, partition(aggdof_gids)))
+t2 = consistent!(PVector(aggdof_to_coeffs, partition(aggdof_gids)))
+wait(t1)
+expanded_dof_gids = map(GridapEmbedded.Distributed.to_local_dofs!,aggdof_to_dofs, partition(aggdof_gids), partition(mdof_gids), mdof_to_fdof, nlfdofs)
+wait(t2)
 
-# Build shape funs of g by replacing local funs in cut cells by the ones at the root
-# This needs to be done with shape functions in the physical domain
-# otherwise shape funs in cut and root cells are the same
-acell_phys_shapefuns_g = get_array(change_domain(shfns_g,PhysicalDomain()))
-acell_phys_root_shapefuns_g = lazy_map(Reindex(acell_phys_shapefuns_g),acell_to_acellin)
-root_shfns_g = GenericCellField(acell_phys_root_shapefuns_g,trian_a,PhysicalDomain())
-
-# Compute data needed to compute the constraints
-dofs_f = get_fe_dof_basis(f)
-shfns_f = get_fe_basis(f)
-acell_to_coeffs = dofs_f(root_shfns_g)
-acell_to_proj = dofs_g(shfns_f)
-acell_to_dof_ids = get_cell_dof_ids(f)
-
+aggdof_to_dofs, aggdof_to_coeffs = map(aggdof_to_dofs, aggdof_to_coeffs) do dofs, coeffs
+  Table(dofs.data,dofs.ptrs), Table(coeffs.data,coeffs.ptrs)
+end |> tuple_of_arrays

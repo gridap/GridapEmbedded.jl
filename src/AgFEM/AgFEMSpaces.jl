@@ -114,93 +114,6 @@ function _setup_agfem_constraints(
   aggdof_to_fdof, aggdof_to_dofs, aggdof_to_coeffs
 end
 
-function _alloc_and_fill_aggdof_to_dofs_ptrs(
-  n_fdofs,
-  acell_to_acellin,
-  acell_to_dof_ids,
-  acell_to_gcell,
-  acell_to_is_owned)
-
-  fdof_to_is_agg, fdof_to_acell, fdof_to_ldof = 
-    _allocate_fdof_to_data(n_fdofs)
-
-  _fill_fdof_to_data!(fdof_to_is_agg,
-                      fdof_to_acell,
-                      fdof_to_ldof,
-                      acell_to_acellin,
-                      acell_to_dof_ids,
-                      acell_to_gcell)
-
-  aggdof_to_fdof = findall(fdof_to_is_agg)
-
-  n_aggdofs = length(aggdof_to_fdof)
-  aggdof_to_dofs_ptrs = zeros(Int32,n_aggdofs+1)
-
-  _fill_aggdof_to_dofs_ptrs!(aggdof_to_dofs_ptrs,
-                             aggdof_to_fdof,
-                             fdof_to_acell,
-                             acell_to_acellin,
-                             acell_to_dof_ids,
-                             acell_to_is_owned)
-
-  aggdof_to_dofs_ptrs, aggdof_to_fdof, fdof_to_acell, fdof_to_ldof
-end
-
-function _alloc_and_fill_aggdof_to_dofs_data(
-  aggdof_to_fdof,
-  aggdof_to_dofs_ptrs,
-  acell_to_acellin,
-  acell_to_dof_ids,
-  acell_to_coeffs,
-  acell_to_proj,
-  acell_to_is_owned,
-  fdof_to_acell,
-  fdof_to_ldof)
-
-  aggdof_to_dofs_data, aggdof_to_coeffs_data = 
-    _allocate_aggdof_to_data(aggdof_to_dofs_ptrs,
-                             acell_to_coeffs)
-
-  _fill_aggdof_to_dofs_data!(aggdof_to_dofs_data,
-                             aggdof_to_dofs_ptrs,
-                             aggdof_to_fdof,
-                             fdof_to_acell,
-                             acell_to_acellin,
-                             acell_to_dof_ids,
-                             acell_to_is_owned)
-
-  _fill_aggdof_to_coeffs_data!(aggdof_to_coeffs_data,
-                               aggdof_to_dofs_ptrs,
-                               aggdof_to_fdof,
-                               fdof_to_acell,
-                               fdof_to_ldof,
-                               acell_to_coeffs,
-                               acell_to_proj,
-                               acell_to_is_owned)
-
-  aggdof_to_dofs   = Table(aggdof_to_dofs_data,  
-                           aggdof_to_dofs_ptrs)
-  aggdof_to_coeffs = Table(aggdof_to_coeffs_data,
-                           aggdof_to_dofs_ptrs)
-
-  aggdof_to_dofs, aggdof_to_coeffs
-end
-
-function _fill_acell_to_acellin_and_to_gcell(trian_a,bgcell_to_bgcellin,bgcell_to_gcell)
-  D = num_cell_dims(trian_a)
-  glue = get_glue(trian_a,Val(D))
-  acell_to_bgcell = glue.tface_to_mface
-  bgcell_to_acell = glue.mface_to_tface
-  acell_to_bgcellin = 
-    collect(lazy_map(Reindex(bgcell_to_bgcellin),acell_to_bgcell))
-  T = eltype(bgcell_to_acell)
-  acell_to_acellin = map(acell_to_bgcellin) do bgcin
-    iszero(bgcin) ? zero(T) : T(bgcell_to_acell[bgcin])
-  end
-  acell_to_gcell = lazy_map(Reindex(bgcell_to_gcell),acell_to_bgcell)
-  acell_to_acellin, acell_to_gcell
-end
-
 function _allocate_fdof_to_data(n_fdofs)
   fdof_to_is_agg = fill(true,n_fdofs)
   fdof_to_acell = zeros(Int32,n_fdofs)
@@ -323,4 +236,94 @@ function _fill_aggdof_to_coeffs_data!(
     end
   end
   nothing
+end
+
+###########################################################################################
+# Unused functions
+
+function _alloc_and_fill_aggdof_to_dofs_ptrs(
+  n_fdofs,
+  acell_to_acellin,
+  acell_to_dof_ids,
+  acell_to_gcell,
+  acell_to_is_owned)
+
+  fdof_to_is_agg, fdof_to_acell, fdof_to_ldof = 
+    _allocate_fdof_to_data(n_fdofs)
+
+  _fill_fdof_to_data!(fdof_to_is_agg,
+                      fdof_to_acell,
+                      fdof_to_ldof,
+                      acell_to_acellin,
+                      acell_to_dof_ids,
+                      acell_to_gcell)
+
+  aggdof_to_fdof = findall(fdof_to_is_agg)
+
+  n_aggdofs = length(aggdof_to_fdof)
+  aggdof_to_dofs_ptrs = zeros(Int32,n_aggdofs+1)
+
+  _fill_aggdof_to_dofs_ptrs!(aggdof_to_dofs_ptrs,
+                             aggdof_to_fdof,
+                             fdof_to_acell,
+                             acell_to_acellin,
+                             acell_to_dof_ids,
+                             acell_to_is_owned)
+
+  aggdof_to_dofs_ptrs, aggdof_to_fdof, fdof_to_acell, fdof_to_ldof
+end
+
+function _alloc_and_fill_aggdof_to_dofs_data(
+  aggdof_to_fdof,
+  aggdof_to_dofs_ptrs,
+  acell_to_acellin,
+  acell_to_dof_ids,
+  acell_to_coeffs,
+  acell_to_proj,
+  acell_to_is_owned,
+  fdof_to_acell,
+  fdof_to_ldof)
+
+  aggdof_to_dofs_data, aggdof_to_coeffs_data = 
+    _allocate_aggdof_to_data(aggdof_to_dofs_ptrs,
+                             acell_to_coeffs)
+
+  _fill_aggdof_to_dofs_data!(aggdof_to_dofs_data,
+                             aggdof_to_dofs_ptrs,
+                             aggdof_to_fdof,
+                             fdof_to_acell,
+                             acell_to_acellin,
+                             acell_to_dof_ids,
+                             acell_to_is_owned)
+
+  _fill_aggdof_to_coeffs_data!(aggdof_to_coeffs_data,
+                               aggdof_to_dofs_ptrs,
+                               aggdof_to_fdof,
+                               fdof_to_acell,
+                               fdof_to_ldof,
+                               acell_to_coeffs,
+                               acell_to_proj,
+                               acell_to_is_owned)
+
+  aggdof_to_dofs   = Table(aggdof_to_dofs_data,  
+                           aggdof_to_dofs_ptrs)
+  aggdof_to_coeffs = Table(aggdof_to_coeffs_data,
+                           aggdof_to_dofs_ptrs)
+
+  aggdof_to_dofs, aggdof_to_coeffs
+end
+
+function _fill_acell_to_acellin_and_to_gcell(trian_a,bgcell_to_bgcellin,bgcell_to_gcell)
+  D = num_cell_dims(trian_a)
+  glue = get_glue(trian_a,Val(D))
+  acell_to_bgcell = glue.tface_to_mface
+  bgcell_to_acell = glue.mface_to_tface
+  acell_to_bgcellin = 
+    collect(lazy_map(Reindex(bgcell_to_bgcellin),acell_to_bgcell))
+  T = eltype(bgcell_to_acell)
+  acell_to_acellin = map(acell_to_bgcellin) do bgcin
+    iszero(bgcin) ? zero(T) : T(bgcell_to_acell[bgcin])
+  end
+  acell_to_gcell = lazy_map(Reindex(bgcell_to_gcell),acell_to_bgcell)
+  acell_to_acellin, acell_to_gcell
 end

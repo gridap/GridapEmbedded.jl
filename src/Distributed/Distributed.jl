@@ -25,6 +25,7 @@ using GridapEmbedded.Interfaces: SubFacetData
 using GridapEmbedded.Interfaces: AbstractEmbeddedDiscretization
 using GridapEmbedded.Interfaces: CutFaceBoundaryTriangulation
 using GridapEmbedded.Interfaces: CutFaceSkeletonTriangulation
+using GridapEmbedded.AgFEM
 using GridapEmbedded.AgFEM: _touch_aggregated_cells!
 using GridapEmbedded.AgFEM: AggregateCutCellsByThreshold
 using GridapEmbedded.AgFEM: _fill_acell_to_acellin_and_to_gcell
