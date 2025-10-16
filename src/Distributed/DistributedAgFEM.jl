@@ -840,24 +840,24 @@ function generate_aggregated_gids(cell_gids, cell_to_fdofs, fdof_is_agg)
   end
 
   # Generate global master and aggregated dof ids
-  mdof_gids, adof_gids = GridapDistributed.generate_posneg_gids(
+  mdof_gids, aggdof_gids = GridapDistributed.generate_posneg_gids(
     cell_gids, cell_to_lposneg, nlpos, nlneg
   )
 
-  mdof_to_fdof, adof_to_fdof = map(fdof_to_posneg, nlpos, nlneg) do fdof_to_posneg, npos, nneg
-    fdof_to_mdof = zeros(Int32,npos)
-    fdof_to_aggdof = zeros(Int32,nneg)
+  mdof_to_fdof, aggdof_to_fdof = map(fdof_to_posneg, nlpos, nlneg) do fdof_to_posneg, npos, nneg
+    mdof_to_fdof = zeros(Int32,npos)
+    aggdof_to_fdof = zeros(Int32,nneg)
     for (fdof,posneg) in enumerate(fdof_to_posneg)
       if posneg > 0
-        fdof_to_mdof[posneg] = Int32(fdof)
+        mdof_to_fdof[posneg] = Int32(fdof)
       elseif posneg < 0
-        fdof_to_aggdof[-posneg] = Int32(fdof)
+        aggdof_to_fdof[-posneg] = Int32(fdof)
       end
     end
-    fdof_to_mdof, fdof_to_aggdof
+    mdof_to_fdof, aggdof_to_fdof
   end |> tuple_of_arrays
 
-  return mdof_gids, adof_gids, mdof_to_fdof, adof_to_fdof, fdof_to_posneg
+  return mdof_gids, aggdof_gids, mdof_to_fdof, aggdof_to_fdof, fdof_to_posneg
 end
 
 function get_aggdof_ptrs(
