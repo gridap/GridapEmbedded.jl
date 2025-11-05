@@ -6,7 +6,8 @@
 struct NonConformingGridTopology{Dc,Dp,T,O,A,B,C,D,E,F,G} <: GridTopology{Dc,Dp}
   ugt::UnstructuredGridTopology{Dc,Dp,T,O}
   ncg::NonConformingGlue{Dc,A,B,C,D,E,F,G}
-  cell_to_hanging_faces::Table{Int32,Int32}
+  coarse_cell_to_hanging_faces::Table{Int32,Int32}
+  hanging_faces_to_coarse_cell::Table{Int32,Int32}
 end
 
 # Implementation of abstract API
