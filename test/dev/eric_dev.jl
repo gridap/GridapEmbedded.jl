@@ -42,6 +42,10 @@ module DistributedAggregationP4estMeshes
       get_faces(ncgt,0,D)
       get_faces(ncgt,D,1)
       get_faces(ncgt,1,D)
+      get_faces(ncgt,D,2)
+      get_faces(ncgt,2,D)
+      # get_faces(ncgt,D,3)
+      # get_faces(ncgt,3,D)
     end
 
   end

@@ -3,11 +3,11 @@ module NonConformingGridTopologies
   using Gridap
   using Gridap.Helpers
 
-  import Gridap.Geometry: get_faces
   using Gridap.Geometry: GridTopology
   using Gridap.Geometry: UnstructuredGridTopology
   using Gridap.Geometry: get_grid_topology
-  using Gridap.Arrays: Table, length_to_ptrs!
+  import Gridap.Geometry: get_faces
+  using Gridap.Arrays: Table, length_to_ptrs!, lazy_append
 
   using GridapDistributed
 
@@ -40,7 +40,10 @@ module NonConformingGridTopologies
       map(Broadcasting(first),ncg.hanging_faces_glue)
 
     hanging_faces_to_cell_ptrs = 
-      map(Broadcasting(ones),tfill(Int32,Val{D}()),ncg.num_hanging_faces.+1)
+      map(Broadcasting(zeros),tfill(Int32,Val{D}()),
+          ncg.num_regular_faces.+ncg.num_hanging_faces.+1)
+    map(_ones_on_hanging_faces!,hanging_faces_to_cell_ptrs,
+                                ncg.num_hanging_faces)
     map(length_to_ptrs!,hanging_faces_to_cell_ptrs)
     
     cell_to_hanging_faces_data = 
@@ -69,7 +72,13 @@ module NonConformingGridTopologies
       Table(d,p)
     end
 
-    hanging_faces_to_coarse_cell, coarse_cell_to_hanging_faces
+    coarse_cell_to_hanging_faces, hanging_faces_to_coarse_cell
+  end
+
+  function _ones_on_hanging_faces!(
+    ptrs::Vector{Int32},num_hanging_faces::Int)
+    ptrs[end-num_hanging_faces+1:end] .= 1
+    return nothing
   end
 
   function _count_owned_hanging_faces(x::AbstractArray{<:Integer},num_cells::Int)
@@ -102,13 +111,37 @@ module NonConformingGridTopologies
     collect1d(ncgt.conforming_grid_topology.polytopes)
 
   function get_faces(ncgt::NonConformingGridTopology{Dc,Dp,T,O}, 
-                     ::Val{Dc},dimto::Integer) where {Dc,Dp,T,O}
-    @show ncgt.coarse_cell_to_hanging_faces[dimto+1]
+                     dimfrom::Integer,dimto::Integer) where {Dc,Dp,T,O}
+    get_faces(ncgt,Val{dimfrom}(),Val{dimto}())
   end
 
   function get_faces(ncgt::NonConformingGridTopology{Dc,Dp,T,O}, 
-                     dimfrom::Integer,::Val{Dc}) where {Dc,Dp,T,O}
-    @show ncgt.hanging_faces_to_coarse_cell[dimfrom+1]
+                     ::Val{Df},::Val{Dt}) where {Dc,Dp,T,O,Df,Dt}
+    get_faces(ncgt.conforming_grid_topology,Df,Dt)
+  end
+
+  function get_faces(ncgt::NonConformingGridTopology{Dc,Dp,T,O}, 
+                     ::Val{Dc},::Val{Dt}) where {Dc,Dp,T,O,Dt}
+    r = get_faces(ncgt.conforming_grid_topology,Dc,Dt)
+    h = ncgt.coarse_cell_to_hanging_faces[Dt+1]
+    # Not sure which one of these is better
+    # map(lazy_append,r,h)
+    map(vcat,r,h)
+  end
+
+  function get_faces(ncgt::NonConformingGridTopology{Dc,Dp,T,O}, 
+                     ::Val{Df},::Val{Dc}) where {Dc,Dp,T,O,Df}
+    r = get_faces(ncgt.conforming_grid_topology,Df,Dc)
+    h = ncgt.hanging_faces_to_coarse_cell[Df+1]
+    # Not sure which one of these is better
+    # map(lazy_append,r,h)
+    map(vcat,r,h)
+  end
+
+  # Overload case dimfrom == dimto == Dc to avoid ambiguity
+  function get_faces(ncgt::NonConformingGridTopology{Dc,Dp,T,O}, 
+                     ::Val{Dc},::Val{Dc}) where {Dc,Dp,T,O}
+    get_faces(ncgt.conforming_grid_topology,Dc,Dc)
   end
 
   # What other procs do I need? Review CA (e.g., facet_to_inoutcut)
