@@ -45,7 +45,7 @@ module NonConformingGridTopologies
     map(_ones_on_hanging_faces!,hanging_faces_to_cell_ptrs,
                                 ncg.num_hanging_faces)
     map(length_to_ptrs!,hanging_faces_to_cell_ptrs)
-    
+
     cell_to_hanging_faces_data = 
       map(sortperm,hanging_faces_to_cell_data)
     cell_to_hanging_faces_data =

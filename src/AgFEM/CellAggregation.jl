@@ -254,13 +254,19 @@ function _find_best_neighbor(
       if neigh_cell != cell && cell_to_touched[neigh_cell]
         cellin = cell_to_cellin[neigh_cell]
         j_to_coords = getindex!(c4,cell_to_coords,cellin)
-        # d := diam of box bounding target cell and neighbour root cell
+        # bb_diam := diam of box bounding target cell and neighbour root cell
         bb_diam = 0.0
-        for p in i_to_coords
-          for q in j_to_coords
-            bb_diam = max(bb_diam,Float64(norm(p-q)))
-          end
+        for p in i_to_coords, q in j_to_coords
+          bb_diam = max(bb_diam,Float64(norm(p-q)))
         end
+        # rc_diam := diam of box bounding neighbour root cell
+        rc_diam = 0.0
+        for p in j_to_coords, q in j_to_coords
+          rc_diam = max(rc_diam,Float64(norm(p-q)))
+        end
+        # bb_diam is scaled with 1/rc_diam to account for different cell sizes
+        # See Definition 2.2 in https://arxiv.org/pdf/2006.05373
+        bb_diam = bb_diam / rc_diam
         # Evaluate objective function and update best values
         bit_iter    = bitstring(Int8(iter))
         bit_bb_diam = bitstring(Float32(round(bb_diam,sigdigits=6)))

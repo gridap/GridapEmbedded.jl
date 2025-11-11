@@ -20,7 +20,7 @@ module DistributedAggregationP4estMeshes
     ranks = distribute(LinearIndices((MPI.Comm_size(MPI.COMM_WORLD),)))
     coarse_model = CartesianDiscreteModel((-1,1,-1,1),(1,1))
     num_uniform_refinements = 1
-    num_ghost_layers = 2
+    num_ghost_layers = 1
     D = num_dims(coarse_model)
 
     dmodel = OctreeDistributedDiscreteModel(ranks,
@@ -48,7 +48,7 @@ module DistributedAggregationP4estMeshes
     end
     fmodel,_ = Gridap.Adaptivity.adapt(dmodel,fmodel_refine_coarsen_flags);
 
-    for i in 1:4
+    for i in 1:5
       cutgeo = cut(fmodel, geo)
       cell_to_inoutcut = compute_bgcell_to_inoutcut(cutgeo,geo)
       fmodel_refine_coarsen_flags = 
@@ -63,17 +63,19 @@ module DistributedAggregationP4estMeshes
       end
       fmodel,_ = Gridap.Adaptivity.adapt(fmodel,fmodel_refine_coarsen_flags);
     end
+    fmodel, _ = GridapDistributed.redistribute(fmodel)
 
+    cutgeo = cut(fmodel, geo)
     writevtk(EmbeddedBoundary(cutgeo),"data/quad_bnd");
     # The next line fails unless I comment out the assertion 
     # in the constructor of AppendedTriangulations.jl:
     # @assert get_background_model(a) === get_background_model(b)
-    writevtk(Triangulation(cutgeo,PHYSICAL_IN),"data/quad_phys");
+    writevtk(Triangulation(cutgeo,ACTIVE_IN),"data/quad_phys");
+    # writevtk(Triangulation(cutgeo,PHYSICAL_IN),"data/quad_phys");
 
     cell_gids = get_cell_gids(fmodel)
     cell_indices = partition(cell_gids)
 
-    cutgeo = cut(fmodel, geo)
     ncgt = NonConformingGridTopology(fmodel)
     strategy = AggregateCutCellsByThreshold(1.0)
     lcell_to_lroot, lcell_to_root, lcell_to_value =
@@ -94,16 +96,18 @@ module DistributedAggregationP4estMeshes
       celldata = ["aggregate" => ocell_to_root],
     );
 
-    map(ncgt) do ncgt
-      get_faces(ncgt,D,0)
-      get_faces(ncgt,0,D)
-      get_faces(ncgt,D,1)
-      get_faces(ncgt,1,D)
-      get_faces(ncgt,D,2)
-      get_faces(ncgt,2,D)
-      # get_faces(ncgt,D,3)
-      # get_faces(ncgt,3,D)
-    end
+    # map(ncgt) do ncgt
+    #   get_faces(ncgt,D,0)
+    #   get_faces(ncgt,0,D)
+    #   get_faces(ncgt,D,1)
+    #   get_faces(ncgt,1,D)
+    #   get_faces(ncgt,D,2)
+    #   get_faces(ncgt,2,D)
+    #   # get_faces(ncgt,D,3)
+    #   # get_faces(ncgt,3,D)
+    # end
+
+    return nothing
 
   end
 
