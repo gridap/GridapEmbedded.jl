@@ -89,11 +89,18 @@ function aggregate(
   cut::EmbeddedDiscretization,
   geo::CSG.Geometry,
   lid_to_gid::AbstractVector,
-  in_or_out)
+  in_or_out;
+  grid_topology=nothing)
 
   facet_to_inoutcut = compute_bgfacet_to_inoutcut(cut.bgmodel,geo)
   cell_to_lcellin, cell_to_value, _ =
-    _aggregate_by_threshold(strategy.threshold,cut,geo,in_or_out,facet_to_inoutcut,lid_to_gid)
+    _aggregate_by_threshold(strategy.threshold,
+                            cut,
+                            geo,
+                            in_or_out,
+                            facet_to_inoutcut,
+                            lid_to_gid,
+                            grid_topology)
   cell_to_gcellin = fill(0,length(lid_to_gid))
   for i in eachindex(cell_to_gcellin)
     if !iszero(cell_to_lcellin[i])
@@ -132,7 +139,13 @@ function aggregate(
   cell_to_cellin
 end
 
-function _aggregate_by_threshold(threshold,cut,geo,loc,facet_to_inoutcut,lid_to_gid)
+function _aggregate_by_threshold(threshold,
+                                 cut,
+                                 geo,
+                                 loc,
+                                 facet_to_inoutcut,
+                                 lid_to_gid,
+                                 topo=nothing)
   @assert loc in (IN,OUT)
 
   cutinorout = loc == IN ? (CUT_IN,IN) : (CUT_OUT,OUT)
@@ -146,7 +159,8 @@ function _aggregate_by_threshold(threshold,cut,geo,loc,facet_to_inoutcut,lid_to_
   cell_to_inoutcut = compute_bgcell_to_inoutcut(cut,geo)
 
   cell_to_coords = get_cell_coordinates(bgtrian)
-  topo = get_grid_topology(model)
+  topo === nothing ? topo = get_grid_topology(model) : topo
+
   D = num_cell_dims(model)
   cell_to_faces = get_faces(topo,D,D-1)
   face_to_cells = get_faces(topo,D-1,D)
