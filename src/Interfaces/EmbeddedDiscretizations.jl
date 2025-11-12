@@ -6,7 +6,7 @@ abstract type AbstractEmbeddedDiscretization <: GridapType end
 """
     struct EmbeddedDiscretization{Dc,T} <: AbstractEmbeddedDiscretization
 
-This structure contains all the required information to build integration `Triangulation`s 
+This structure contains all the required information to build integration `Triangulation`s
 for a cut model.
 
 ## Constructors
@@ -19,11 +19,11 @@ for a cut model.
 - `geo::CSG.Geometry`: the geometry used to cut the background mesh
 - `subcells::SubCellData`: collection of cut subcells, attached to the background mesh
 - `subfacets::SubFacetData`: collection of cut facets, attached to the background mesh
-- `ls_to_bgcell_to_inoutcut::Vector{Vector{Int8}}`: list of IN/OUT/CUT states for each cell 
+- `ls_to_bgcell_to_inoutcut::Vector{Vector{Int8}}`: list of IN/OUT/CUT states for each cell
    in the background mesh, for each node in the geometry tree.
-- `ls_to_subcell_to_inoutcut::Vector{Vector{Int8}}`: list of IN/OUT/CUT states for each subcell 
+- `ls_to_subcell_to_inoutcut::Vector{Vector{Int8}}`: list of IN/OUT/CUT states for each subcell
    in the cut part of the mesh, for each node in the geometry tree.
-- `ls_to_subfacet_to_inoutcut::Vector{Vector{Int8}}`: list of IN/OUT/CUT states for each subfacet 
+- `ls_to_subfacet_to_inoutcut::Vector{Vector{Int8}}`: list of IN/OUT/CUT states for each subfacet
    in the cut part of the mesh, for each node in the geometry tree.
 
 ## Methods
@@ -259,12 +259,12 @@ end
 """
     Triangulation(cut::EmbeddedDiscretization[,in_or_out=PHYSICAL_IN])
 
-Creates a triangulation containing the cell and subcells of the embedded domain selected by 
+Creates a triangulation containing the cell and subcells of the embedded domain selected by
 `in_or_out`.
 
 - If only background cells are selected, the result will be a regular Gridap triangulation.
 - If only subcells are selected, the result will be a [`SubCellTriangulation`](@ref).
-- If both background cells and subcells are selected, the result will be an `AppendedTriangulation`, 
+- If both background cells and subcells are selected, the result will be an `AppendedTriangulation`,
   containing a [`SubCellTriangulation`](@ref) and a regular Gridap triangulation.
 
 """
@@ -317,9 +317,19 @@ function Triangulation(cut::EmbeddedDiscretization,in_or_out::Integer,geo::CSG.G
 end
 
 function Triangulation(cut::EmbeddedDiscretization,in_or_out::ActiveInOrOut,geo::CSG.Geometry)
-  cell_to_inoutcut = compute_bgcell_to_inoutcut(cut,geo)
-  cell_to_mask = lazy_map(i-> i==CUT || i==in_or_out.in_or_out,cell_to_inoutcut)
+  cell_to_mask = compute_mask(cut,in_or_out,geo)
   Triangulation(cut.bgmodel,cell_to_mask)
+end
+
+function compute_mask(cut::EmbeddedDiscretization,in_or_out::Union{CutInOrOut,ActiveInOrOut},geo::CSG.Geometry)
+  bgcell_to_inoutcut = compute_bgcell_to_inoutcut(cut,geo)
+  subcell_to_inoutcut = lazy_map(Reindex(bgcell_to_inoutcut),cut.subcells.cell_to_bgcell)
+  subcell_to_inout = compute_subcell_to_inout(cut,geo)
+  mask = lazy_map( (a,b) -> a==CUT && b==in_or_out.in_or_out, subcell_to_inoutcut, subcell_to_inout   )
+  newsubcells = findall(mask)
+  cell_to_mask = collect(Bool,bgcell_to_inoutcut .== in_or_out.in_or_out) # in/out cells
+  cell_to_mask[cut.subcells.cell_to_bgcell[newsubcells]] .= true # (true) cut cells
+  return cell_to_mask
 end
 
 function compute_subcell_to_inout(cut::EmbeddedDiscretization,geo::CSG.Geometry)
@@ -465,10 +475,10 @@ end
 """
     GhostSkeleton(cut::EmbeddedDiscretization[,in_or_out=ACTIVE_IN])
 
-Creates a triangulation containing the ghost facets. Ghosts facets are defined as the facets 
+Creates a triangulation containing the ghost facets. Ghosts facets are defined as the facets
 of the **background mesh** that are adjacent to at least one `CUT` background cell.
 
-Mostly used for CUT-FEM stabilisation. 
+Mostly used for CUT-FEM stabilisation.
 """
 function GhostSkeleton(cut::EmbeddedDiscretization)
   GhostSkeleton(cut,ACTIVE_IN)
@@ -506,6 +516,16 @@ function GhostSkeleton(cut::EmbeddedDiscretization,in_or_out,geo::CSG.Geometry)
   @notimplementedif in_or_out in (PHYSICAL_IN,PHYSICAL_OUT) "Not implemented but not needed in practice. Ghost stabilization can be integrated in full facets."
   @assert in_or_out in (ACTIVE_IN,ACTIVE_OUT) || in_or_out.in_or_out in (IN,OUT,CUT)
   cell_to_inoutcut = compute_bgcell_to_inoutcut(cut,geo)
+  cell_to_mask = compute_mask(cut,in_or_out,geo)
+  cut_bgcells = findall(x->x==CUT,cell_to_inoutcut)
+  # Check if cell is not truely cut
+  for c in cut_bgcells
+      if !cell_to_mask[c]
+        # It doesn't matter if they're marked as in or out for purpose of GhostSkeleton
+        cell_to_inoutcut[c] = IN
+      end
+  end
+  # build facet mask
   model = cut.bgmodel
   topo = get_grid_topology(model)
   D = num_cell_dims(model)

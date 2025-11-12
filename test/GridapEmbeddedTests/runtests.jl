@@ -20,4 +20,8 @@ using Test
 
 @time @testset "TraceFEM" begin include("TraceFEMTests.jl") end
 
+@testset "Issue reproducers" begin
+  @time @testset "Issue614"  begin include("issues/issue_115.jl")  end
+end
+
 end
