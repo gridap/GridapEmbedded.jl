@@ -81,7 +81,7 @@ module NonConformingGridTopologies
     return nothing
   end
 
-  function _count_owned_hanging_faces(x::AbstractArray{<:Integer},num_cells::Int)
+  function _count_owned_hanging_faces(x::AbstractArray,num_cells::Int)
     r = zeros(Int32,num_cells+1)
     for xi in x
       r[xi+1] += 1
