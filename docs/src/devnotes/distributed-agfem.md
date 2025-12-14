@@ -32,13 +32,21 @@ Some preliminary observations:
 
 - The ConstrainedFESpace eliminates the slave DoFs before assembly. That is during assembly all the cell contributions on a patch get assembled to the master DoFs, i.e the DoFs on the root cell. This means that all slave DoFs of a patch de-facto belong to the same processor as the master DoFs they are tied to.
 - We can easily create a patch-conforming cell-partition, where cells are owned by the owner of the patch they belong to. The owner of the patch is taken as the owner of the root cell in the original cell-partition. This new partition does NOT require any communication. It is just a re-partitioning of the local cells within a processor.
-- Something I don't know, but should be possible and even required for this to work is that local DoFs can be constrained by DoFs that do not belong to the original space. TODO: Check this.
 
-Given the above, this is how we can create the DoF constraints:
+On dof ownership:
 
-- We also allocate the necessary JaggedArrays to hold the SDoF-to-data info for ALL local slave DoFs.
-- Each processor creates constraints for it's owned patches. This is easily done by running the local routines on a Triangulation (as we talked about last week). The Triangulation is given by the owned cells according to the patch-conforming partition described above. If we do the serial code in a general enough way, we can reuse it here.
-- We do a single step of communication.
+- Original DoFs are split into free and Dirichlet DoFs (positive/negative), with a single all-positive numbering where Dirichlet DoFs come after free DoFs.
+- All owned sDOFs are constrained by owned mDOFs (thus local). Ghost sDOFs are always local, but can be constrained by ghost mDOFs, which can be non-local. Moreover, dirichlet sDOFs can only be constrained by dirichlet mDOFs.
+
+How to get the different components:
+
+- Given the original local spaces, the cell ownership and the aggregates, we can:
+  - Generate the sDOF_to_dof mapping locally, as well as the sDOF gids.
+  - Generate an initial mDOF_to_dof mapping locally, as well as the mDOF gids. Both of these will need to be extended later with non-local mDOFs.
+- With the sDOF gids and the local cell_to_dof mapping, we can locally count the number of mDOFs constraining owned sDOFs, then communicate the counts.
+- The above allows us to allocate the local sDOF_to_mDOFs table. Like before, we can locally fill in the owned rows (sDOFs), map to mDOF global ids, then communicate the non-local rows.
+- This generates a consistent sDOF_to_global_mDOF mapping, that we need to renumber into local mDOF ids. This is the tricky part:
+  - For each global mDOF id in the table, it could be either local (belongs to the local-to-global mapping of the previously generated mDOF gids) or non-local. 
 
 ## Optimizing communications during assembly
 

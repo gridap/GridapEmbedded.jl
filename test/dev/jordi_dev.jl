@@ -14,6 +14,19 @@ using GridapEmbedded.Distributed: _local_aggregates, DistributedEmbeddedDiscreti
 
 using GridapDistributed: DistributedDiscreteModel
 
+# This respects the input triangulation, without adding back all the ghosts
+function MyFESpace(
+  trian::GridapDistributed.DistributedTriangulation,reffe;split_own_and_ghost=false,constraint=nothing,kwargs...
+)
+  spaces = map(local_views(trian)) do t
+    FESpace(t,reffe;kwargs...)
+  end
+  gids = GridapDistributed.generate_gids(trian,spaces)
+  vector_type = GridapDistributed._find_vector_type(spaces,gids;split_own_and_ghost=split_own_and_ghost)
+  space = GridapDistributed.DistributedSingleFieldFESpace(spaces,gids,trian,vector_type)
+  return GridapDistributed._add_distributed_constraint(space,reffe,constraint)
+end
+
 function asymmetric_kettlebell(ranks, parts, nc, ng)
   L = 1
   p0 = Point(0.0,0.0)
@@ -147,7 +160,6 @@ lcell_to_owner = map(cell_indices,lcell_to_lroot) do cell_indices,lcell_to_lroot
 end
 
 lcell_to_inconsistent_root = map(copy,lcell_to_root)
-
 lcell_to_root, lcell_to_owner, lcell_to_value, agg_cell_indices =
   find_optimal_roots!(lcell_to_root,lcell_to_value,lcell_to_owner,cell_indices);
 
@@ -179,21 +191,24 @@ agg_model = DistributedDiscreteModel(local_views(bgmodel), PRange(agg_cell_indic
 agg_cutgeo = DistributedEmbeddedDiscretization(local_views(cutgeo), agg_model)
 
 # TODO: Remove extra layers of ghosts when building the triangulation
-trian = Triangulation(agg_cutgeo, ACTIVE)
+trian = Triangulation(single_ghost, agg_cutgeo, ACTIVE)
 writevtk(agg_model,"data/agg_model");
 writevtk(Triangulation(no_ghost, agg_cutgeo, ACTIVE),"data/agg_trian");
+map(ranks,local_views(trian)) do r, trian
+  writevtk(trian,"data/agg_trian_$(r)");
+end
 
 order = 1
 reffe = ReferenceFE(lagrangian,Float64,order)
-V = TestFESpace(trian,reffe)
+V = MyFESpace(trian,reffe)
+V = MyFESpace(trian,reffe;dirichlet_tags=["boundary"])
 
 # (TMP) This gives wrong output when root is not owned, but does not affect below.
 lcell_to_lroot_bis = _local_aggregates(lcell_to_root,PRange(cell_indices))
 @assert lcell_to_lroot_bis == lcell_to_lroot
 
 bgcell_to_bgroot = lcell_to_lroot
-aggdof_to_fdof, aggdof_to_dofs, aggdof_to_coeffs, aggdof_gids, expanded_dof_gids = AgFEMSpace(V,bgcell_to_bgroot)
-
+Vagg = AgFEMSpace(V,bgcell_to_bgroot)
 
 ############################################################################################
 ############################################################################################
