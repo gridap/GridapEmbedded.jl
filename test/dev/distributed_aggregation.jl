@@ -10,10 +10,49 @@ const PArrays = PartitionedArrays
 using GridapEmbedded: aggregate
 using GridapEmbedded.Distributed: _local_aggregates
 
+import GridapEmbedded.LevelSetCutters: disk, sphere
+
 using MPI
 
 using Test
 using BenchmarkTools
+
+function disk(ranks, parts, nc, ng)
+  geo = disk(1.0)
+  pmin = Point(-1.1,-1.1)
+  pmax = Point(1.1,1.1)
+  bgmodel = CartesianDiscreteModel(ranks,parts,pmin,pmax,(nc,nc);ghost=(ng,ng))
+  return bgmodel, geo
+end
+
+function sphere(ranks, parts, nc, ng)
+  geo = sphere(1.0)
+  pmin = Point(-1.1,-1.1,-1.1)
+  pmax = Point(1.1,1.1,1.1)
+  bgmodel = CartesianDiscreteModel(ranks,parts,pmin,pmax,(nc,nc,nc);ghost=(ng,ng,ng))
+  return bgmodel, geo
+end
+
+function flower(ranks, parts, nc, ng;
+    x₀=Point(0.0,0.0), R₀=1.0, m=1.0, ω=2.0)
+  name="flower"
+  @check length(x₀) == 2
+  function flowerfun(x)
+    _flower(x,x₀,R₀,m,ω)
+  end
+  tree = Leaf((flowerfun,name,nothing))
+  geo = AnalyticalGeometry(tree)
+  pmin = Point(-2.1,-2.1,-2.1)
+  pmax = Point(2.1,2.1,2.1)
+  bgmodel = CartesianDiscreteModel(ranks,parts,pmin,pmax,(nc,nc,nc);ghost=(ng,ng,ng))
+  return bgmodel, geo
+end
+
+@inline function _flower(x::Point,x₀,R₀,m,ω)
+  w = x - x₀
+  t = angle(w[1]+w[2]*im)
+  w⋅w - (R₀*(1.0+m*sin(ω*t)))^2
+end
 
 function asymmetric_kettlebell(ranks, parts, nc, ng)
   L = 1
@@ -159,12 +198,18 @@ function run_new_distributed_aggregation(ranks,
   gids = get_cell_gids(bgmodel)
   cell_indices = partition(gids)
 
+  t = PArrays.PTimer(ranks)
+  PArrays.tic!(t)
+
   strategy = AggregateCutCellsByThreshold(1.0)
   lcell_to_lroot, lcell_to_root, lcell_to_value =
     map(local_views(cutgeo),cell_indices) do cutgeo,cell_indices
       lid_to_gid = local_to_global(cell_indices)
       aggregate(strategy,cutgeo,geo,lid_to_gid,IN)
     end |> tuple_of_arrays
+
+  PArrays.toc!(t,"New agg - local stage")
+  PArrays.tic!(t)
 
   lcell_to_owner = map(copy∘local_to_owner,cell_indices)
   lcell_to_owner = map(lcell_to_owner,lcell_to_lroot) do lcell_to_owner,lcell_to_lroot
@@ -178,6 +223,10 @@ function run_new_distributed_aggregation(ranks,
 
   lcell_to_root,_ =
     find_optimal_roots!(lcell_to_root,lcell_to_value,lcell_to_owner,cell_indices);
+
+  PArrays.toc!(t,"New agg - global stage")
+
+  display(t)
 
   bgmodel,lcell_to_root
 end
