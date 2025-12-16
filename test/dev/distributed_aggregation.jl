@@ -277,26 +277,26 @@ function run_benchmark_test(distribute,
 
   display(t)
 
-  ogids = get_cell_gids(obgmodel)
-  olcell_to_root = _global_aggregates(olcell_to_root,ogids)
-  oocell_to_root = map(olcell_to_root,own_to_local(ogids)) do agg,o_to_l
-    map(Reindex(agg),o_to_l)
-  end
+  # ogids = get_cell_gids(obgmodel)
+  # olcell_to_root = _global_aggregates(olcell_to_root,ogids)
+  # oocell_to_root = map(olcell_to_root,own_to_local(ogids)) do agg,o_to_l
+  #   map(Reindex(agg),o_to_l)
+  # end
 
-  ngids = get_cell_gids(nbgmodel)
-  nocell_to_root = map(nlcell_to_root,own_to_local(ngids)) do agg,o_to_l
-    map(Reindex(agg),o_to_l)
-  end
+  # ngids = get_cell_gids(nbgmodel)
+  # nocell_to_root = map(nlcell_to_root,own_to_local(ngids)) do agg,o_to_l
+  #   map(Reindex(agg),o_to_l)
+  # end
 
-  writevtk(
-    Triangulation(obgmodel), "data/popcorn_aggregates_old", 
-    celldata = ["aggregate" => oocell_to_root],
-  );
+  # writevtk(
+  #   Triangulation(obgmodel), "data/popcorn_aggregates_old", 
+  #   celldata = ["aggregate" => oocell_to_root],
+  # );
 
-  writevtk(
-    Triangulation(nbgmodel), "data/popcorn_aggregates_new", 
-    celldata = ["aggregate" => nocell_to_root],
-  );
+  # writevtk(
+  #   Triangulation(nbgmodel), "data/popcorn_aggregates_new", 
+  #   celldata = ["aggregate" => nocell_to_root],
+  # );
 
   # # Note: The criterion to choose the root is slightly 
   # # different between the old and new aggregation. For
