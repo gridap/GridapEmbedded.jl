@@ -10,7 +10,7 @@ const PArrays = PartitionedArrays
 using GridapEmbedded: aggregate
 using GridapEmbedded.Distributed: _local_aggregates
 
-import GridapEmbedded.LevelSetCutters: disk, sphere
+import GridapEmbedded.LevelSetCutters: disk, sphere, popcorn, Leaf
 
 using MPI
 
@@ -34,17 +34,16 @@ function sphere(ranks, parts, nc, ng)
 end
 
 function flower(ranks, parts, nc, ng;
-    x₀=Point(0.0,0.0), R₀=1.0, m=1.0, ω=2.0)
+    x₀=Point(0.0,0.0), R₀=0.6, m=0.6, ω=5.0)
   name="flower"
-  @check length(x₀) == 2
   function flowerfun(x)
     _flower(x,x₀,R₀,m,ω)
   end
   tree = Leaf((flowerfun,name,nothing))
   geo = AnalyticalGeometry(tree)
-  pmin = Point(-2.1,-2.1,-2.1)
-  pmax = Point(2.1,2.1,2.1)
-  bgmodel = CartesianDiscreteModel(ranks,parts,pmin,pmax,(nc,nc,nc);ghost=(ng,ng,ng))
+  pmin = Point(-1.1,-1.1)
+  pmax = Point(1.1,1.1)
+  bgmodel = CartesianDiscreteModel(ranks,parts,pmin,pmax,(nc,nc);ghost=(ng,ng))
   return bgmodel, geo
 end
 
@@ -52,6 +51,14 @@ end
   w = x - x₀
   t = angle(w[1]+w[2]*im)
   w⋅w - (R₀*(1.0+m*sin(ω*t)))^2
+end
+
+function popcorn(ranks, parts, nc, ng)
+  geo = popcorn()
+  pmin = Point(-1.1,-1.1,-1.1)
+  pmax = Point(1.1,1.1,1.1)
+  bgmodel = CartesianDiscreteModel(ranks,parts,pmin,pmax,(nc,nc,nc);ghost=(ng,ng,ng))
+  return bgmodel, geo
 end
 
 function asymmetric_kettlebell(ranks, parts, nc, ng)
@@ -270,26 +277,26 @@ function run_benchmark_test(distribute,
 
   display(t)
 
-  # ogids = get_cell_gids(obgmodel)
-  # olcell_to_root = _global_aggregates(olcell_to_root,ogids)
-  # oocell_to_root = map(olcell_to_root,own_to_local(ogids)) do agg,o_to_l
-  #   map(Reindex(agg),o_to_l)
-  # end
+  ogids = get_cell_gids(obgmodel)
+  olcell_to_root = _global_aggregates(olcell_to_root,ogids)
+  oocell_to_root = map(olcell_to_root,own_to_local(ogids)) do agg,o_to_l
+    map(Reindex(agg),o_to_l)
+  end
 
-  # ngids = get_cell_gids(nbgmodel)
-  # nocell_to_root = map(nlcell_to_root,own_to_local(ngids)) do agg,o_to_l
-  #   map(Reindex(agg),o_to_l)
-  # end
+  ngids = get_cell_gids(nbgmodel)
+  nocell_to_root = map(nlcell_to_root,own_to_local(ngids)) do agg,o_to_l
+    map(Reindex(agg),o_to_l)
+  end
 
-  # writevtk(
-  #   Triangulation(obgmodel), "data/kettlebell_aggregates_old", 
-  #   celldata = ["aggregate" => oocell_to_root],
-  # );
+  writevtk(
+    Triangulation(obgmodel), "data/popcorn_aggregates_old", 
+    celldata = ["aggregate" => oocell_to_root],
+  );
 
-  # writevtk(
-  #   Triangulation(nbgmodel), "data/kettlebell_aggregates_new", 
-  #   celldata = ["aggregate" => nocell_to_root],
-  # );
+  writevtk(
+    Triangulation(nbgmodel), "data/popcorn_aggregates_new", 
+    celldata = ["aggregate" => nocell_to_root],
+  );
 
   # # Note: The criterion to choose the root is slightly 
   # # different between the old and new aggregation. For
