@@ -36,17 +36,30 @@ Some preliminary observations:
 On dof ownership:
 
 - Original DoFs are split into free and Dirichlet DoFs (positive/negative), with a single all-positive numbering where Dirichlet DoFs come after free DoFs.
-- All owned sDOFs are constrained by owned mDOFs (thus local). Ghost sDOFs are always local, but can be constrained by ghost mDOFs, which can be non-local. Moreover, dirichlet sDOFs can only be constrained by dirichlet mDOFs.
+- Owned sDOFs are:
+  - always local
+  - always constrained by owned mDOFs, which are themselves always local.
+- Ghost sDOFs are:
+  - always local
+  - but can be constrained by ghost mDOFs, which can be non-local.
+- This means that we might have non-local mDOFs that we need to account for. These do not appear during integration, but have contributions coming from the slave sDOFs they constrain. These contributions have to be communicated to the owner of the mDOF during assembly.
+- Moreover, these non-local mDOFs can be free or Dirichlet, which have to be treated differently: While free mDOFs appear in the final FESpace PRange, Dirichlet mDOFs do not. However, we still need to create a PRange for them, so that we can communicate Dirichlet values during interpolation (since they can be non-local, Dirichlet values cannot always be computed locally).
 
-How to get the different components:
+How to get the different components we need to build the distributed space:
 
-- Given the original local spaces, the cell ownership and the aggregates, we can:
+- Given the original local spaces, the cell ownership and the aggregates, we can colour each local DOF as sDOF, free mDOF (mfdof) or Dirichlet mDOF (mddof).
   - Generate the sDOF_to_dof mapping locally, as well as the sDOF gids.
-  - Generate an initial mDOF_to_dof mapping locally, as well as the mDOF gids. Both of these will need to be extended later with non-local mDOFs.
+  - Generate initial mfdof_to_dof and mddof_to_dof mapping locally, as well as the mfdof and mddof gids. All of these will need to be extended later with non-local mDOFs.
 - With the sDOF gids and the local cell_to_dof mapping, we can locally count the number of mDOFs constraining owned sDOFs, then communicate the counts.
 - The above allows us to allocate the local sDOF_to_mDOFs table. Like before, we can locally fill in the owned rows (sDOFs), map to mDOF global ids, then communicate the non-local rows.
 - This generates a consistent sDOF_to_global_mDOF mapping, that we need to renumber into local mDOF ids. This is the tricky part:
-  - For each global mDOF id in the table, it could be either local (belongs to the local-to-global mapping of the previously generated mDOF gids) or non-local. 
+  - For each global mDOF id in the table, it could be either local (belongs to the local-to-global mapping of the previously generated mDOF gids) or non-local.
+  - If it is local, the communicated global id will be listed within the local global-to-local map. We can therefore directly map it to a local id.
+  - If it is non-local, we extend the local global-to-local map (the gid is known, the lid is appended).
+  - When this is done, we can create the new PRanges. This does not require further communication, since we have not added any new global id, only added pre-existing ones.
+  - Like explained above, we have to do this while differentiating between free and Dirichlet mDOFs.
+
+This allows us to create the local FESpaceWithLinearConstraints spaces, and together with the mfdof PRange this creates our typical DistributedFESpace. On top of this, we also need to keep both the sDOF PRange and the mddof PRange (for interpolation). These two will be stored within a new metadata type, which will also allow us to dispatch when interpolating.
 
 ## Optimizing communications during assembly
 
