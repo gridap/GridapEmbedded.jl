@@ -686,7 +686,7 @@ function AgFEMSpace(
   cell_gids = GridapDistributed.generate_cell_gids(trian)
 
   # The following is the same as in serial, it's just some reindexing onto the triangulation
-  nlDOFs, nfdofs, cell_to_root, cell_to_DOFs, DOF_to_dof, cell_to_coeffs, cell_to_proj, cell_to_gcell = map(
+  nlDOFs, nlfdofs, cell_to_root, cell_to_DOFs, DOF_to_dof, cell_to_coeffs, cell_to_proj, cell_to_gcell = map(
     spaces, bgcell_to_bgroot, local_views(shfns_g), local_views(dofs_g), bgcell_to_gcell
   ) do space, bgcell_to_bgroot, shfns_g, dofs_g, bgcell_to_gcell
     trian = get_triangulation(space)
@@ -726,15 +726,16 @@ function AgFEMSpace(
   end |> tuple_of_arrays
 
   DOF_is_agg, DOF_to_cell, DOF_to_lDOF = map(
-    nlDOFs, cell_to_root, cell_to_DOFs, cell_to_gcell
-  ) do nlDOFs, cell_to_root, cell_to_DOFs, cell_to_gcell
+    nlDOFs, nlfdofs, cell_to_root, cell_to_DOFs, cell_to_gcell
+  ) do nlDOFs, nlfdofs, cell_to_root, cell_to_DOFs, cell_to_gcell
     DOF_is_agg, DOF_to_cell, DOF_to_lDOF = AgFEM._allocate_fdof_to_data(nlDOFs)
     AgFEM._fill_fdof_to_data!(DOF_is_agg,DOF_to_cell,DOF_to_lDOF,cell_to_root,cell_to_DOFs,cell_to_gcell)
+    DOF_is_agg[(nlfdofs+1):end] .= false # Mark dirichlet dofs as non-aggregated
     return DOF_is_agg, DOF_to_cell, DOF_to_lDOF
   end |> tuple_of_arrays
 
   sDOF_gids, mfdof_gids, mddof_gids, sDOF_to_DOF, mfdof_to_DOF, mddof_to_DOF, DOF_to_mDOF = generate_aggregated_gids(
-    cell_gids, cell_to_DOFs, DOF_is_agg, nfdofs
+    cell_gids, cell_to_DOFs, DOF_is_agg, nlfdofs
   )
 
   # Create aggdof to nldofs mapping (i.e count how many masters every slave dof has)

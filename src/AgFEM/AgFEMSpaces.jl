@@ -142,10 +142,10 @@ function _fill_fdof_to_data!(
         fdof = dof
         acell_dof = fdof_to_acell[fdof]
         fdof_to_is_agg[fdof] &= iscut
-        if acell_dof == 0 || gcell > acell_to_gcell[acell_dof]
+        if acell_dof == 0 || (gcell > acell_to_gcell[acell_dof])
           fdof_to_acell[fdof] = acell
           fdof_to_ldof[fdof] = ldof
-         end
+        end
       end
     end
   end
