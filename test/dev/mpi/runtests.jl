@@ -13,9 +13,6 @@ function run_test(procs,file)
   end
 end
 
-run_test( 3,"runtests_body.jl")
-# run_test( 4,"runtests_body.jl")
-# run_test( 8,"runtests_body.jl")
-# run_test(12,"runtests_body.jl")
+run_test(12288,"runtests_body.jl")
 
 end # module
