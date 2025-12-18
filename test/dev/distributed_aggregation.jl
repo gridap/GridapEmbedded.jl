@@ -206,7 +206,7 @@ function run_new_distributed_aggregation(ranks,
   cell_indices = partition(gids)
 
   t = PArrays.PTimer(ranks)
-  PArrays.tic!(t)
+  PArrays.tic!(t,barrier=true)
 
   strategy = AggregateCutCellsByThreshold(1.0)
   lcell_to_lroot, lcell_to_root, lcell_to_value =
@@ -216,7 +216,8 @@ function run_new_distributed_aggregation(ranks,
     end |> tuple_of_arrays
 
   PArrays.toc!(t,"New agg - local stage")
-  PArrays.tic!(t)
+
+  PArrays.tic!(t,barrier=true)
 
   lcell_to_owner = map(copy∘local_to_owner,cell_indices)
   lcell_to_owner = map(lcell_to_owner,lcell_to_lroot) do lcell_to_owner,lcell_to_lroot
@@ -265,15 +266,20 @@ function run_benchmark_test(distribute,
   # println("==============================================")
 
   t = PArrays.PTimer(ranks,verbose=true)
-  PArrays.tic!(t)
-    obgmodel,olcell_to_root = run_old_distributed_aggregation(
-      ranks,parts,ncells_x_dir,problem)
-  PArrays.toc!(t,"Old aggregation")
-  
-  PArrays.tic!(t)
-    nbgmodel,nlcell_to_root = run_new_distributed_aggregation(
-      ranks,parts,ncells_x_dir,nghost_layers,problem)
-  PArrays.toc!(t,"New aggregation")
+
+  for i = 1:4
+    PArrays.tic!(t,barrier=true)
+      obgmodel,olcell_to_root = run_old_distributed_aggregation(
+        ranks,parts,ncells_x_dir,problem)
+    PArrays.toc!(t,"Old aggregation - run $i")
+  end
+
+  for i = 1:4
+    PArrays.tic!(t,barrier=true)
+      nbgmodel,nlcell_to_root = run_new_distributed_aggregation(
+        ranks,parts,ncells_x_dir,nghost_layers,problem)
+    PArrays.toc!(t,"New aggregation - run $i")
+  end
 
   display(t)
 
