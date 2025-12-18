@@ -242,7 +242,6 @@ end
 function run_benchmark_test(distribute,
                             parts,
                             ncells_x_dir,
-                            nghost_layers,
                             problem)
 
   ranks = distribute(LinearIndices((prod(parts),)))
@@ -267,18 +266,24 @@ function run_benchmark_test(distribute,
 
   t = PArrays.PTimer(ranks,verbose=true)
 
-  for i = 1:4
+  obgmodel,olcell_to_root = run_old_distributed_aggregation(
+    ranks,parts,ncells_x_dir,problem)
+  for repeat = 1:4
     PArrays.tic!(t,barrier=true)
       obgmodel,olcell_to_root = run_old_distributed_aggregation(
         ranks,parts,ncells_x_dir,problem)
-    PArrays.toc!(t,"Old aggregation - run $i")
+    PArrays.toc!(t,"Old AGG - ncells $ncells_x_dir - run $repeat")
   end
 
-  for i = 1:4
-    PArrays.tic!(t,barrier=true)
-      nbgmodel,nlcell_to_root = run_new_distributed_aggregation(
-        ranks,parts,ncells_x_dir,nghost_layers,problem)
-    PArrays.toc!(t,"New aggregation - run $i")
+  for nghost_layers in (2,3,4,5)
+    nbgmodel,nlcell_to_root = run_new_distributed_aggregation(
+      ranks,parts,ncells_x_dir,nghost_layers,problem)
+    for repeat = 1:4
+      PArrays.tic!(t,barrier=true)
+        nbgmodel,nlcell_to_root = run_new_distributed_aggregation(
+          ranks,parts,ncells_x_dir,nghost_layers,problem)
+      PArrays.toc!(t,"New AGG - ncells $ncells_x_dir - run $repeat - $nghost_layers ghost layers")
+    end
   end
 
   display(t)
