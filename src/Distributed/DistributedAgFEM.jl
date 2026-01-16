@@ -669,6 +669,11 @@ function AgFEMSpace(
   )
 end
 
+struct DistributedLinearConstraintsCache
+  sDOF_gids::PRange
+  mddof_gids::PRange
+end
+
 function AgFEMSpace(
   f::DistributedSingleFieldFESpace,
   bgcell_to_bgroot::AbstractVector,
@@ -681,7 +686,7 @@ function AgFEMSpace(
   cell_gids = GridapDistributed.generate_cell_gids(trian)
 
   # The following is the same as in serial, it's just some reindexing onto the triangulation
-  nlfdofs, cell_to_root, cell_to_fdofs, cell_to_coeffs, cell_to_proj, cell_to_gcell = map(
+  nlDOFs, nlfdofs, cell_to_root, cell_to_DOFs, DOF_to_dof, cell_to_coeffs, cell_to_proj, cell_to_gcell = map(
     spaces, bgcell_to_bgroot, local_views(shfns_g), local_views(dofs_g), bgcell_to_gcell
   ) do space, bgcell_to_bgroot, shfns_g, dofs_g, bgcell_to_gcell
     trian = get_triangulation(space)
@@ -702,162 +707,224 @@ function AgFEMSpace(
     shfns_f = get_fe_basis(space)
     cell_to_coeffs = dofs_f(root_shfns_g)
     cell_to_proj = dofs_g(shfns_f)
-    cell_to_fdofs = get_cell_dof_ids(space)
-    nlfdofs = num_free_dofs(space)
 
-    return nlfdofs, cell_to_root, cell_to_fdofs, cell_to_coeffs, cell_to_proj, cell_to_gcell
+    if iszero(num_dirichlet_dofs(space))
+      nfree = num_free_dofs(space)
+      nlDOFs = nfree
+      cell_to_DOFs = get_cell_dof_ids(space)
+      DOF_to_dof = Int32(1):Int32(nlDOFs)
+    else
+      nfree = num_free_dofs(space)
+      ndir  = num_dirichlet_dofs(space)
+      nlDOFs = nfree + ndir
+      dof_reindex = PosNegReindex(Int32(1):Int32(nfree),Int32(nfree+1):Int32(nlDOFs))
+      cell_to_DOFs = lazy_map(Broadcasting(dof_reindex),get_cell_dof_ids(space))
+      DOF_to_dof = vcat(Int32(1):Int32(nfree),-(Int32(1):Int32(ndir)))
+    end
+
+    return nlDOFs, nfree, cell_to_root, cell_to_DOFs, DOF_to_dof, cell_to_coeffs, cell_to_proj, cell_to_gcell
   end |> tuple_of_arrays
 
-  fdof_is_agg, fdof_to_cell, fdof_to_ldof = map(
-    nlfdofs, cell_to_root, cell_to_fdofs, cell_to_gcell
-  ) do nlfdofs, cell_to_root, cell_to_fdofs, cell_to_gcell
-    fdof_is_agg, fdof_to_cell, fdof_to_ldof = AgFEM._allocate_fdof_to_data(nlfdofs)
-    AgFEM._fill_fdof_to_data!(fdof_is_agg,fdof_to_cell,fdof_to_ldof,cell_to_root,cell_to_fdofs,cell_to_gcell)
-    return fdof_is_agg, fdof_to_cell, fdof_to_ldof
+  DOF_is_agg, DOF_to_cell, DOF_to_lDOF = map(
+    nlDOFs, nlfdofs, cell_to_root, cell_to_DOFs, cell_to_gcell
+  ) do nlDOFs, nlfdofs, cell_to_root, cell_to_DOFs, cell_to_gcell
+    DOF_is_agg, DOF_to_cell, DOF_to_lDOF = AgFEM._allocate_fdof_to_data(nlDOFs)
+    AgFEM._fill_fdof_to_data!(DOF_is_agg,DOF_to_cell,DOF_to_lDOF,cell_to_root,cell_to_DOFs,cell_to_gcell)
+    DOF_is_agg[(nlfdofs+1):end] .= false # Mark dirichlet dofs as non-aggregated
+    return DOF_is_agg, DOF_to_cell, DOF_to_lDOF
   end |> tuple_of_arrays
 
-  mdof_gids, aggdof_gids, mdof_to_fdof, aggdof_to_fdof, fdof_to_posneg = generate_aggregated_gids(
-    cell_gids, cell_to_fdofs, fdof_is_agg
+  sDOF_gids, mfdof_gids, mddof_gids, sDOF_to_DOF, mfdof_to_DOF, mddof_to_DOF, DOF_to_mDOF = generate_aggregated_gids(
+    cell_gids, cell_to_DOFs, DOF_is_agg, nlfdofs
   )
 
-  # Create aggdof to nldofs mapping (i.e count how many masters every agg dof has)
-  ptrs, aggdof_to_nldofs = map(
-    aggdof_to_fdof,fdof_to_cell,cell_to_root,cell_to_fdofs,partition(aggdof_gids)
-  ) do aggdof_to_fdof,fdof_to_cell,cell_to_root,cell_to_fdofs,aggdof_ids
+  # Create aggdof to nldofs mapping (i.e count how many masters every slave dof has)
+  ptrs, sDOF_to_nlDOFs = map(
+    sDOF_to_DOF,DOF_to_cell,cell_to_root,cell_to_DOFs,partition(sDOF_gids)
+  ) do sDOF_to_DOF,DOF_to_cell,cell_to_root,cell_to_DOFs,sDOF_ids
     ptrs = get_aggdof_ptrs(
-      aggdof_to_fdof,fdof_to_cell,cell_to_root,cell_to_fdofs,own_to_local(aggdof_ids)
+      sDOF_to_DOF,DOF_to_cell,cell_to_root,cell_to_DOFs,own_to_local(sDOF_ids)
     )
-    aggdof_to_nldofs = view(ptrs,2:length(ptrs))
-    return ptrs, aggdof_to_nldofs
+    sDOF_to_nlDOFs = view(ptrs,2:length(ptrs))
+    return ptrs, sDOF_to_nlDOFs
   end |> tuple_of_arrays
-  consistent!(PVector(aggdof_to_nldofs, partition(aggdof_gids))) |> wait
+  consistent!(PVector(sDOF_to_nlDOFs, partition(sDOF_gids))) |> wait
 
-  # Fill the info for the owned aggdofs
-  aggdof_to_dofs, aggdof_to_coeffs = map(
-    ptrs,aggdof_to_fdof,fdof_to_cell,fdof_to_ldof,cell_to_root,cell_to_fdofs,cell_to_coeffs,cell_to_proj,partition(aggdof_gids)
-  ) do ptrs,aggdof_to_fdof,fdof_to_cell,fdof_to_ldof,cell_to_root,cell_to_fdofs,cell_to_coeffs,cell_to_proj,aggdof_ids
-    aggdof_to_dofs_data, aggdof_to_coeffs_data = AgFEM._allocate_aggdof_to_data(ptrs,cell_to_coeffs)
+  # Fill the info for the owned sDOFs
+  # I.e the returned tables only have entries filled for the owned sDOFs
+  sDOF_to_mdofs, sDOF_to_coeffs = map(
+    ptrs,sDOF_to_DOF,DOF_to_cell,DOF_to_lDOF,cell_to_root,cell_to_DOFs,cell_to_coeffs,cell_to_proj,partition(sDOF_gids)
+  ) do ptrs,sDOF_to_DOF,DOF_to_cell,DOF_to_lDOF,cell_to_root,cell_to_DOFs,cell_to_coeffs,cell_to_proj,sDOF_ids
+    sDOF_to_dofs_data, sDOF_to_coeffs_data = AgFEM._allocate_aggdof_to_data(ptrs,cell_to_coeffs)
     aggdof_to_dofs!(
-      aggdof_to_dofs_data,ptrs,aggdof_to_fdof,fdof_to_cell,cell_to_root,cell_to_fdofs,own_to_local(aggdof_ids)
+      sDOF_to_dofs_data,ptrs,sDOF_to_DOF,DOF_to_cell,cell_to_root,cell_to_DOFs,own_to_local(sDOF_ids)
     )
     aggdof_to_coeffs!(
-      aggdof_to_coeffs_data,ptrs,aggdof_to_fdof,fdof_to_cell,fdof_to_ldof,cell_to_coeffs,cell_to_proj,own_to_local(aggdof_ids)
+      sDOF_to_coeffs_data,ptrs,sDOF_to_DOF,DOF_to_cell,DOF_to_lDOF,cell_to_coeffs,cell_to_proj,own_to_local(sDOF_ids)
     )
-    return JaggedArray(aggdof_to_dofs_data,ptrs), JaggedArray(aggdof_to_coeffs_data,ptrs)
+    return JaggedArray(sDOF_to_dofs_data,ptrs), JaggedArray(sDOF_to_coeffs_data,ptrs)
   end |> tuple_of_arrays
 
-  # Make consistent:
+  # Make tables consistent:
   #  - coeffs are straightforward
   #  - dofs have to be converted to mdof gids, communicated, then converted back to local dofs
-  map(to_global_dofs!, aggdof_to_dofs, partition(mdof_gids), fdof_to_posneg)
-  t1 = consistent!(PVector(aggdof_to_dofs, partition(aggdof_gids)))
-  t2 = consistent!(PVector(aggdof_to_coeffs, partition(aggdof_gids)))
+  map(to_global_dofs!, sDOF_to_mdofs, partition(mfdof_gids), partition(mddof_gids), DOF_to_mDOF)
+  t1 = consistent!(PVector(sDOF_to_mdofs, partition(sDOF_gids)))
+  t2 = consistent!(PVector(sDOF_to_coeffs, partition(sDOF_gids)))
   wait(t1)
-  expanded_dof_gids = PRange(
-    map(to_local_dofs!,aggdof_to_dofs, partition(aggdof_gids), partition(mdof_gids), mdof_to_fdof, nlfdofs)
-  )
+
+  mfdof_indices, mddof_indices, mDOF_to_DOF = map(
+    to_local_dofs!, sDOF_to_mdofs, 
+    partition(sDOF_gids), partition(mfdof_gids), partition(mddof_gids), 
+    mfdof_to_DOF, mddof_to_DOF
+  ) |> tuple_of_arrays
+  new_mfdof_gids, new_mddof_gids = PRange(mfdof_indices), PRange(mddof_indices)
   wait(t2)
 
-  aggdof_to_dofs, aggdof_to_coeffs = map(aggdof_to_dofs, aggdof_to_coeffs) do dofs, coeffs
+  sDOF_to_mdofs, sDOF_to_coeffs = map(sDOF_to_mdofs, sDOF_to_coeffs) do dofs, coeffs
     Table(dofs.data,dofs.ptrs), Table(coeffs.data,coeffs.ptrs)
   end |> tuple_of_arrays
-  # agg_spaces = map(FESpaceWithLinearConstraints, aggdof_to_fdof, aggdof_to_dofs, aggdof_to_coeffs, spaces)
+  mDOF_to_dof, sDOF_to_dof = map(
+    DOF_to_dof, mDOF_to_DOF, sDOF_to_DOF
+  ) do DOF_to_dof, mDOF_to_DOF, sDOF_to_DOF
+    for i in eachindex(mDOF_to_DOF)
+      iszero(mDOF_to_DOF[i]) && continue
+      mDOF_to_DOF[i] = DOF_to_dof[mDOF_to_DOF[i]]
+    end
+    for i in eachindex(sDOF_to_DOF)
+      sDOF_to_DOF[i] = DOF_to_dof[sDOF_to_DOF[i]]
+    end
+    return mDOF_to_DOF, sDOF_to_DOF
+  end |> tuple_of_arrays
 
-  return aggdof_to_fdof, aggdof_to_dofs, aggdof_to_coeffs, aggdof_gids, expanded_dof_gids
+  nfmdofs = map(local_length, partition(new_mfdof_gids))
+  aggspaces = map(
+    FESpaces.FESpaceWithLinearConstraints, spaces, mDOF_to_dof, sDOF_to_dof, sDOF_to_mdofs, sDOF_to_coeffs, nfmdofs
+  )
+
+  metadata = DistributedLinearConstraintsCache(sDOF_gids, new_mddof_gids)
+  return GridapDistributed.DistributedSingleFieldFESpace(
+    aggspaces, new_mfdof_gids, get_triangulation(f), get_vector_type(f), metadata
+  )
 end
 
 # This is easy, all nonzero entries are local
-function to_global_dofs!(aggdof_to_dofs, mdof_ids, dof_to_mdof)
-  mdof_lid_to_gid = local_to_global(mdof_ids)
-  data = aggdof_to_dofs.data
+function to_global_dofs!(sDOF_to_DOFs, mfdof_ids, mddof_ids, DOF_to_mDOF)
+  n_lmfdofs = local_length(mfdof_ids)
+  n_gmfdofs = global_length(mfdof_ids)
+  mfdof_l2g = local_to_global(mfdof_ids)
+  mddof_l2g = local_to_global(mddof_ids)
+  data = sDOF_to_DOFs.data
   for k in eachindex(data)
     iszero(data[k]) && continue
-    mdof = dof_to_mdof[data[k]]
-    data[k] = mdof_lid_to_gid[mdof]
+    mDOF = DOF_to_mDOF[data[k]]
+    if mDOF > n_lmfdofs # mddof
+      data[k] = mddof_l2g[mDOF - n_lmfdofs] + n_gmfdofs
+    else # mfdof
+      data[k] = mfdof_l2g[mDOF]
+    end
   end
 end
 
 # This one is tricky: some nonzero entries will be non-local (i.e roots on other processors).
 # We have to add these to the pre-existing dof numbering.
-function to_local_dofs!(aggdof_to_dofs, aggdof_ids, mdof_ids, mdof_to_dof, n_dofs)
-  rank = part_id(mdof_ids)
-  n_mdofs = length(mdof_to_dof)
-  new_gids = Dict{Int,Tuple{Int32,Int32}}()
-  dof_gid_to_lid = global_to_local(mdof_ids)
-  ptrs = aggdof_to_dofs.ptrs
-  data = aggdof_to_dofs.data
-  for (aggdof,owner) in enumerate(local_to_owner(aggdof_ids))
+function to_local_dofs!(sDOF_to_mdofs, sDOF_ids, mfdof_gids, mddof_gids, mfdof_to_DOF, mddof_to_DOF)
+  rank = part_id(sDOF_ids)
+  n_lmfdofs = local_length(mfdof_gids)
+  n_lmddofs = local_length(mddof_gids)
+  n_gmfdofs = global_length(mfdof_gids)
+  new_mfdof = Dict{Int,Tuple{Int32,Int32}}()
+  new_mddof = Dict{Int,Tuple{Int32,Int32}}()
+  mfdof_g2l = global_to_local(mfdof_gids)
+  mddof_g2l = global_to_local(mddof_gids)
+  ptrs = sDOF_to_mdofs.ptrs
+  data = sDOF_to_mdofs.data
+  for (aggdof,owner) in enumerate(local_to_owner(sDOF_ids))
     for k in ptrs[aggdof]:ptrs[aggdof+1]-1
-      @assert !iszero(data[k]) # All entries should be nonzero now
+      @assert !iszero(data[k]) # All entries should be nonzero after communication
       gid = data[k]
-      mdof = dof_gid_to_lid[gid]
-      if !iszero(mdof) # Local dof
-        dof = mdof_to_dof[mdof]
-      else # Remote dof
-        mdof, mdof_owner = get!(new_gids,gid,(n_mdofs+1,owner))
-        dof = n_dofs + mdof - length(mdof_to_dof)
-        @assert isequal(mdof_owner,owner) && !isequal(owner, rank)
-        n_mdofs += isequal(mdof,n_mdofs+1) # Only increment if new
+      if gid <= n_gmfdofs # mfdof
+        mdof = mfdof_g2l[gid]
+        if iszero(mdof) # Remote mfdof
+          mdof, mdof_owner = get!(new_mfdof,gid,(n_lmfdofs+1,owner))
+          @assert isequal(mdof_owner,owner) && !isequal(owner, rank)
+          n_lmfdofs += isequal(mdof,n_lmfdofs+1) # Only increment if new
+        end
+      else # mddof
+        gid  = gid - n_gmfdofs
+        mdof = mddof_g2l[gid]
+        if iszero(mdof) # Remote mddof
+          mdof, mdof_owner = get!(new_mddof,gid,(n_lmddofs+1,owner))
+          @assert isequal(mdof_owner,owner) && !isequal(owner, rank)
+          n_lmddofs += isequal(mdof,n_lmddofs+1) # Only increment if new
+        end
+        mdof = -mdof # Mark as mddof
       end
-      data[k] = dof
+      data[k] = mdof
     end
   end
   
   # Create expanded master dof numbering
-  lid_to_gid = Vector{Int}(undef,n_mdofs)
-  lid_to_owner = Vector{Int32}(undef,n_mdofs)
-  lid_to_gid[1:length(mdof_ids)] .= local_to_global(mdof_ids)
-  lid_to_owner[1:length(mdof_ids)] .= local_to_owner(mdof_ids)
-  for (gid, (lid, owner)) in new_gids
-    lid_to_gid[lid] = gid
-    lid_to_owner[lid] = owner
+  function expand_gids(gids, new_gids)
+    rank = part_id(gids)
+    n_global = global_length(gids)
+    n_old = local_length(gids)
+    n_new = n_old + length(new_gids)
+    lid_to_gid = Vector{Int}(undef,n_new)
+    lid_to_owner = Vector{Int32}(undef,n_new)
+    lid_to_gid[1:n_old] .= local_to_global(gids)
+    lid_to_owner[1:n_old] .= local_to_owner(gids)
+    for (gid, (lid, owner)) in new_gids
+      lid_to_gid[lid] = gid
+      lid_to_owner[lid] = owner
+    end
+    LocalIndices(n_global, rank, lid_to_gid, lid_to_owner)
   end
-  n_global = global_length(mdof_ids)
-  return LocalIndices(n_global, rank, lid_to_gid, lid_to_owner)
+  new_mfdof_gids = expand_gids(mfdof_gids, new_mfdof)
+  new_mddof_gids = expand_gids(mddof_gids, new_mddof)
+
+  mDOF_to_DOF = vcat(
+    mfdof_to_DOF, zeros(Int32,length(new_mfdof)),
+    mddof_to_DOF, zeros(Int32,length(new_mddof))
+  )
+  return new_mfdof_gids, new_mddof_gids, mDOF_to_DOF
 end
 
-function generate_aggregated_gids(cell_gids, cell_to_fdofs, fdof_is_agg)
+function generate_aggregated_gids(cell_gids, cell_to_DOFs, DOF_is_agg, nfdofs)
   # Create pos/neg local numberings
-  fdof_to_posneg, nlpos, nlneg = map(fdof_is_agg) do fdof_is_agg
-    npos = 0
-    nneg = 0
-    fdof_to_posneg = zeros(Int,length(fdof_is_agg))
-    for (fdof,is_agg) in enumerate(fdof_is_agg)
-      if !is_agg
-        npos += 1
-        fdof_to_posneg[fdof] = npos
-      else
-        nneg += 1
-        fdof_to_posneg[fdof] = -nneg
+  DOF_to_color = map(DOF_is_agg, nfdofs) do DOF_is_agg, nfdofs
+    DOF_to_color = zeros(Int16,length(DOF_is_agg))
+    for (DOF,is_agg) in enumerate(DOF_is_agg)
+      if is_agg # Slave DOF (1)
+        DOF_to_color[DOF] = Int16(1)
+      else # Master DOF: free (2) / dirichlet (3)
+        DOF_to_color[DOF] = Int16(2) + Int16(DOF > nfdofs)
       end
     end
-    fdof_to_posneg, npos, nneg
-  end |> tuple_of_arrays
-
-  # Reindex cell ids
-  cell_to_lposneg = map(cell_to_fdofs,fdof_to_posneg) do cell_to_fdofs,fdof_to_posneg
-    lazy_map(Broadcasting(Reindex(fdof_to_posneg)),cell_to_fdofs)
+    return DOF_to_color
   end
 
-  # Generate global master and aggregated dof ids
-  mdof_gids, aggdof_gids = GridapDistributed.generate_posneg_gids(
-    cell_gids, cell_to_lposneg, nlpos, nlneg
+  # Generate global master and slave dof ids
+  gids, DOF_to_clid, color_to_clid_to_lid = GridapDistributed.generate_gids_by_color(
+    cell_gids, cell_to_DOFs, DOF_to_color, 3
   )
+  sDOF_gids, mfdof_gids, mddof_gids = gids
 
-  mdof_to_fdof, aggdof_to_fdof = map(fdof_to_posneg, nlpos, nlneg) do fdof_to_posneg, npos, nneg
-    mdof_to_fdof = zeros(Int32,npos)
-    aggdof_to_fdof = zeros(Int32,nneg)
-    for (fdof,posneg) in enumerate(fdof_to_posneg)
-      if posneg > 0
-        mdof_to_fdof[posneg] = Int32(fdof)
-      elseif posneg < 0
-        aggdof_to_fdof[-posneg] = Int32(fdof)
-      end
+  sDOF_to_DOF, mfdof_to_DOF, mddof_to_DOF, DOF_to_mDOF = map(DOF_to_clid, color_to_clid_to_lid) do DOF_to_clid, color_to_clid_to_lid
+    sDOF_to_DOF, mfdof_to_DOF, mddof_to_DOF = color_to_clid_to_lid
+    n_mfdofs = length(mfdof_to_DOF)
+    DOF_to_mDOF = zeros(Int32,length(DOF_to_clid))
+    for (mfdof, DOF) in enumerate(mfdof_to_DOF)
+      DOF_to_mDOF[DOF] = mfdof
     end
-    mdof_to_fdof, aggdof_to_fdof
+    for (mddof, DOF) in enumerate(mddof_to_DOF)
+      DOF_to_mDOF[DOF] = n_mfdofs + mddof
+    end
+
+    return sDOF_to_DOF, mfdof_to_DOF, mddof_to_DOF, DOF_to_mDOF
   end |> tuple_of_arrays
 
-  return mdof_gids, aggdof_gids, mdof_to_fdof, aggdof_to_fdof, fdof_to_posneg
+  return sDOF_gids, mfdof_gids, mddof_gids, sDOF_to_DOF, mfdof_to_DOF, mddof_to_DOF, DOF_to_mDOF
 end
 
 function get_aggdof_ptrs(
@@ -888,7 +955,6 @@ function aggdof_to_dofs!(
   aggdof_ids = eachindex(aggdof_to_fdof)
 )
   cache = array_cache(cell_to_fdofs)
-  println(ptrs)
   for aggdof in aggdof_ids
     fdof = aggdof_to_fdof[aggdof]
     cell = fdof_to_cell[fdof]
@@ -929,4 +995,46 @@ function aggdof_to_coeffs!(
       data[p+b] = coeff
     end
   end
+end
+
+#######################
+
+struct SingleGhost end
+const single_ghost = SingleGhost()
+export single_ghost
+
+function GridapDistributed.filter_cells_when_needed(
+  portion::SingleGhost,
+  cell_gids::AbstractLocalIndices,
+  trian::Triangulation
+)
+  remove_extra_ghost_cells(trian,cell_gids)
+end
+
+function remove_extra_ghost_cells(trian::Triangulation,gids)
+  model = get_background_model(trian)
+  Dt    = num_cell_dims(trian)
+  glue  = get_glue(trian,Val(Dt))
+  remove_extra_ghost_cells(glue,trian,gids)
+end
+
+# Temporary add, probably this can be a table (using Polytopal branch)
+using SparseArrays
+
+function remove_extra_ghost_cells(glue::Gridap.Geometry.FaceToFaceGlue,trian,gids)
+  rank = part_id(gids)
+  tcell_to_mcell = glue.tface_to_mface
+  mcell_to_owner = local_to_owner(gids)
+
+  G = GridapDistributed.compute_cell_graph(get_background_model(trian))
+
+  mcell_to_mask = fill(false,length(mcell_to_owner))
+  for mcell in tcell_to_mcell
+    (mcell_to_owner[mcell] != rank) && continue
+    nbors = view(rowvals(G), nzrange(G,mcell))
+    mcell_to_mask[nbors] .= true
+  end
+  tcell_to_mask = mcell_to_mask[tcell_to_mcell]
+
+  return view(trian, findall(tcell_to_mask))
 end
