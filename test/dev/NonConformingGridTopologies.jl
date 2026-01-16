@@ -7,7 +7,8 @@ module NonConformingGridTopologies
   using Gridap.Geometry: UnstructuredGridTopology
   using Gridap.Geometry: get_grid_topology
   import Gridap.Geometry: get_faces
-  using Gridap.Arrays: Table, length_to_ptrs!, lazy_append
+  using Gridap.Arrays: Table, length_to_ptrs!
+  using Gridap.Arrays: append_tables_locally
 
   using GridapDistributed
 
@@ -124,18 +125,14 @@ module NonConformingGridTopologies
                      ::Val{Dc},::Val{Dt}) where {Dc,Dp,T,O,Dt}
     r = get_faces(ncgt.conforming_grid_topology,Dc,Dt)
     h = ncgt.coarse_cell_to_hanging_faces[Dt+1]
-    # Not sure which one of these is better
-    # map(lazy_append,r,h)
-    map(vcat,r,h)
+    append_tables_locally(r,h)
   end
 
   function get_faces(ncgt::NonConformingGridTopology{Dc,Dp,T,O}, 
                      ::Val{Df},::Val{Dc}) where {Dc,Dp,T,O,Df}
     r = get_faces(ncgt.conforming_grid_topology,Df,Dc)
     h = ncgt.hanging_faces_to_coarse_cell[Df+1]
-    # Not sure which one of these is better
-    # map(lazy_append,r,h)
-    map(vcat,r,h)
+    append_tables_locally(r,h)
   end
 
   # Overload case dimfrom == dimto == Dc to avoid ambiguity
