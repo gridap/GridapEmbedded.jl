@@ -1,14 +1,35 @@
 
+"""
+    abstract type Geometry
+
+Abstract type for the definition of a geometry.
+
+## Interface
+
+- `get_tree(geo::Geometry)`
+- `similar_geometry(a::Geometry,tree::Node)`
+- `compatible_geometries(a::Geometry,b::Geometry)`
+
+"""
 abstract type Geometry end
 
+"""
+    get_tree(geo::Geometry)
+"""
 function get_tree(geo::Geometry)
   @abstractmethod
 end
 
+"""
+    similar_geometry(a::Geometry,tree::Node)
+"""
 function similar_geometry(a::Geometry,tree::Node)
   @abstractmethod
 end
 
+"""
+    compatible_geometries(a::Geometry,b::Geometry)
+"""
 function compatible_geometries(a::Geometry,b::Geometry)
   @abstractmethod
 end
@@ -51,24 +72,36 @@ function _replace_metadata(tree::Leaf,meta)
   Leaf(data)
 end
 
+"""
+    Base.union(a::Geometry,b::Geometry;name::String="",meta=nothing)
+"""
 function Base.union(a::Geometry,b::Geometry;name::String="",meta=nothing)
   _a, _b = compatible_geometries(a,b)
   tree = union(get_tree(_a),get_tree(_b),name,meta)
   similar_geometry(_a,tree)
 end
 
+"""
+    Base.intersect(a::Geometry,b::Geometry;name::String="",meta=nothing)
+"""
 function Base.intersect(a::Geometry,b::Geometry;name::String="",meta=nothing)
   _a, _b = compatible_geometries(a,b)
   tree = intersect(get_tree(_a),get_tree(_b),name,meta)
   similar_geometry(_a,tree)
 end
 
+"""
+    Base.setdiff(a::Geometry,b::Geometry;name::String="",meta=nothing)
+"""
 function Base.setdiff(a::Geometry,b::Geometry;name::String="",meta=nothing)
   _a, _b = compatible_geometries(a,b)
   tree = setdiff(get_tree(_a),get_tree(_b),name,meta)
   similar_geometry(_a,tree)
 end
 
+"""
+    Base.:!(a::Geometry;name::String="",meta=nothing)
+"""
 function Base.:!(a::Geometry;name::String="",meta=nothing)
   tree = !(get_tree(a),name,meta)
   similar_geometry(a,tree)
@@ -119,5 +152,3 @@ function get_geometry_node(a::Node,name::String)
   end
   @unreachable "There is no entity called $name"
 end
-
-

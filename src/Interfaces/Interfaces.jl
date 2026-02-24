@@ -1,5 +1,8 @@
 module Interfaces
 
+using FillArrays
+
+using Gridap
 using Gridap.Helpers
 using Gridap.Arrays
 using Gridap.Fields
@@ -21,12 +24,21 @@ import Gridap.Geometry: get_reffes
 import Gridap.Geometry: get_cell_type
 import Gridap.Geometry: get_background_model
 import Gridap.Geometry: get_active_model
+import Gridap.Geometry: compute_active_model
 import Gridap.Geometry: get_glue
 import Gridap.Geometry: get_grid
 import Gridap.Geometry: FaceToFaceGlue
 import Gridap.Geometry: get_facet_normal
 import Gridap.Geometry: move_contributions
+import Gridap.Geometry: is_change_possible
 using Gridap.Geometry: GenericTriangulation
+using Gridap.Geometry: CompositeTriangulation
+using Gridap.Geometry: TriangulationView
+using Gridap.Geometry: restrict
+
+import Gridap.CellData: get_normal_vector
+import Gridap.CellData: get_tangent_vector
+import Gridap.Geometry: get_facet_normal
 
 using GridapEmbedded.CSG
 
@@ -83,6 +95,8 @@ include("SubFacetTriangulations.jl")
 include("EmbeddedDiscretizations.jl")
 
 include("EmbeddedFacetDiscretizations.jl")
+
+include("CutFaceBoundaryTriangulations.jl")
 
 include("Cutters.jl")
 

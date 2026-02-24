@@ -12,4 +12,6 @@ using Test
 
 @testset "LevelSetCutters" begin include("LevelSetCuttersTests.jl") end
 
+@testset "GeometricalDifferentiation" begin include("GeometricalDifferentiationTests.jl") end
+
 end # module

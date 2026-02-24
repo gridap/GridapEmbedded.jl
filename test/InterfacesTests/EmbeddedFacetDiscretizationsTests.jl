@@ -8,6 +8,9 @@ using Gridap.Geometry
 using GridapEmbedded.Interfaces
 using GridapEmbedded.LevelSetCutters
 
+##########################################
+# 2D tests 
+
 n = 10
 partition = (n,n)
 domain = (0,1,0,1)
@@ -36,6 +39,10 @@ u = interpolate(x->x[1]+x[2],V)
 Γf = BoundaryTriangulation(cutgeo_facets,PHYSICAL)
 Γ = lazy_append(Γu,Γf)
 Λ = SkeletonTriangulation(cutgeo_facets,PHYSICAL)
+
+face_model = get_active_model(Γu)
+Σb = BoundaryTriangulation(Γu)
+Σi = SkeletonTriangulation(Γu)
 
 test_triangulation(Ω)
 test_triangulation(Γ)
@@ -71,13 +78,17 @@ cellfields_Λ = ["normal"=> n_Λ.⁺,"jump_v"=>jump(v),"jump_u"=>jump(u)]
 
 d = mktempdir()
 try
-  writevtk(Ωbg,joinpath(d,"trian"))
-  writevtk(Ω,joinpath(d,"trian_O"),celldata=celldata_Ω,cellfields=cellfields_Ω)
-  writevtk(Γ,joinpath(d,"trian_G"),celldata=celldata_Γ,cellfields=cellfields_Γ)
-  writevtk(Λ,joinpath(d,"trian_sO"),celldata=celldata_Λ,cellfields=cellfields_Λ)
+  writevtk(Ωbg,joinpath(d,"trian"),append=false)
+  writevtk(Ω,joinpath(d,"trian_O"),celldata=celldata_Ω,cellfields=cellfields_Ω,append=false)
+  writevtk(Γ,joinpath(d,"trian_G"),celldata=celldata_Γ,cellfields=cellfields_Γ,append=false)
+  writevtk(Λ,joinpath(d,"trian_sO"),celldata=celldata_Λ,cellfields=cellfields_Λ,append=false)
+  writevtk(Γf,joinpath(d,"trian_Gf"),append=false)
 finally
   rm(d,recursive=true)
 end
+
+##########################################
+# 3D tests 
 
 n = 10
 partition = (n,n,n)
@@ -95,11 +106,16 @@ trian_s = SkeletonTriangulation(bgmodel)
 trian_sΩ = SkeletonTriangulation(trian_s,cutgeo_facets,PHYSICAL_IN,geo)
 trian_sΩo = SkeletonTriangulation(trian_s,cutgeo_facets,PHYSICAL_OUT,geo)
 
+Γu = EmbeddedBoundary(cutgeo)
+face_model = get_active_model(Γu)
+Σb = BoundaryTriangulation(Γu)
+Σi = SkeletonTriangulation(Γu)
+
 d = mktempdir()
 try
-writevtk(trian_s,joinpath(d,"trian_s"))
-writevtk(trian_sΩ,joinpath(d,"trian_sO"))
-writevtk(trian_sΩo,joinpath(d,"trian_sOo"))
+  writevtk(trian_s,joinpath(d,"trian_s"))
+  writevtk(trian_sΩ,joinpath(d,"trian_sO"))
+  writevtk(trian_sΩo,joinpath(d,"trian_sOo"))
 finally
   rm(d,recursive=true)
 end

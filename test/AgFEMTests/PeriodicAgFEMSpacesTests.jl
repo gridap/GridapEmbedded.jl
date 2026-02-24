@@ -40,7 +40,8 @@ U = TrialFESpace(Vagg)
 v(x) = (x[1]-0.5)^2 + (x[2]-0.5)^2
 vhagg = interpolate(v,Vagg)
 
-writevtk(Ω_ac,"test",cellfields=["v"=>vhagg])
+path = mktempdir()
+writevtk(Ω_ac,joinpath(path,"test"),cellfields=["v"=>vhagg])
 
 tol = 10e-7
 @test sum( ∫(abs2(v-vhagg))dΩ ) < tol

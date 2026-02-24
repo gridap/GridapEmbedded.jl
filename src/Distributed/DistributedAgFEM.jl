@@ -16,9 +16,7 @@ function AgFEMSpace(
         _g = g : _g = FESpace(get_triangulation(f),reffeg,conformity=:L2)
       AgFEMSpace(f,bgcell_to_bgcellin,_g,local_to_global(gids))
   end
-  trians = map(get_triangulation,local_views(f))
-  trian = DistributedTriangulation(trians,bgmodel)
-  trian = add_ghost_cells(trian)
+  trian = add_ghost_cells(get_triangulation(f))
   trian_gids = generate_cell_gids(trian)
   cell_to_cellin = _active_aggregates(bgcell_to_bgcellin)
   cell_to_ldofs = cell_ldof_to_mdof(spaces,cell_to_cellin)
@@ -29,7 +27,7 @@ function AgFEMSpace(
 end
 
 function aggregate(strategy,cutgeo::DistributedEmbeddedDiscretization,args...)
-  aggregates,aggregate_owner = distributed_aggregate(strategy,cutgeo,args...)
+  aggregates, aggregate_owner = distributed_aggregate(strategy,cutgeo,args...)
   bgmodel = get_background_model(cutgeo)
   if has_remote_aggregation(bgmodel,aggregates)
     bgmodel = add_remote_aggregates(bgmodel,aggregates,aggregate_owner)
@@ -43,8 +41,8 @@ end
 function distributed_aggregate(
   strategy::AggregateCutCellsByThreshold,
   cut::DistributedEmbeddedDiscretization,
-  in_or_out=IN)
-
+  in_or_out=IN
+)
   geo = get_geometry(cut)
   distributed_aggregate(strategy,cut,geo,in_or_out)
 end
@@ -53,13 +51,12 @@ function distributed_aggregate(
   strategy::AggregateCutCellsByThreshold,
   cut::DistributedEmbeddedDiscretization,
   geo::CSG.Geometry,
-  in_or_out=IN)
-
+  in_or_out=IN
+)
   bgmodel = get_background_model(cut)
   facet_to_inoutcut = compute_bgfacet_to_inoutcut(bgmodel,geo)
   _distributed_aggregate_by_threshold(strategy.threshold,cut,geo,in_or_out,facet_to_inoutcut)
 end
-
 
 function _distributed_aggregate_by_threshold(threshold,cutgeo,geo,loc,facet_to_inoutcut)
   @assert loc in (IN,OUT)
@@ -85,15 +82,14 @@ function _distributed_aggregate_by_threshold(threshold,cutgeo,geo,loc,facet_to_i
 
   _distributed_aggregate_by_threshold_barrier(
     threshold,cell_to_unit_cut_meas,facet_to_inoutcut,cell_to_inoutcut,
-    loc,cell_to_coords,cell_to_faces,face_to_cells,gids)
+    loc,cell_to_coords,cell_to_faces,face_to_cells,gids
+  )
 end
-
 
 function _distributed_aggregate_by_threshold_barrier(
   threshold,cell_to_unit_cut_meas,facet_to_inoutcut,cell_to_inoutcut,
-  loc,cell_to_coords,cell_to_faces,face_to_cells,gids)
-
-
+  loc,cell_to_coords,cell_to_faces,face_to_cells,gids
+)
   ocell_to_touched = map(cell_to_unit_cut_meas) do c_to_m
     map(≥,c_to_m,Fill(threshold,length(c_to_m)))
   end
@@ -114,7 +110,6 @@ function _distributed_aggregate_by_threshold_barrier(
   end
 
   cell_to_neig = map(n->zeros(Int32,n),n_cells)
-
   cell_to_root_part = map(collect,local_to_owner(gids))
 
   c1 = map(array_cache,cell_to_faces)
@@ -132,7 +127,8 @@ function _distributed_aggregate_by_threshold_barrier(
       cell_to_faces,
       face_to_cells,
       facet_to_inoutcut,
-      loc)
+      loc
+    )
 
     PVector(cell_to_touched,partition(gids)) |> consistent! |> wait
     PVector(cell_to_neig,partition(gids)) |> consistent! |> wait
@@ -251,8 +247,8 @@ function _find_best_neighbor_from_centroid_distance(
   cell_to_touched,
   cell_to_root_centroid,
   facet_to_inoutcut,
-  loc)
-
+  loc
+)
   faces = getindex!(c1,cell_to_faces,cell)
   dmin = Inf
   T = eltype(eltype(face_to_cells))
@@ -561,6 +557,8 @@ function _local_aggregates(cell_to_gcellin,gcell_to_cell)
   end
 end
 
+# change_bgmodel
+
 function change_bgmodel(cell_to_gcellin,gids::PRange)
   map(change_bgmodel,cell_to_gcellin,local_to_global(gids))
 end
@@ -572,6 +570,475 @@ function change_bgmodel(cell_to_gcellin,ncell_to_gcell)
     ncell_to_gcellin[ncell] = ncell > ncells ? gcell : cell_to_gcellin[ncell]
   end
   ncell_to_gcellin
+end
+
+function change_bgmodel(
+  cutgeo::DistributedEmbeddedDiscretization,
+  model::DistributedDiscreteModel
+)
+  cuts = map(change_bgmodel,local_views(cutgeo),local_views(model))
+  DistributedEmbeddedDiscretization(cuts,model)
+end
+
+function change_bgmodel(
+  cutgeo::DistributedEmbeddedDiscretization,
+  model::DistributedDiscreteModel,
+  cell_to_new_cell
+)
+  cuts = map(change_bgmodel,local_views(cutgeo),local_views(model),cell_to_new_cell)
+  DistributedEmbeddedDiscretization(cuts,model)
+end
+
+function change_bgmodel(
+  cut::EmbeddedDiscretization,
+  newmodel::DiscreteModel,
+  cell_to_newcell=1:num_cells(get_background_model(cut))
+)
+  ls_to_bgc_to_ioc = map(cut.ls_to_bgcell_to_inoutcut) do bgc_to_ioc
+    new_bgc_to_ioc = Vector{Int8}(undef,num_cells(newmodel))
+    new_bgc_to_ioc[cell_to_newcell] = bgc_to_ioc
+    new_bgc_to_ioc
+  end
+  subcells = change_bgmodel(cut.subcells,cell_to_newcell)
+  subfacets = change_bgmodel(cut.subfacets,cell_to_newcell)
+  EmbeddedDiscretization(
+    newmodel,
+    ls_to_bgc_to_ioc,
+    subcells,
+    cut.ls_to_subcell_to_inout,
+    subfacets,
+    cut.ls_to_subfacet_to_inout,
+    cut.oid_to_ls,
+    cut.geo
+  )
+end
+
+function change_bgmodel(
+  cut::EmbeddedFacetDiscretization,
+  newmodel::DiscreteModel,
+  facet_to_newfacet=1:num_facets(get_background_model(cut))
+)
+  nfacets = num_facets(newmodel)
+  ls_to_bgf_to_ioc = map(cut.ls_to_facet_to_inoutcut) do bgf_to_ioc
+    new_bgf_to_ioc = Vector{Int8}(undef,nfacets)
+    new_bgf_to_ioc[facet_to_newfacet] = bgf_to_ioc
+    new_bgf_to_ioc
+  end
+  subfacets = change_bgmodel(cut.subfacets,facet_to_newfacet)
+  EmbeddedFacetDiscretization(
+    newmodel,
+    ls_to_bgf_to_ioc,
+    subfacets,
+    cut.ls_to_subfacet_to_inout,
+    cut.oid_to_ls,
+    cut.geo
+  )
+end
+
+function change_bgmodel(cells::SubCellData,cell_to_newcell)
+  cell_to_bgcell = lazy_map(Reindex(cell_to_newcell),cells.cell_to_bgcell)
+  SubCellData(
+    cells.cell_to_points,
+    collect(Int32,cell_to_bgcell),
+    cells.point_to_coords,
+    cells.point_to_rcoords
+  )
+end
+
+function change_bgmodel(facets::SubFacetData,cell_to_newcell)
+  facet_to_bgcell = lazy_map(Reindex(cell_to_newcell),facets.facet_to_bgcell)
+  SubFacetData(
+    facets.facet_to_points,
+    facets.facet_to_normal,
+    collect(Int32,facet_to_bgcell),
+    facets.point_to_coords,
+    facets.point_to_rcoords
+  )
+end
+
+function AgFEMSpace(
+  f::DistributedSingleFieldFESpace,
+  bgcell_to_bgroot::AbstractVector,
+  g::DistributedSingleFieldFESpace = f
+)
+  trian = get_triangulation(g)
+  bgcell_to_gcell = map(local_views(trian)) do trian
+    glue = get_glue(trian,Val(num_cell_dims(trian)))
+    glue.mface_to_tface
+  end
+  AgFEMSpace(
+    f,bgcell_to_bgroot,get_fe_basis(g),get_fe_dof_basis(g),bgcell_to_gcell
+  )
+end
+
+struct DistributedLinearConstraintsCache
+  sDOF_gids::PRange
+  mddof_gids::PRange
+end
+
+function AgFEMSpace(
+  f::DistributedSingleFieldFESpace,
+  bgcell_to_bgroot::AbstractVector,
+  shfns_g::DistributedCellField,
+  dofs_g::DistributedCellDof,
+  bgcell_to_gcell
+)
+  trian = get_triangulation(f)
+  spaces = local_views(f) # Not even necessary to have a DistributedFESpace
+  cell_gids = GridapDistributed.generate_cell_gids(trian)
+
+  # The following is the same as in serial, it's just some reindexing onto the triangulation
+  nlDOFs, nlfdofs, cell_to_root, cell_to_DOFs, DOF_to_dof, cell_to_coeffs, cell_to_proj, cell_to_gcell = map(
+    spaces, bgcell_to_bgroot, local_views(shfns_g), local_views(dofs_g), bgcell_to_gcell
+  ) do space, bgcell_to_bgroot, shfns_g, dofs_g, bgcell_to_gcell
+    trian = get_triangulation(space)
+
+    glue = get_glue(trian,Val(num_cell_dims(trian)))
+    cell_to_bgcell = glue.tface_to_mface
+    bgcell_to_cell = glue.mface_to_tface
+    cell_to_bgroot = view(bgcell_to_bgroot,cell_to_bgcell)
+    cell_to_root = collect(Int32,lazy_map(Reindex(bgcell_to_cell),cell_to_bgroot))
+    cell_to_gcell = collect(Int32,lazy_map(Reindex(bgcell_to_gcell),cell_to_bgcell))
+
+    cell_phys_shfns_g = get_array(change_domain(shfns_g,PhysicalDomain()))
+    cell_phys_root_shfns_g = lazy_map(Reindex(cell_phys_shfns_g),cell_to_root)
+    root_shfns_g = GenericCellField(cell_phys_root_shfns_g,trian,PhysicalDomain())
+
+    # Compute data needed to compute the constraints
+    dofs_f = get_fe_dof_basis(space)
+    shfns_f = get_fe_basis(space)
+    cell_to_coeffs = dofs_f(root_shfns_g)
+    cell_to_proj = dofs_g(shfns_f)
+
+    if iszero(num_dirichlet_dofs(space))
+      nfree = num_free_dofs(space)
+      nlDOFs = nfree
+      cell_to_DOFs = get_cell_dof_ids(space)
+      DOF_to_dof = Int32(1):Int32(nlDOFs)
+    else
+      nfree = num_free_dofs(space)
+      ndir  = num_dirichlet_dofs(space)
+      nlDOFs = nfree + ndir
+      dof_reindex = PosNegReindex(Int32(1):Int32(nfree),Int32(nfree+1):Int32(nlDOFs))
+      cell_to_DOFs = lazy_map(Broadcasting(dof_reindex),get_cell_dof_ids(space))
+      DOF_to_dof = vcat(Int32(1):Int32(nfree),-(Int32(1):Int32(ndir)))
+    end
+
+    return nlDOFs, nfree, cell_to_root, cell_to_DOFs, DOF_to_dof, cell_to_coeffs, cell_to_proj, cell_to_gcell
+  end |> tuple_of_arrays
+
+  DOF_is_agg, DOF_to_cell, DOF_to_lDOF = map(
+    nlDOFs, nlfdofs, cell_to_root, cell_to_DOFs, cell_to_gcell
+  ) do nlDOFs, nlfdofs, cell_to_root, cell_to_DOFs, cell_to_gcell
+    DOF_is_agg, DOF_to_cell, DOF_to_lDOF = AgFEM._allocate_fdof_to_data(nlDOFs)
+    AgFEM._fill_fdof_to_data!(DOF_is_agg,DOF_to_cell,DOF_to_lDOF,cell_to_root,cell_to_DOFs,cell_to_gcell)
+    DOF_is_agg[(nlfdofs+1):end] .= false # Mark dirichlet dofs as non-aggregated
+    return DOF_is_agg, DOF_to_cell, DOF_to_lDOF
+  end |> tuple_of_arrays
+
+  sDOF_gids, mfdof_gids, mddof_gids, sDOF_to_DOF, mfdof_to_DOF, mddof_to_DOF, DOF_to_mDOF = generate_aggregated_gids(
+    cell_gids, cell_to_DOFs, DOF_is_agg, nlfdofs
+  )
+
+  # Create aggdof to nldofs mapping (i.e count how many masters every slave dof has)
+  ptrs, sDOF_to_nlDOFs = map(
+    sDOF_to_DOF,DOF_to_cell,cell_to_root,cell_to_DOFs,partition(sDOF_gids)
+  ) do sDOF_to_DOF,DOF_to_cell,cell_to_root,cell_to_DOFs,sDOF_ids
+    ptrs = get_aggdof_ptrs(
+      sDOF_to_DOF,DOF_to_cell,cell_to_root,cell_to_DOFs,own_to_local(sDOF_ids)
+    )
+    sDOF_to_nlDOFs = view(ptrs,2:length(ptrs))
+    return ptrs, sDOF_to_nlDOFs
+  end |> tuple_of_arrays
+  consistent!(PVector(sDOF_to_nlDOFs, partition(sDOF_gids))) |> wait
+
+  # Fill the info for the owned sDOFs
+  # I.e the returned tables only have entries filled for the owned sDOFs
+  sDOF_to_mdofs, sDOF_to_coeffs = map(
+    ptrs,sDOF_to_DOF,DOF_to_cell,DOF_to_lDOF,cell_to_root,cell_to_DOFs,cell_to_coeffs,cell_to_proj,partition(sDOF_gids)
+  ) do ptrs,sDOF_to_DOF,DOF_to_cell,DOF_to_lDOF,cell_to_root,cell_to_DOFs,cell_to_coeffs,cell_to_proj,sDOF_ids
+    sDOF_to_dofs_data, sDOF_to_coeffs_data = AgFEM._allocate_aggdof_to_data(ptrs,cell_to_coeffs)
+    aggdof_to_dofs!(
+      sDOF_to_dofs_data,ptrs,sDOF_to_DOF,DOF_to_cell,cell_to_root,cell_to_DOFs,own_to_local(sDOF_ids)
+    )
+    aggdof_to_coeffs!(
+      sDOF_to_coeffs_data,ptrs,sDOF_to_DOF,DOF_to_cell,DOF_to_lDOF,cell_to_coeffs,cell_to_proj,own_to_local(sDOF_ids)
+    )
+    return JaggedArray(sDOF_to_dofs_data,ptrs), JaggedArray(sDOF_to_coeffs_data,ptrs)
+  end |> tuple_of_arrays
+
+  # Make tables consistent:
+  #  - coeffs are straightforward
+  #  - dofs have to be converted to mdof gids, communicated, then converted back to local dofs
+  map(to_global_dofs!, sDOF_to_mdofs, partition(mfdof_gids), partition(mddof_gids), DOF_to_mDOF)
+  t1 = consistent!(PVector(sDOF_to_mdofs, partition(sDOF_gids)))
+  t2 = consistent!(PVector(sDOF_to_coeffs, partition(sDOF_gids)))
+  wait(t1)
+
+  mfdof_indices, mddof_indices, mDOF_to_DOF = map(
+    to_local_dofs!, sDOF_to_mdofs, 
+    partition(sDOF_gids), partition(mfdof_gids), partition(mddof_gids), 
+    mfdof_to_DOF, mddof_to_DOF
+  ) |> tuple_of_arrays
+  new_mfdof_gids, new_mddof_gids = PRange(mfdof_indices), PRange(mddof_indices)
+  wait(t2)
+
+  sDOF_to_mdofs, sDOF_to_coeffs = map(sDOF_to_mdofs, sDOF_to_coeffs) do dofs, coeffs
+    Table(dofs.data,dofs.ptrs), Table(coeffs.data,coeffs.ptrs)
+  end |> tuple_of_arrays
+  mDOF_to_dof, sDOF_to_dof = map(
+    DOF_to_dof, mDOF_to_DOF, sDOF_to_DOF
+  ) do DOF_to_dof, mDOF_to_DOF, sDOF_to_DOF
+    for i in eachindex(mDOF_to_DOF)
+      iszero(mDOF_to_DOF[i]) && continue
+      mDOF_to_DOF[i] = DOF_to_dof[mDOF_to_DOF[i]]
+    end
+    for i in eachindex(sDOF_to_DOF)
+      sDOF_to_DOF[i] = DOF_to_dof[sDOF_to_DOF[i]]
+    end
+    return mDOF_to_DOF, sDOF_to_DOF
+  end |> tuple_of_arrays
+
+  nfmdofs = map(local_length, partition(new_mfdof_gids))
+  aggspaces = map(
+    FESpaces.FESpaceWithLinearConstraints, spaces, mDOF_to_dof, sDOF_to_dof, sDOF_to_mdofs, sDOF_to_coeffs, nfmdofs
+  )
+
+  metadata = DistributedLinearConstraintsCache(sDOF_gids, new_mddof_gids)
+  return GridapDistributed.DistributedSingleFieldFESpace(
+    aggspaces, new_mfdof_gids, get_triangulation(f), get_vector_type(f), metadata
+  )
+end
+
+# This is easy, all nonzero entries are local
+function to_global_dofs!(sDOF_to_DOFs, mfdof_ids, mddof_ids, DOF_to_mDOF)
+  n_lmfdofs = local_length(mfdof_ids)
+  n_gmfdofs = global_length(mfdof_ids)
+  mfdof_l2g = local_to_global(mfdof_ids)
+  mddof_l2g = local_to_global(mddof_ids)
+  data = sDOF_to_DOFs.data
+  for k in eachindex(data)
+    iszero(data[k]) && continue
+    mDOF = DOF_to_mDOF[data[k]]
+    if mDOF > n_lmfdofs # mddof
+      data[k] = mddof_l2g[mDOF - n_lmfdofs] + n_gmfdofs
+    else # mfdof
+      data[k] = mfdof_l2g[mDOF]
+    end
+  end
+end
+
+# This one is tricky: some nonzero entries will be non-local (i.e roots on other processors).
+# We have to add these to the pre-existing dof numbering.
+function to_local_dofs!(sDOF_to_mdofs, sDOF_ids, mfdof_gids, mddof_gids, mfdof_to_DOF, mddof_to_DOF)
+  rank = part_id(sDOF_ids)
+  n_lmfdofs = local_length(mfdof_gids)
+  n_lmddofs = local_length(mddof_gids)
+  n_gmfdofs = global_length(mfdof_gids)
+  new_mfdof = Dict{Int,Tuple{Int32,Int32}}()
+  new_mddof = Dict{Int,Tuple{Int32,Int32}}()
+  mfdof_g2l = global_to_local(mfdof_gids)
+  mddof_g2l = global_to_local(mddof_gids)
+  ptrs = sDOF_to_mdofs.ptrs
+  data = sDOF_to_mdofs.data
+  for (aggdof,owner) in enumerate(local_to_owner(sDOF_ids))
+    for k in ptrs[aggdof]:ptrs[aggdof+1]-1
+      @assert !iszero(data[k]) # All entries should be nonzero after communication
+      gid = data[k]
+      if gid <= n_gmfdofs # mfdof
+        mdof = mfdof_g2l[gid]
+        if iszero(mdof) # Remote mfdof
+          mdof, mdof_owner = get!(new_mfdof,gid,(n_lmfdofs+1,owner))
+          @assert isequal(mdof_owner,owner) && !isequal(owner, rank)
+          n_lmfdofs += isequal(mdof,n_lmfdofs+1) # Only increment if new
+        end
+      else # mddof
+        gid  = gid - n_gmfdofs
+        mdof = mddof_g2l[gid]
+        if iszero(mdof) # Remote mddof
+          mdof, mdof_owner = get!(new_mddof,gid,(n_lmddofs+1,owner))
+          @assert isequal(mdof_owner,owner) && !isequal(owner, rank)
+          n_lmddofs += isequal(mdof,n_lmddofs+1) # Only increment if new
+        end
+        mdof = -mdof # Mark as mddof
+      end
+      data[k] = mdof
+    end
+  end
+  
+  # Create expanded master dof numbering
+  function expand_gids(gids, new_gids)
+    rank = part_id(gids)
+    n_global = global_length(gids)
+    n_old = local_length(gids)
+    n_new = n_old + length(new_gids)
+    lid_to_gid = Vector{Int}(undef,n_new)
+    lid_to_owner = Vector{Int32}(undef,n_new)
+    lid_to_gid[1:n_old] .= local_to_global(gids)
+    lid_to_owner[1:n_old] .= local_to_owner(gids)
+    for (gid, (lid, owner)) in new_gids
+      lid_to_gid[lid] = gid
+      lid_to_owner[lid] = owner
+    end
+    LocalIndices(n_global, rank, lid_to_gid, lid_to_owner)
+  end
+  new_mfdof_gids = expand_gids(mfdof_gids, new_mfdof)
+  new_mddof_gids = expand_gids(mddof_gids, new_mddof)
+
+  mDOF_to_DOF = vcat(
+    mfdof_to_DOF, zeros(Int32,length(new_mfdof)),
+    mddof_to_DOF, zeros(Int32,length(new_mddof))
+  )
+  return new_mfdof_gids, new_mddof_gids, mDOF_to_DOF
+end
+
+function generate_aggregated_gids(cell_gids, cell_to_DOFs, DOF_is_agg, nfdofs)
+  # Create pos/neg local numberings
+  DOF_to_color = map(DOF_is_agg, nfdofs) do DOF_is_agg, nfdofs
+    DOF_to_color = zeros(Int16,length(DOF_is_agg))
+    for (DOF,is_agg) in enumerate(DOF_is_agg)
+      if is_agg # Slave DOF (1)
+        DOF_to_color[DOF] = Int16(1)
+      else # Master DOF: free (2) / dirichlet (3)
+        DOF_to_color[DOF] = Int16(2) + Int16(DOF > nfdofs)
+      end
+    end
+    return DOF_to_color
+  end
+
+  # Generate global master and slave dof ids
+  gids, DOF_to_clid, color_to_clid_to_lid = GridapDistributed.generate_gids_by_color(
+    cell_gids, cell_to_DOFs, DOF_to_color, 3
+  )
+  sDOF_gids, mfdof_gids, mddof_gids = gids
+
+  sDOF_to_DOF, mfdof_to_DOF, mddof_to_DOF, DOF_to_mDOF = map(DOF_to_clid, color_to_clid_to_lid) do DOF_to_clid, color_to_clid_to_lid
+    sDOF_to_DOF, mfdof_to_DOF, mddof_to_DOF = color_to_clid_to_lid
+    n_mfdofs = length(mfdof_to_DOF)
+    DOF_to_mDOF = zeros(Int32,length(DOF_to_clid))
+    for (mfdof, DOF) in enumerate(mfdof_to_DOF)
+      DOF_to_mDOF[DOF] = mfdof
+    end
+    for (mddof, DOF) in enumerate(mddof_to_DOF)
+      DOF_to_mDOF[DOF] = n_mfdofs + mddof
+    end
+
+    return sDOF_to_DOF, mfdof_to_DOF, mddof_to_DOF, DOF_to_mDOF
+  end |> tuple_of_arrays
+
+  return sDOF_gids, mfdof_gids, mddof_gids, sDOF_to_DOF, mfdof_to_DOF, mddof_to_DOF, DOF_to_mDOF
+end
+
+function get_aggdof_ptrs(
+  aggdof_to_fdof,
+  fdof_to_cell,
+  cell_to_root,
+  cell_to_fdofs,
+  aggdof_ids = eachindex(aggdof_to_fdof)
+)
+  ptrs = zeros(Int32, length(aggdof_to_fdof)+1)
+  cache = array_cache(cell_to_fdofs)
+  for aggdof in aggdof_ids
+    fdof = aggdof_to_fdof[aggdof]
+    cell = fdof_to_cell[fdof]
+    root = cell_to_root[cell]
+    dofs = getindex!(cache,cell_to_fdofs,root)
+    ptrs[aggdof+1] = length(dofs)
+  end
+  return ptrs
+end
+
+function aggdof_to_dofs!(
+  data, ptrs,
+  aggdof_to_fdof,
+  fdof_to_cell,
+  cell_to_root,
+  cell_to_fdofs,
+  aggdof_ids = eachindex(aggdof_to_fdof)
+)
+  cache = array_cache(cell_to_fdofs)
+  for aggdof in aggdof_ids
+    fdof = aggdof_to_fdof[aggdof]
+    cell = fdof_to_cell[fdof]
+    root = cell_to_root[cell]
+    dofs = getindex!(cache,cell_to_fdofs,root)
+    p = ptrs[aggdof]-1
+    for (i,dof) in enumerate(dofs)
+      data[p+i] = dof
+    end
+  end
+end
+
+function aggdof_to_coeffs!(
+  data, ptrs,
+  aggdof_to_fdof,
+  fdof_to_cell,
+  fdof_to_ldof,
+  cell_to_coeffs,
+  cell_to_proj,
+  aggdof_ids = eachindex(aggdof_to_fdof)
+)
+  z = zero(eltype(eltype(cell_to_coeffs)))
+  cache2 = array_cache(cell_to_coeffs)
+  cache3 = array_cache(cell_to_proj)
+
+  for aggdof in aggdof_ids
+    fdof = aggdof_to_fdof[aggdof]
+    cell = fdof_to_cell[fdof]
+    coeffs = getindex!(cache2,cell_to_coeffs,cell)
+    proj = getindex!(cache3,cell_to_proj,cell)
+    ldof = fdof_to_ldof[fdof]
+    p = ptrs[aggdof]-1
+    for b in axes(proj,2)
+      coeff = z
+      for c in axes(coeffs,2)
+        coeff += coeffs[ldof,c]*proj[c,b]
+      end
+      data[p+b] = coeff
+    end
+  end
+end
+
+#######################
+
+struct SingleGhost end
+const single_ghost = SingleGhost()
+export single_ghost
+
+function GridapDistributed.filter_cells_when_needed(
+  portion::SingleGhost,
+  cell_gids::AbstractLocalIndices,
+  trian::Triangulation
+)
+  remove_extra_ghost_cells(trian,cell_gids)
+end
+
+function remove_extra_ghost_cells(trian::Triangulation,gids)
+  model = get_background_model(trian)
+  Dt    = num_cell_dims(trian)
+  glue  = get_glue(trian,Val(Dt))
+  remove_extra_ghost_cells(glue,trian,gids)
+end
+
+# Temporary add, probably this can be a table (using Polytopal branch)
+using SparseArrays
+
+function remove_extra_ghost_cells(glue::Gridap.Geometry.FaceToFaceGlue,trian,gids)
+  rank = part_id(gids)
+  tcell_to_mcell = glue.tface_to_mface
+  mcell_to_owner = local_to_owner(gids)
+
+  G = GridapDistributed.compute_cell_graph(get_background_model(trian))
+
+  mcell_to_mask = fill(false,length(mcell_to_owner))
+  for mcell in tcell_to_mcell
+    (mcell_to_owner[mcell] != rank) && continue
+    nbors = view(rowvals(G), nzrange(G,mcell))
+    mcell_to_mask[nbors] .= true
+  end
+  tcell_to_mask = mcell_to_mask[tcell_to_mcell]
+
+  return view(trian, findall(tcell_to_mask))
 end
 
 # Specialised methods for Algoim quadratures

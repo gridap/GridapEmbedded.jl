@@ -6,5 +6,7 @@
 /docs/build/
 /docs/site/
 Manifest.toml
+LocalPreferences.toml
 .vscode/
 *.swp
+data

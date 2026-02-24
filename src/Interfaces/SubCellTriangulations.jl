@@ -18,6 +18,11 @@ end
 
 # Implementation of Triangulation interface
 
+"""
+    struct SubCellTriangulation{Dc,Dp} <: Triangulation{Dc,Dp}
+
+A triangulation for subcells. 
+"""
 struct SubCellTriangulation{Dc,Dp,T,A} <: Triangulation{Dc,Dp}
   subcells::SubCellData{Dc,Dp,T}
   bgmodel::A

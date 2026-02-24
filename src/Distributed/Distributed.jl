@@ -23,23 +23,35 @@ using GridapEmbedded.Interfaces: SubFacetTriangulation
 using GridapEmbedded.Interfaces: SubCellData
 using GridapEmbedded.Interfaces: SubFacetData
 using GridapEmbedded.Interfaces: AbstractEmbeddedDiscretization
+using GridapEmbedded.Interfaces: CutFaceBoundaryTriangulation
+using GridapEmbedded.Interfaces: CutFaceSkeletonTriangulation
+using GridapEmbedded.AgFEM
 using GridapEmbedded.AgFEM: _touch_aggregated_cells!
 using GridapEmbedded.AgFEM: AggregateCutCellsByThreshold
+using GridapEmbedded.AgFEM: _fill_acell_to_acellin_and_to_gcell
+using GridapEmbedded.AgFEM: _alloc_and_fill_aggdof_to_dofs_ptrs
+using GridapEmbedded.AgFEM: _alloc_and_fill_aggdof_to_dofs_data
 using GridapEmbedded.MomentFittedQuadratures: MomentFitted
-using Gridap.Geometry: AppendedTriangulation
+using GridapEmbedded.LevelSetCutters: DifferentiableTriangulation
+using GridapEmbedded.LevelSetCutters: DifferentiableAppendedTriangulation
+using GridapEmbedded.LevelSetCutters: DifferentiableTriangulationView
+using GridapEmbedded.LevelSetCutters: update_trian!
+using Gridap.Geometry: AppendedTriangulation, TriangulationView
 using Gridap.Geometry: get_face_to_parent_face
 using Gridap.Arrays: find_inverse_index_map, testitem, return_type
 using Gridap.FESpaces: FESpaceWithLinearConstraints
 using Gridap.FESpaces: _dof_to_DOF, _DOF_to_dof
-using GridapDistributed: DistributedDiscreteModel
-using GridapDistributed: DistributedTriangulation
-using GridapDistributed: DistributedFESpace
-using GridapDistributed: DistributedSingleFieldFESpace
-using GridapDistributed: DistributedMeasure
-using GridapDistributed: add_ghost_cells
-using GridapDistributed: generate_gids
-using GridapDistributed: generate_cell_gids
+
+using GridapDistributed: DistributedDiscreteModel, DistributedTriangulation, DistributedMeasure
+using GridapDistributed: DistributedFESpace, DistributedSingleFieldFESpace
+using GridapDistributed: DistributedCellField, DistributedMultiFieldCellField
+using GridapDistributed: NoGhost, WithGhost, filter_cells_when_needed, add_ghost_cells
+using GridapDistributed: generate_gids, generate_cell_gids
 using GridapDistributed: _find_vector_type
+using GridapDistributed: DistributedCellDof
+using GridapDistributed: dof_wise_to_cell_wise
+using GridapDistributed: fetch_vector_ghost_values_cache
+using GridapDistributed: fetch_vector_ghost_values!
 
 import GridapEmbedded.AgFEM: aggregate
 import GridapEmbedded.AgFEM: AgFEMSpace
@@ -48,21 +60,30 @@ import GridapEmbedded.Interfaces: cut_facets
 import GridapEmbedded.Interfaces: EmbeddedBoundary
 import GridapEmbedded.Interfaces: compute_bgfacet_to_inoutcut
 import GridapEmbedded.Interfaces: compute_bgcell_to_inoutcut
+import GridapEmbedded.Interfaces: GhostSkeleton
+import GridapEmbedded.Interfaces: get_subfacet_normal_vector, get_ghost_normal_vector, get_conormal_vector
 import GridapEmbedded.CSG: get_geometry
 import GridapEmbedded.LevelSetCutters: discretize, DiscreteGeometry
 import Gridap.Geometry: Triangulation
 import Gridap.Geometry: SkeletonTriangulation
 import Gridap.Geometry: BoundaryTriangulation
 import Gridap.Geometry: get_background_model
+import Gridap.Geometry: num_cells
+import Gridap.CellData: get_tangent_vector
 import GridapDistributed: local_views
 import GridapDistributed: remove_ghost_cells
+import GridapDistributed: cell_wise_to_dof_wise!
 
 include("DistributedDiscretizations.jl")
 
 include("DistributedDiscreteGeometries.jl")
 
+include("DistributedSubFacetTriangulations.jl")
+
 include("DistributedAgFEM.jl")
 
 include("DistributedQuadratures.jl")
+
+include("GeometricalDerivatives.jl")
 
 end # module

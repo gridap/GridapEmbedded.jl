@@ -149,10 +149,14 @@ function cut_sub_triangulation(m::CutTriangulation, mpoint_to_value)
 end
 
 function count_sub_triangulation(m,mpoint_to_value)
-  n_scells = 0
-  n_spoints = 0
   mcell_to_mpoints = get_cell_to_points(m)
   table = get_lookup_table(m)
+  count_sub_triangulation(table,mcell_to_mpoints,mpoint_to_value)
+end
+
+function count_sub_triangulation(table,mcell_to_mpoints,mpoint_to_value)
+  n_scells = 0
+  n_spoints = 0
   for mcell in 1:length(mcell_to_mpoints)
     case = compute_case(mcell_to_mpoints,mpoint_to_value,mcell)
     n_scells += length(table.case_to_subcell_to_inout[case])
@@ -444,24 +448,18 @@ end
 
 function initial_sub_triangulation(grid::Grid,geom::DiscreteGeometry)
   ugrid = UnstructuredGrid(grid)
-  tree = get_tree(geom)
-  ls_to_point_to_value, oid_to_ls = _find_unique_leaves(tree)
+  ls_to_point_to_value, oid_to_ls = _find_unique_leaves(get_tree(geom))
   out = _initial_sub_triangulation(ugrid,ls_to_point_to_value)
   out[1], out[2], out[3], oid_to_ls
 end
 
 function _initial_sub_triangulation(grid::UnstructuredGrid,ls_to_point_to_value)
-
   cutgrid, ls_to_cutpoint_to_value, ls_to_bgcell_to_inoutcut = _extract_grid_of_cut_cells(grid,ls_to_point_to_value)
-
   subtrian, ls_to_subpoint_to_value = _simplexify_and_isolate_cells_in_cutgrid(cutgrid,ls_to_cutpoint_to_value)
-
-  subtrian, ls_to_subpoint_to_value, ls_to_bgcell_to_inoutcut
+  return subtrian, ls_to_subpoint_to_value, ls_to_bgcell_to_inoutcut
 end
 
 function _extract_grid_of_cut_cells(grid,ls_to_point_to_value)
-
-
   p = _check_and_get_polytope(grid)
   table = LookupTable(p)
   cell_to_points = get_cell_node_ids(grid)
