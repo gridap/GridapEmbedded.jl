@@ -27,10 +27,10 @@ algoimWrapper_jll = "3c43aa7b-5398-51f3-8d75-8f051e6faa4d"
 
 [compat]
 AbstractTrees = "0.3.3, 0.4"
-Algoim = "0.2.2"
+Algoim = "0.2.3"
 BenchmarkTools = "1.6.0"
 Combinatorics = "1"
-CxxWrap = "0.16"
+CxxWrap = "0.17"
 FillArrays = "0.10, 0.11, 0.12, 0.13, 1"
 FiniteDiff = "2.27.0"
 ForwardDiff = "0.10.38, 1"
