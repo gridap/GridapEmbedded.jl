@@ -35,6 +35,8 @@ using GridapDistributed: DistributedVisualizationData
 using GridapDistributed: add_ghost_cells
 import GridapDistributed: local_views
 
+using GridapP4est
+
 using GridapEmbedded.Interfaces
 using GridapEmbedded.Interfaces: Simplex
 
@@ -527,6 +529,81 @@ function compute_closest_point_projections(model::DistributedCartesianDiscreteMo
   cpps
 end
 
+function compute_closest_point_projections(model::OctreeDistributedDiscreteModel,
+                                           φ::AlgoimCallLevelSetFunction,
+                                           max_refinement_level::Int;
+                                           cppdegree::Int=2,
+                                           trim::Bool=false,
+                                           limitstol::Float64=1.0e-8)
+  
+  # Uniform partition at the maximum refinement level
+  coarse_desc = get_cartesian_descriptor(model.coarse_model)
+  xmin = coarse_desc.origin
+  coarse_partition = Int32[coarse_desc.partition...]
+  fine_partition = coarse_partition .* Int32(2^max_refinement_level) 
+  xmax = xmin + Point(coarse_desc.sizes .* coarse_partition)
+
+  # The level set values at the maximum refinement level
+  fsizes = coarse_desc.sizes ./ Int32(2^max_refinement_level)
+  fcells = fine_partition.+1
+  fgrid = vec(map(i->xmin+Point((Tuple(i).-1).*fsizes),
+              CartesianIndices((fcells...,))))
+  fvals = φ.(fgrid)
+
+  cpps = map(local_views(model)) do m
+    
+    # Coordinates of each local partition
+    coords = get_node_coordinates(m)
+    coords = map(i->get_array(i),coords)
+    coords = reduce(vcat,coords)
+
+    fill_cpp_data(fvals,fine_partition,xmin,xmax,coords,
+                  cppdegree,trim,limitstol)
+  end
+
+  node_gids = get_face_gids(model,0)
+  PVector(cpps,partition(node_gids)) |> consistent! |> wait
+  cpps
+end
+
+function compute_closest_point_projections(model::OctreeDistributedDiscreteModel,
+                                           V::DistributedFESpace,
+                                           φ::AlgoimCallLevelSetFunction,
+                                           order::Int,
+                                           max_refinement_level::Int;
+                                           cppdegree::Int=2,
+                                           trim::Bool=false,
+                                           limitstol::Float64=1.0e-8)
+  
+  # Uniform partition at the maximum refinement level
+  coarse_desc = get_cartesian_descriptor(model.coarse_model)
+  xmin = coarse_desc.origin
+  coarse_partition = Int32[coarse_desc.partition...]
+  fine_partition = 
+   coarse_partition .* ( Int32(2^max_refinement_level)*Int32(order) )
+  xmax = xmin + Point(coarse_desc.sizes .* coarse_partition)
+
+  # The level set values at the maximum refinement level
+  fsizes = 
+    coarse_desc.sizes ./ ( Int32(2^max_refinement_level) * Int32(order) )
+  fcells = fine_partition.+1
+  fgrid = vec(map(i->xmin+Point((Tuple(i).-1).*fsizes),
+              CartesianIndices((fcells...,))))
+  fvals = φ.(fgrid)
+
+  # Coordinates of free DoFs on each local partition
+  coords_fun(x) = x
+  coords = interpolate_everywhere(coords_fun,V)
+  coords_vals = get_free_dof_values(coords)
+
+  cpps = map(local_views(model),local_views(coords_vals)) do m,coords
+    fill_cpp_data(fvals,fine_partition,xmin,xmax,coords,
+                  cppdegree,trim,limitstol)
+  end
+
+  FEFunction(V,PVector(cpps,partition(V.gids)))
+end
+
 function compute_closest_point_projections(fespace::FESpace,
     φ::Union{AlgoimCallLevelSetFunction,DistributedAlgoimCallLevelSetFunction},
     order::Int;cppdegree::Int=2,trim::Bool=false,limitstol::Float64=1.0e-8)
@@ -974,6 +1051,33 @@ function compute_distance_fe_function(
   end
   dists = PVector(_dists,partition(fespace.gids))
   FEFunction(fespace,dists)
+end
+
+function compute_distance_fe_function(
+    bgmodel::OctreeDistributedDiscreteModel,
+    fespace_scalar_type::DistributedFESpace,
+    fespace_vector_type::DistributedFESpace,
+    φ::AlgoimCallLevelSetFunction,
+    order::Int,
+    max_refinement_level::Int;
+    cppdegree::Int=2)
+  
+  cps = compute_closest_point_projections(
+    bgmodel,fespace_vector_type,φ,order,
+    max_refinement_level,cppdegree=cppdegree)
+  cps_vals = get_free_dof_values(cps)
+  
+  coords = interpolate_everywhere(identity,fespace_vector_type)
+  coords_vals = get_free_dof_values(coords)
+
+  _dists = map(local_views(fespace_scalar_type),
+               local_views(cps_vals),
+               local_views(coords_vals)) do fs,cp,cos
+    _compute_signed_distance(φ,cp,cos,num_free_dofs(fs),
+      num_dims(bgmodel.coarse_model))
+  end
+  dists = PVector(_dists,partition(fespace_scalar_type.gids))
+  FEFunction(fespace_scalar_type,dists)
 end
 
 function compute_distance_fe_function(
