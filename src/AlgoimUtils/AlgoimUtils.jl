@@ -592,8 +592,7 @@ function compute_closest_point_projections(model::OctreeDistributedDiscreteModel
   fvals = φ.(fgrid)
 
   # Coordinates of free DoFs on each local partition
-  coords_fun(x) = x
-  coords = interpolate_everywhere(coords_fun,V)
+  coords = interpolate_everywhere(identity,V)
   coords_vals = get_free_dof_values(coords)
 
   cpps = map(local_views(model),local_views(coords_vals)) do m,coords

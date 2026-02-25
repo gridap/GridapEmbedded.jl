@@ -1,4 +1,3 @@
-
 using Gridap
 using GridapEmbedded
 using GridapDistributed
@@ -41,7 +40,7 @@ with_mpi() do distribute
   fmodel_refine_coarsen_flags = 
     map(ranks,partition(get_cell_gids(dmodel.dmodel))) do rank,indices
       flags = zeros(Int,length(indices))
-      # flags[1:4] .=  coarsen_flag
+      flags[1:4] .=  coarsen_flag
       flags
   end
   fmodel,_ = Gridap.Adaptivity.adapt(dmodel,fmodel_refine_coarsen_flags);
@@ -53,9 +52,16 @@ with_mpi() do distribute
   reffe_s = ReferenceFE(lagrangian,Float64,order)
   reffe_v = ReferenceFE(lagrangian,VectorValue{2,Float64},order)
 
-  Qₕ = TestFESpace(Ω,reffe_s,conformity=:H1)
-  Vₕ = TestFESpace(Ω,reffe_v,conformity=:H1)
+  Qₕ = TestFESpace(Ω,reffe_s,conformity=:H1) # Scalar FE space for distance function
+  Vₕ = TestFESpace(Ω,reffe_v,conformity=:H1) # Vector FE space for closest point projections
 
+  # RMK: Algoim CPP algorithms work on uniform grids
+  # In order to use them on non-uniform grids, we work
+  # on an upper bound grid, corresponding to the uniform 
+  # mesh obtained at maximum refinement level. On this 
+  # maximal grid, the working arrays for the CPP are
+  # computed using the coordinates of the grid points 
+  # and its level set values.
   max_refinement_level = num_levels_initial_refinement
   cpps = compute_closest_point_projections(
     fmodel,Vₕ,φ_fun,order,max_refinement_level,cppdegree=3)
@@ -63,9 +69,9 @@ with_mpi() do distribute
     fmodel,Qₕ,Vₕ,φ_fun,order,max_refinement_level,cppdegree=3)
 
   writevtk(Ω,"Ω",
-    cellfields=["cpp"=>cpps,"dist"=>dists],nsubcells=1)
+    cellfields=["cpp"=>cpps,"dist"=>dists],nsubcells=3)
 
-  # # Interpolable on OctreeDistributedDiscreteModel 
+  # # Attention: Interpolable on OctreeDistributedDiscreteModel 
   # # is apparently not implemented yet
   # _φ = interpolate_everywhere(val,Qₕ)
   # φ_field = AlgoimCallLevelSetFunction(_φ,∇(_φ))
@@ -73,8 +79,8 @@ with_mpi() do distribute
   # writevtk(Ω,"Ω",cellfields=["cpp"=>cpps,"phi"=>φ_field.values∘cpps])
 
   # ISSUES
-  # - For order > 2 and nsubcells > 1, wrong cpps and dists, in spite
-  #   of the fact that free_dof_values coincide with the sequential case
+  # - For order > 2 and nsubcells > 1, wrong interpolated cpps and dists,
+  #   in spite of the fact that free_dof_values coincide with the sequential case
   # - Can we interpolate anywhere in OctreeDistributedDiscreteModels?
 
   true
