@@ -180,43 +180,25 @@ module DistributedAggregationP4estMeshes
     # Compute data needed to compute the constraints
     dofs_f = get_fe_dof_basis(f)
     shfns_f = get_fe_basis(f)
-    acell_to_coeffs = dofs_f(root_shfns_g)
+    acell_to_coeffs = dofs_f(root_shfns_g) # [!] In the non-conforming space
     acell_to_proj = dofs_g(shfns_f)
-    acell_to_dof_ids = get_cell_dof_ids(f)
-    # Need DoF numbering from original non-conforming space
-    acell_to_nc_dof_ids = get_cell_dof_ids(f.space)
-    # Need constraint map from root ldofs to lmdofs to resolve
-    # the hanging dof constraints of ill-posed free dofs
-    acellin_constraints = lazy_map(Reindex(get_cell_constraints(f)),acell_to_acellin)
-    acell_constraints_nc = get_cell_constraints(f.space)
-
-    # [!] acell_to_coeffs is non-conforming!
-    dofs_f_nc = get_fe_dof_basis(f.space)
-    shfns_g_nc = get_fe_basis(f.space)
-    acell_phys_shapefuns_g_nc = get_array(change_domain(shfns_g_nc,PhysicalDomain()))
-    acell_phys_root_shapefuns_g_nc = lazy_map(Reindex(acell_phys_shapefuns_g_nc),acell_to_acellin)
-    root_shfns_g_nc = GenericCellField(acell_phys_root_shapefuns_g_nc,trian_a,PhysicalDomain())
-    acell_to_coeffs_nc = dofs_f_nc(root_shfns_g_nc)
+    acell_to_dof_ids = get_cell_dof_ids(f.space)
 
     aggdof_to_dof, aggdof_to_dofs, aggdof_to_coeffs = _setup_hagfem_constraints(
-      num_free_dofs(f.space),
-      num_free_dofs(f.space)-length(sDOF_to_dof),
-      length(sDOF_to_dof),
+      num_free_dofs(f.space), # Number of free dofs in the non-conforming space
+      length(sDOF_to_dof),    # Number of hanging dofs
       acell_to_acellin,
       acell_to_dof_ids,
-      acell_to_nc_dof_ids,
       acell_to_coeffs,
-      acell_to_coeffs_nc,
       acell_to_proj,
       acell_to_gcell,
-      f.mDOF_to_DOF,
-      f.DOF_to_mDOFs,
-      f.DOF_to_coeffs,
       sDOF_to_dof,
       sDOF_to_dofs,
       sDOF_to_coeffs,
-      acellin_constraints,
-      acell_constraints_nc) # Extract constraint data
+      f.mDOF_to_DOF,   # Needed for LinearConstraintMap
+      f.DOF_to_mDOFs,  # Needed for LinearConstraintMap
+      f.DOF_to_coeffs, # Needed for LinearConstraintMap
+      get_cell_constraints(f.space)) # Extract constraint data
 
     # Throwing away initial FESpaceWithLinearConstraints 
     # where only the hanging dofs were constrained
@@ -227,30 +209,26 @@ module DistributedAggregationP4estMeshes
   using Gridap.Arrays: length_to_ptrs!
   using GridapEmbedded.AgFEM: _allocate_fdof_to_data
   using GridapEmbedded.AgFEM: _allocate_aggdof_to_data
+  using GridapEmbedded.AgFEM: _fill_aggdof_to_dofs_data!
   import GridapEmbedded.AgFEM: _fill_aggdof_to_dofs_ptrs!
-  import GridapEmbedded.AgFEM: _fill_aggdof_to_dofs_data!
   import GridapEmbedded.AgFEM: _fill_aggdof_to_coeffs_data!
   using Gridap.FESpaces: LinearConstraintsMap
 
   function _setup_hagfem_constraints(
-    n_fdofs,  # Number of free dofs in the non-conforming space
-    n_fmdofs, # Number of free dofs in the conforming space
-    n_hdofs,  # Number of hanging dofs
+    n_fdofs, # Number of free dofs in the non-conforming space
+    n_hdofs, # Number of hanging dofs
     acell_to_acellin,
-    acell_to_dof_ids,
     acell_to_nc_dof_ids,
-    acell_to_coeffs,
-    acell_to_coeffs_nc,
+    acell_to_nc_coeffs,
     acell_to_proj,
     acell_to_gcell,
+    hdof_to_dof,
+    hdof_to_dofs,
+    hdof_to_coeffs,
     mDOF_to_DOF,
     DOF_to_mDOFs,
     DOF_to_coeffs,
-    sDOF_to_dof,
-    sDOF_to_dofs,
-    sDOF_to_coeffs,
-    acellin_constraints,
-    acell_constraints_nc,
+    acell_nc_constraints,
     acell_to_is_owned=fill(true,length(acell_to_acellin)))
 
     # REFERENCE: [R] https://arxiv.org/pdf/2006.05373
@@ -259,133 +237,78 @@ module DistributedAggregationP4estMeshes
     # https://github.com/gridap/Gridap.jl/blob/constraints/src/FESpaces/FESpacesWithLinearConstraints.jl
 
     # # #
-    # 1. Identify ill-posed free dofs (fdof_to_is_agg), 
-    #    their root cells (fdof_to_acell) and 
-    #    the local dof number on the root cell (fdof_to_ldof)
+    # 1. Identify ill-posed free dofs (dof_to_is_agg), 
+    #    their root cells (dof_to_acell) and 
+    #    the local dof number on the root cell (dof_to_ldof)
     # # #
 
-    ##### OLD
-
-    # [!] fdofs follow the numbering of the conforming space
-    fdof_to_is_agg, fdof_to_acell, fdof_to_ldof = 
-      _allocate_fdof_to_data(n_fmdofs)
-    # We use the conforming space dof ids to determine
-    # the free dofs that constrain well-posed hanging 
-    # dofs making them well posed (see Figure 3b of [R])
-    _fill_fdof_to_is_agg!(fdof_to_is_agg,
-                          acell_to_acellin,
-                          acell_to_dof_ids) # On conforming space
-    _fill_fdof_to_cell_and_ldof!(fdof_to_acell,
-                                 fdof_to_ldof,
-                                 acell_to_nc_dof_ids, # On non-conforming space
-                                 acell_to_gcell,
-                                 DOF_to_mDOFs)
-
-    ##### END OLD
-
-    ##### NEW
-
-    # [!] fdofs follow the numbering of the non-conforming space
+    # [!] dofs follow the numbering of the non-conforming space
     dof_to_is_agg, dof_to_acell, dof_to_ldof = 
       _allocate_fdof_to_data(n_fdofs)
-    # We use the hanging dof constraints to determine
-    # the free dofs that constrain well-posed hanging 
-    # dofs making them well posed (see Figure 3b of [R])
 
     # Arrays mapping dofs to hdofs already needed here
-    hdof_to_dof = sDOF_to_dof
     dof_to_hdof = zeros(Int32,n_fdofs)
     dof_to_hdof[hdof_to_dof] .= 1:n_hdofs
     # This info can also be inferred when dof_to_hdof[dof] = 0
     dof_to_is_hdof = fill(false,n_fdofs)
     dof_to_is_hdof[hdof_to_dof] .= true
-    dof_to_is_agg[hdof_to_dof] .= false # [!] Index hanging at the end
-    hdof_to_dofs = sDOF_to_dofs
+    dof_to_is_agg[hdof_to_dof] .= false # [!] Exclude hanging dofs
 
+    # We use the hanging dof constraints to determine
+    # the free dofs that constrain well-posed hanging 
+    # dofs making them well posed (see Figure 3b of [R])    
     _fill_dof_to_is_agg!(dof_to_is_agg,
                          acell_to_acellin,
                          acell_to_nc_dof_ids,
                          dof_to_is_hdof,
                          dof_to_hdof,
-                         hdof_to_dofs) # On non-conforming space
+                         hdof_to_dofs)
     _fill_dof_to_cell_and_ldof!(dof_to_acell,
                                 dof_to_ldof,
-                                acell_to_nc_dof_ids, # On non-conforming space
+                                acell_to_nc_dof_ids,
                                 acell_to_gcell)
     
-    ##### END NEW
+    # # #
+    # 2. Generate sDOF_to_dof and dof_to_agg_fdof maps
+    # # #
 
-    # DEBUG
-    dof_to_is_fdof = findall(.!dof_to_is_hdof)
+    agg_fdof_to_dof = findall(dof_to_is_agg) # Only for constrained free dofs
+    dof_to_agg_fdof = zeros(Int32,n_fdofs)   # [!] Non-conforming space
+    n_agg_fdofs     = length(agg_fdof_to_dof)
+    dof_to_agg_fdof[agg_fdof_to_dof] .= 1:n_agg_fdofs
+    sDOF_to_dof = vcat(agg_fdof_to_dof,hdof_to_dof)
 
-    ##### OLD
-
-    agg_fdof_to_fdof = findall(fdof_to_is_agg)
-    fdof_to_agg_fdof = zeros(Int32,n_fmdofs) # [!] Conforming space
-    n_agg_fdofs = length(agg_fdof_to_fdof)
-    fdof_to_agg_fdof[agg_fdof_to_fdof] .= 1:n_agg_fdofs
-
-    # For refactor, need it before.
-    #
-    # hdof_to_dof = findall(length.(DOF_to_mDOFs).>1)
-    # dof_to_hdof = zeros(Int32,n_fdofs)
-    # dof_to_hdof[hdof_to_dof] .= 1:n_hdofs
-
-    # [!] dofs follow the numbering of the non-conforming space
-    agg_fdof_to_dof = collect(lazy_map(Reindex(mDOF_to_DOF),agg_fdof_to_fdof))
-    aggdof_to_dof = vcat(agg_fdof_to_dof,hdof_to_dof)
-    
-    ##### END OLD
-
-    ##### NEW
-
-    _agg_fdof_to_dof = findall(dof_to_is_agg)
-    dof_to_agg_fdof = zeros(Int32,n_fdofs) # [!] Non-conforming space
-    _n_agg_fdofs = length(_agg_fdof_to_dof)
-    dof_to_agg_fdof[_agg_fdof_to_dof] .= 1:_n_agg_fdofs
-    _aggdof_to_dof = vcat(agg_fdof_to_dof,hdof_to_dof)
-
-    ##### END NEW
-    
-    ##### OLD
+    # # #
+    # 3.a. Compute sDOF_to_dofs_ptrs for ill-posed free dofs
+    # # #
 
     n_cdofs = n_agg_fdofs + n_hdofs # Total = ill-posed free + hanging dofs
-    aggdof_to_dofs_ptrs = zeros(Int32,n_cdofs+1)
+    sDOF_to_dofs_ptrs = zeros(Int32,n_cdofs+1)
 
-    _fill_aggdof_to_dofs_ptrs!(aggdof_to_dofs_ptrs,
-                               agg_fdof_to_fdof, # On conforming space
-                               fdof_to_acell,    # On conforming space
+    # This array corresponds to the cell dof ids of the conforming 
+    # space _with the dof numbering of the non-conforming space_.
+    #
+    # RMK: Due to different dof numbering, it is NOT equivalent 
+    #      to the cell dof ids of the conforming space.
+    acell_to_mdofs = _fill_cell_to_mdofs(acell_to_nc_dof_ids,
+                                         dof_to_is_hdof,
+                                         dof_to_hdof,
+                                         hdof_to_dofs)
+
+    _fill_aggdof_to_dofs_ptrs!(sDOF_to_dofs_ptrs,
+                               agg_fdof_to_dof,
+                               dof_to_acell,
                                acell_to_acellin,
-                               acell_to_dof_ids, # On conforming space
+                               acell_to_mdofs,
                                acell_to_is_owned)
 
-    ##### END OLD
-
-    ##### NEW
-
-    _n_cdofs = _n_agg_fdofs + n_hdofs # Total = ill-posed free + hanging dofs
-    _aggdof_to_dofs_ptrs = zeros(Int32,_n_cdofs+1)
-
-    acell_to_mdofs = _fill_cell_to_mdofs(
-                      acell_to_nc_dof_ids,
-                      dof_to_is_hdof,
-                      dof_to_hdof,
-                      hdof_to_dofs)
-
-    _fill_aggdof_to_dofs_ptrs!(_aggdof_to_dofs_ptrs,
-                               _agg_fdof_to_dof, # On conforming space
-                               dof_to_acell,     # On conforming space
-                               acell_to_acellin,
-                               acell_to_mdofs,   # On conforming space
-                               acell_to_is_owned)
-
-    ##### END NEW  
-
-    ##### BEGIN REFACTOR
+    # # #
+    # 3.b. Compute sDOF_to_dofs_ptrs for ill-posed hanging dofs
+    # # #
 
     # A hanging dof might be mapped to >1 root cells
     hdof_to_is_agg = fill(true,n_hdofs)
-    # TO-DO:
+    # TODO:
     # We could further filter those that are 
     # only constrained by well-posed free dofs.
     # We do not do it right now, for simplicity.
@@ -395,89 +318,47 @@ module DistributedAggregationP4estMeshes
                           acell_to_acellin,
                           acell_to_nc_dof_ids)
 
-    ##### END REFACTOR
-
-    ##### OLD
-
-    # In distributed, how can I determine the unique number  
-    # of constraining dofs per ill-posed hanging dof?
-    _fill_hdof_to_dofs_ptrs!(aggdof_to_dofs_ptrs,
-                             n_fmdofs,
+    # TODO: Determine the number of constraining dofs
+    # per ill-posed hanging dof without repetitions.
+    _fill_hdof_to_dofs_ptrs!(sDOF_to_dofs_ptrs,
                              n_agg_fdofs,
-                             fdof_to_is_agg,
-                             hdof_to_is_agg,
-                             hdof_to_dof,
-                             fdof_to_agg_fdof,
-                             DOF_to_mDOFs)
-
-    ##### END OLD
-
-    ##### NEW
-
-    # In distributed, how can I determine the unique number  
-    # of constraining dofs per ill-posed hanging dof?
-    _fill_hdof_to_dofs_ptrs!(_aggdof_to_dofs_ptrs,
-                             _n_agg_fdofs,
                              dof_to_is_agg,
                              dof_to_agg_fdof,
                              hdof_to_is_agg,
                              hdof_to_dofs)
 
-    ##### END NEW
+    # # #
+    # RMK: In distributed, fill here non-owned entries of sDOF_to_dofs_ptrs
+    # # #
 
-    ##### OLD
+    # # #
+    # 4.a. Compute aggdof_to_dofs/coeffs_data for ill-posed free dofs
+    # # #
 
-    aggdof_to_dofs_data, aggdof_to_coeffs_data = 
-      _allocate_aggdof_to_data(aggdof_to_dofs_ptrs,
-                               acell_to_coeffs)
+    sDOF_to_dofs_data, sDOF_to_coeffs_data = 
+      _allocate_aggdof_to_data(sDOF_to_dofs_ptrs,acell_to_nc_coeffs)
 
-    _fill_aggdof_to_dofs_data!(aggdof_to_dofs_data,
-                               aggdof_to_dofs_ptrs,
-                               agg_fdof_to_fdof,
-                               fdof_to_acell,
-                               acell_to_acellin,
-                               acell_to_dof_ids, # On conforming space
-                               acell_to_is_owned,
-                               mDOF_to_DOF)
-
-    ##### END OLD
-
-    ##### NEW
-
-    _aggdof_to_dofs_data, _aggdof_to_coeffs_data = 
-      _allocate_aggdof_to_data(_aggdof_to_dofs_ptrs,
-                               acell_to_coeffs_nc)
-
-    _fill_aggdof_to_dofs_data!(_aggdof_to_dofs_data,
-                               _aggdof_to_dofs_ptrs,
-                               _agg_fdof_to_dof,
+    _fill_aggdof_to_dofs_data!(sDOF_to_dofs_data,
+                               sDOF_to_dofs_ptrs,
+                               agg_fdof_to_dof,
                                dof_to_acell,
                                acell_to_acellin,
                                acell_to_mdofs, # On conforming space
                                acell_to_is_owned)
 
-    ##### END NEW
-
-    ##### OLD
-
-    _fill_aggdof_to_coeffs_data!(aggdof_to_coeffs_data,
-                                 aggdof_to_dofs_ptrs,
-                                 agg_fdof_to_fdof,
-                                 fdof_to_acell,
-                                 fdof_to_ldof,
-                                 acellin_constraints,
-                                 acell_to_coeffs,
-                                 acell_to_proj,
-                                 acell_to_is_owned)
-
-    ##### END OLD
-
-    ##### NEW
+    # TODO: I need the LinearConstraintMap to resolve the constraints of 
+    #       hanging dofs on root cells. However, the design of the 
+    #       LinearConstraintMap is being refactored.
+    #
+    #       Moreover the local numbering of master dofs (lmdof) on root 
+    #       cells is not reproducible with the Set object. So, I cannot
+    #       reuse the cell constraints of the non-conforming space, I 
+    #       have to recompute them with the local numbering of (lmdof)
+    #       induced by the OrderedSet in _fill_cell_to_mdofs.
 
     DOF_to_DOFs_data = lazy_map(
       Broadcasting(Reindex(mDOF_to_DOF)),DOF_to_mDOFs.data)
-    DOF_to_DOFs = Table(DOF_to_DOFs_data,
-                        DOF_to_mDOFs.ptrs)
+    DOF_to_DOFs = Table(DOF_to_DOFs_data,DOF_to_mDOFs.ptrs)
 
     k = LinearConstraintsMap(
       DOF_to_DOFs,
@@ -486,97 +367,52 @@ module DistributedAggregationP4estMeshes
       n_fdofs,
       n_fdofs)
 
-    _acell_constraints = lazy_map(k,
+    acell_constraints = lazy_map(k,
              acell_to_mdofs,
              acell_to_nc_dof_ids,
-             acell_constraints_nc)
-    _acellin_constraints = lazy_map(
-      Reindex(_acell_constraints),acell_to_acellin)
+             acell_nc_constraints)
+    acellin_constraints = lazy_map(Reindex(acell_constraints),acell_to_acellin)
 
-    _fill_aggdof_to_coeffs_data!(_aggdof_to_coeffs_data,
-                                 _aggdof_to_dofs_ptrs,
+    _fill_aggdof_to_coeffs_data!(sDOF_to_coeffs_data,
+                                 sDOF_to_dofs_ptrs,
                                  agg_fdof_to_dof,
                                  dof_to_acell,
                                  dof_to_ldof,
-                                 _acellin_constraints,
-                                 acell_to_coeffs,
+                                 acellin_constraints,
+                                 acell_to_nc_coeffs,
                                  acell_to_proj,
                                  acell_to_is_owned)
 
-    ##### END NEW
+    # # #
+    # RMK: In distributed, communicate here non-owned entries of 
+    #      sDOF_to_dofs_data/coeffs corresponding to ill-posed free dofs
+    # # #
 
-    ##### OLD
+    # # #
+    # 4.b. Compute aggdof_to_dofs/coeffs_data for ill-posed hanging dofs
+    # # #
 
-    _fill_hdof_to_dofs_data!(aggdof_to_dofs_data,
-                             aggdof_to_dofs_ptrs,
-                             n_fdofs,
-                             n_fmdofs,
+    _fill_hdof_to_dofs_data!(sDOF_to_dofs_data,
+                             sDOF_to_dofs_ptrs,
                              n_agg_fdofs,
-                             fdof_to_is_agg,
-                             hdof_to_is_agg,
-                             hdof_to_dof,
-                             fdof_to_agg_fdof,
-                             DOF_to_mDOFs,
-                             mDOF_to_DOF)
-
-    _fill_hdof_to_coeffs_data!(aggdof_to_coeffs_data,
-                               aggdof_to_dofs_ptrs,
-                               n_fmdofs,
-                               n_agg_fdofs,
-                               fdof_to_is_agg,
-                               hdof_to_is_agg,
-                               hdof_to_dof,
-                               fdof_to_agg_fdof,
-                               DOF_to_mDOFs,
-                               DOF_to_coeffs)
-
-    ##### END OLD
-
-    ##### NEW
-
-    _fill_hdof_to_dofs_data!(_aggdof_to_dofs_data,
-                             _aggdof_to_dofs_ptrs,
-                             _n_agg_fdofs,
                              dof_to_is_agg,
                              hdof_to_is_agg,
                              hdof_to_dofs,
                              dof_to_agg_fdof)
 
-    _fill_hdof_to_coeffs_data!(_aggdof_to_coeffs_data,
-                               _aggdof_to_dofs_ptrs,
-                               _n_agg_fdofs,
+    _fill_hdof_to_coeffs_data!(sDOF_to_coeffs_data,
+                               sDOF_to_dofs_ptrs,
+                               n_agg_fdofs,
                                dof_to_is_agg,
                                hdof_to_is_agg,
                                hdof_to_dofs,
                                dof_to_agg_fdof,
-                               sDOF_to_coeffs)
+                               hdof_to_coeffs)
 
-    ##### END NEW
+    sDOF_to_dofs   = Table(sDOF_to_dofs_data,sDOF_to_dofs_ptrs)
+    sDOF_to_coeffs = Table(sDOF_to_coeffs_data,sDOF_to_dofs_ptrs)
 
-    aggdof_to_dofs   = Table(_aggdof_to_dofs_data,  
-                             _aggdof_to_dofs_ptrs)
-    aggdof_to_coeffs = Table(_aggdof_to_coeffs_data,
-                             _aggdof_to_dofs_ptrs)
-
-    aggdof_to_dof, aggdof_to_dofs, aggdof_to_coeffs
-  end
-
-  function _fill_fdof_to_is_agg!(
-    fdof_to_is_agg,
-    acell_to_acellin,
-    acell_to_dof_ids)
-
-    cache = array_cache(acell_to_dof_ids)
-    for (acell,acellin) in enumerate(acell_to_acellin)
-      iscut = acell != acellin
-      if !iscut
-        dofs = getindex!(cache,acell_to_dof_ids,acell)
-        for dof in dofs
-          (dof > 0) && (fdof_to_is_agg[dof] = false)
-        end
-      end
-    end
-    nothing
+    sDOF_to_dof, sDOF_to_dofs, sDOF_to_coeffs
   end
 
   function _fill_dof_to_is_agg!(
@@ -609,30 +445,6 @@ module DistributedAggregationP4estMeshes
     nothing
   end
 
-  function _fill_fdof_to_cell_and_ldof!(
-    fdof_to_acell,
-    fdof_to_ldof,
-    acell_to_nc_dof_ids,
-    acell_to_gcell,
-    DOF_to_mDOFs)
-
-    cache = array_cache(acell_to_nc_dof_ids)
-    for (acell,gcell) in enumerate(acell_to_gcell)
-      dofs = getindex!(cache,acell_to_nc_dof_ids,acell)
-      for (ldof,dof) in enumerate(dofs)
-        if (dof > 0) && (length(DOF_to_mDOFs[dof]) == 1) # It's a free dof
-          fdof = DOF_to_mDOFs[dof][1]
-          acell_dof = fdof_to_acell[fdof]
-          if acell_dof == 0 || (gcell > acell_to_gcell[acell_dof])
-            fdof_to_acell[fdof] = acell
-            fdof_to_ldof[fdof] = ldof
-          end
-        end
-      end
-    end
-    nothing
-  end
-
   function _fill_dof_to_cell_and_ldof!(
     dof_to_acell,
     dof_to_ldof,
@@ -654,39 +466,6 @@ module DistributedAggregationP4estMeshes
     end
     nothing
   end
-
-  # function _fill_aggdof_to_dofs_ptrs!(
-  #   aggdof_to_dofs_ptrs,
-  #   aggdof_to_fdof,
-  #   dof_to_acell,
-  #   dof_to_is_hdof,
-  #   dof_to_hdof,
-  #   hdof_to_dofs,
-  #   acell_to_acellin,
-  #   acell_to_dof_ids,
-  #   acell_to_is_owned)
-
-  #   acc = OrderedSet{Int32}()
-  #   c1 = array_cache(acell_to_dof_ids)
-  #   c2 = array_cache(hdof_to_dofs)
-  #   for (aggdof,fdof) in enumerate(aggdof_to_fdof)
-  #     acell = dof_to_acell[fdof]
-  #     ! acell_to_is_owned[acell] && continue
-  #     acellin = acell_to_acellin[acell]
-  #     dofs = getindex!(c1,acell_to_dof_ids,acellin)
-  #     for dof in dofs
-  #       if (dof > 0) && dof_to_is_hdof[dof]
-  #         hdofs = getindex!(c2,hdof_to_dofs,dof_to_hdof[dof])
-  #         push!(acc,hdofs...)
-  #       else
-  #         push!(acc,dof)
-  #       end
-  #     end
-  #     aggdof_to_dofs_ptrs[aggdof+1] += length(acc)
-  #     empty!(acc)
-  #   end
-  #   nothing
-  # end
 
   function _fill_cell_to_mdofs(acell_to_dof_ids,
                                dof_to_is_hdof,
@@ -765,43 +544,7 @@ module DistributedAggregationP4estMeshes
   end
 
   function _fill_hdof_to_dofs_ptrs!(
-    aggdof_to_dofs_ptrs,
-    n_fmdofs,
-    n_agg_fdofs,
-    fdof_to_is_agg,
-    hdof_to_is_agg,
-    hdof_to_dof,
-    fdof_to_agg_fdof,
-    DOF_to_mDOFs)
-
-    for (hdof,hdof_is_agg) in enumerate(hdof_to_is_agg)
-      if hdof_is_agg # ill-posed
-        DOF = hdof_to_dof[hdof]
-        for mDOF in DOF_to_mDOFs[DOF]
-          if mDOF <= n_fmdofs # free master dof
-            fdof = mDOF
-            fdof_is_agg = fdof_to_is_agg[fdof]
-            if fdof_is_agg # ill-posed
-              f_aggdof = fdof_to_agg_fdof[fdof]
-              ndofs_f_aggdof = aggdof_to_dofs_ptrs[f_aggdof+1]
-              aggdof_to_dofs_ptrs[n_agg_fdofs+hdof+1] += ndofs_f_aggdof
-            else # well-posed
-              aggdof_to_dofs_ptrs[n_agg_fdofs+hdof+1] += 1
-            end 
-          else # Dirichlet master dof
-            aggdof_to_dofs_ptrs[n_agg_fdofs+hdof+1] += 1
-          end
-        end
-      else # well-posed
-        aggdof_to_dofs_ptrs[n_agg_fdofs+hdof+1] = 
-          length(DOF_to_mDOFs[hdof_to_dof[hdof]])
-      end
-    end
-    nothing
-  end
-
-  function _fill_hdof_to_dofs_ptrs!(
-    aggdof_to_dofs_ptrs,
+    sDOF_to_dofs_ptrs,
     n_agg_fdofs,
     dof_to_is_agg,
     dof_to_agg_fdof,
@@ -815,109 +558,26 @@ module DistributedAggregationP4estMeshes
             mdof_is_agg = dof_to_is_agg[mdof]
             if mdof_is_agg # ill-posed
               aggdof = dof_to_agg_fdof[mdof]
-              ndofs_f_aggdof = aggdof_to_dofs_ptrs[aggdof+1]
-              aggdof_to_dofs_ptrs[n_agg_fdofs+hdof+1] += ndofs_f_aggdof
+              ndofs_f_aggdof = sDOF_to_dofs_ptrs[aggdof+1]
+              sDOF_to_dofs_ptrs[n_agg_fdofs+hdof+1] += ndofs_f_aggdof
             else # well-posed
-              aggdof_to_dofs_ptrs[n_agg_fdofs+hdof+1] += 1
+              sDOF_to_dofs_ptrs[n_agg_fdofs+hdof+1] += 1
             end 
           else # Dirichlet master dof
-            aggdof_to_dofs_ptrs[n_agg_fdofs+hdof+1] += 1
+            sDOF_to_dofs_ptrs[n_agg_fdofs+hdof+1] += 1
           end
         end
       else # well-posed
-        aggdof_to_dofs_ptrs[n_agg_fdofs+hdof+1] = 
+        sDOF_to_dofs_ptrs[n_agg_fdofs+hdof+1] = 
           length(hdof_to_dofs[hdof])
       end
     end
     nothing
   end
 
-  function _fill_aggdof_to_dofs_data!(
-    aggdof_to_dofs_data,
-    aggdof_to_dofs_ptrs,
-    agg_fdof_to_fdof,
-    fdof_to_acell,
-    acell_to_acellin,
-    acell_to_dof_ids,
-    acell_to_is_owned,
-    mDOF_to_DOF)
-
-    cache = array_cache(acell_to_dof_ids)
-    for (aggdof,fdof) in enumerate(agg_fdof_to_fdof)
-      acell = fdof_to_acell[fdof]
-      ! acell_to_is_owned[acell] && continue
-      acellin = acell_to_acellin[acell]
-      dofs = getindex!(cache,acell_to_dof_ids,acellin)
-      p = aggdof_to_dofs_ptrs[aggdof]-1
-      for (i,dof) in enumerate(dofs)
-        dof = dof > 0 ? mDOF_to_DOF[dof] : dof
-        aggdof_to_dofs_data[p+i] = dof
-      end
-    end
-    nothing
-  end
-
-  function _fill_aggdof_to_dofs_data!(
-    aggdof_to_dofs_data,
-    aggdof_to_dofs_ptrs,
-    agg_fdof_to_fdof,
-    fdof_to_acell,
-    acell_to_acellin,
-    acell_to_dof_ids,
-    acell_to_is_owned)
-
-    cache = array_cache(acell_to_dof_ids)
-    for (aggdof,fdof) in enumerate(agg_fdof_to_fdof)
-      acell = fdof_to_acell[fdof]
-      ! acell_to_is_owned[acell] && continue
-      acellin = acell_to_acellin[acell]
-      dofs = getindex!(cache,acell_to_dof_ids,acellin)
-      p_ini = aggdof_to_dofs_ptrs[aggdof]
-      p_end = aggdof_to_dofs_ptrs[aggdof+1]-1
-      aggdof_to_dofs_data[p_ini:p_end] .= dofs
-    end
-    nothing
-  end
-
-  # function _fill_aggdof_to_dofs_data!(
-  #   aggdof_to_dofs_data,
-  #   aggdof_to_dofs_ptrs,
-  #   agg_fdof_to_dof,
-  #   dof_to_acell,
-  #   dof_to_is_hdof,
-  #   dof_to_hdof,
-  #   hdof_to_dofs,
-  #   acell_to_acellin,
-  #   acell_to_dof_ids,
-  #   acell_to_is_owned)
-
-  #   acc = OrderedSet{Int32}()
-  #   c1 = array_cache(acell_to_dof_ids)
-  #   c2 = array_cache(hdof_to_dofs)
-  #   for (aggdof,dof) in enumerate(agg_fdof_to_dof)
-  #     acell = dof_to_acell[dof]
-  #     ! acell_to_is_owned[acell] && continue
-  #     acellin = acell_to_acellin[acell]
-  #     dofs = getindex!(c1,acell_to_dof_ids,acellin)
-  #     for dof in dofs
-  #       if (dof > 0) && dof_to_is_hdof[dof]
-  #         hdofs = getindex!(c2,hdof_to_dofs,dof_to_hdof[dof])
-  #         push!(acc,hdofs...)
-  #       else
-  #         push!(acc,dof)
-  #       end
-  #     end
-  #     p_ini = aggdof_to_dofs_ptrs[aggdof]
-  #     p_end = aggdof_to_dofs_ptrs[aggdof+1]-1
-  #     aggdof_to_dofs_data[p_ini:p_end] .= collect(acc)
-  #     empty!(acc)
-  #   end
-  #   nothing
-  # end
-
   function _fill_aggdof_to_coeffs_data!(
-    aggdof_to_coeffs_data,
-    aggdof_to_dofs_ptrs,
+    sDOF_to_coeffs_data,
+    sDOF_to_dofs_ptrs,
     agg_fdof_to_fdof,
     fdof_to_acell,
     fdof_to_ldof,
@@ -940,7 +600,7 @@ module DistributedAggregationP4estMeshes
       proj = getindex!(cache3,acell_to_proj,acell)
       constr = getindex!(cache4,acellin_constraints,acell) # lmdof x ldof
       ldof = fdof_to_ldof[fdof]
-      p = aggdof_to_dofs_ptrs[aggdof]-1
+      p = sDOF_to_dofs_ptrs[aggdof]-1
       for lmdof in 1:size(constr,1) # lmdof on acellin
         coeff = z
         for b in 1:size(proj,2)
@@ -948,61 +608,15 @@ module DistributedAggregationP4estMeshes
             coeff += coeffs[ldof,c]*proj[c,b]*constr[lmdof,b]
           end
         end
-        aggdof_to_coeffs_data[p+lmdof] = coeff
+        sDOF_to_coeffs_data[p+lmdof] = coeff
       end
     end
     nothing
   end
 
   function _fill_hdof_to_dofs_data!(
-    aggdof_to_dofs_data,
-    aggdof_to_dofs_ptrs,
-    n_fdofs,
-    n_fmdofs,
-    n_agg_fdofs,
-    fdof_to_is_agg,
-    hdof_to_is_agg,
-    hdof_to_dof,
-    fdof_to_agg_fdof,
-    DOF_to_mDOFs,
-    mDOF_to_DOF)
-
-    for (hdof,hdof_is_agg) in enumerate(hdof_to_is_agg)
-      if hdof_is_agg # ill-posed
-        dofs = eltype(aggdof_to_dofs_data)[]
-        DOF = hdof_to_dof[hdof]
-        for mDOF in DOF_to_mDOFs[DOF]
-          if mDOF <= n_fmdofs # free master dof
-            fdof = mDOF
-            fdof_is_agg = fdof_to_is_agg[fdof]
-            if fdof_is_agg # ill-posed
-              f_aggdof = fdof_to_agg_fdof[fdof]
-              _ini = aggdof_to_dofs_ptrs[f_aggdof]
-              _end = aggdof_to_dofs_ptrs[f_aggdof+1]-1
-              _dofs = aggdof_to_dofs_data[_ini:_end]
-              dofs = vcat(dofs,_dofs)
-            else # well-posed
-              dofs = vcat(dofs,[mDOF_to_DOF[fdof]])
-            end 
-          else # Dirichlet master dof
-            ddof = -(mDOF_to_DOF[mDOF]-n_fdofs)
-            dofs = vcat(dofs,[ddof])
-          end
-        end
-      else # well-posed
-        dofs = mDOF_to_DOF[DOF_to_mDOFs[hdof_to_dof[hdof]]]
-      end
-      p = aggdof_to_dofs_ptrs[n_agg_fdofs+hdof]-1
-      for (i,dof) in enumerate(dofs)
-        aggdof_to_dofs_data[p+i] = dof
-      end
-    end
-    nothing
-  end
-
-  function _fill_hdof_to_dofs_data!(
-    aggdof_to_dofs_data,
-    aggdof_to_dofs_ptrs,
+    sDOF_to_dofs_data,
+    sDOF_to_dofs_ptrs,
     n_agg_fdofs,
     dof_to_is_agg,
     hdof_to_is_agg,
@@ -1011,15 +625,15 @@ module DistributedAggregationP4estMeshes
 
     for (hdof,hdof_is_agg) in enumerate(hdof_to_is_agg)
       if hdof_is_agg # ill-posed
-        dofs = eltype(aggdof_to_dofs_data)[]
+        dofs = eltype(sDOF_to_dofs_data)[]
         for dof in hdof_to_dofs[hdof]
           if dof > 0 # free master dof
             dof_is_agg = dof_to_is_agg[dof]
             if dof_is_agg # ill-posed
               aggdof = dof_to_agg_fdof[dof]
-              _ini = aggdof_to_dofs_ptrs[aggdof]
-              _end = aggdof_to_dofs_ptrs[aggdof+1]-1
-              _dofs = aggdof_to_dofs_data[_ini:_end]
+              _ini = sDOF_to_dofs_ptrs[aggdof]
+              _end = sDOF_to_dofs_ptrs[aggdof+1]-1
+              _dofs = sDOF_to_dofs_data[_ini:_end]
               dofs = vcat(dofs,_dofs)
             else # well-posed
               dofs = vcat(dofs,[dof])
@@ -1031,63 +645,17 @@ module DistributedAggregationP4estMeshes
       else # well-posed
         dofs = hdof_to_dofs[hdof]
       end
-      p = aggdof_to_dofs_ptrs[n_agg_fdofs+hdof]-1
+      p = sDOF_to_dofs_ptrs[n_agg_fdofs+hdof]-1
       for (i,dof) in enumerate(dofs)
-        aggdof_to_dofs_data[p+i] = dof
+        sDOF_to_dofs_data[p+i] = dof
       end
     end
     nothing
   end
 
   function _fill_hdof_to_coeffs_data!(
-    aggdof_to_coeffs_data,
-    aggdof_to_dofs_ptrs,
-    n_fmdofs,
-    n_agg_fdofs,
-    fdof_to_is_agg,
-    hdof_to_is_agg,
-    hdof_to_dof,
-    fdof_to_agg_fdof,
-    DOF_to_mDOFs,
-    DOF_to_coeffs)
-
-    for (hdof,hdof_is_agg) in enumerate(hdof_to_is_agg)
-      if hdof_is_agg # ill-posed
-        coeffs = eltype(aggdof_to_coeffs_data)[]
-        DOF = hdof_to_dof[hdof]
-        for (i,mDOF) in enumerate(DOF_to_mDOFs[DOF])
-          if mDOF <= n_fmdofs # free master dof
-            fdof = mDOF
-            fdof_is_agg = fdof_to_is_agg[fdof]
-            if fdof_is_agg # ill-posed
-              f_aggdof = fdof_to_agg_fdof[fdof]
-              _ini = aggdof_to_dofs_ptrs[f_aggdof]
-              _end = aggdof_to_dofs_ptrs[f_aggdof+1]-1
-              _coeffs = DOF_to_coeffs[DOF][i] .* 
-                aggdof_to_coeffs_data[_ini:_end]
-              coeffs = vcat(coeffs,_coeffs)
-            else # well-posed
-              coeffs = vcat(coeffs,[DOF_to_coeffs[DOF][i]])
-            end
-          else # Dirichlet master dof
-            coeffs = vcat(coeffs,[DOF_to_coeffs[DOF][i]])
-          end
-        end
-      else # well-posed
-        DOF = hdof_to_dof[hdof]
-        coeffs = DOF_to_coeffs[DOF]
-      end
-      p = aggdof_to_dofs_ptrs[n_agg_fdofs+hdof]-1
-      for (i,coeff) in enumerate(coeffs)
-        aggdof_to_coeffs_data[p+i] = coeff
-      end
-    end
-    nothing
-  end
-
-  function _fill_hdof_to_coeffs_data!(
-    aggdof_to_coeffs_data,
-    aggdof_to_dofs_ptrs,
+    sDOF_to_coeffs_data,
+    sDOF_to_dofs_ptrs,
     n_agg_fdofs,
     dof_to_is_agg,
     hdof_to_is_agg,
@@ -1097,16 +665,16 @@ module DistributedAggregationP4estMeshes
 
     for (hdof,hdof_is_agg) in enumerate(hdof_to_is_agg)
       if hdof_is_agg # ill-posed
-        coeffs = eltype(aggdof_to_coeffs_data)[]
+        coeffs = eltype(sDOF_to_coeffs_data)[]
         for (i,dof) in enumerate(hdof_to_dofs[hdof])
           if dof > 0 # free master dof
             dof_is_agg = dof_to_is_agg[dof]
             if dof_is_agg # ill-posed
               aggdof = dof_to_agg_fdof[dof]
-              _ini = aggdof_to_dofs_ptrs[aggdof]
-              _end = aggdof_to_dofs_ptrs[aggdof+1]-1
+              _ini = sDOF_to_dofs_ptrs[aggdof]
+              _end = sDOF_to_dofs_ptrs[aggdof+1]-1
               _coeffs = hdof_to_coeffs[hdof][i] .* 
-                aggdof_to_coeffs_data[_ini:_end]
+                sDOF_to_coeffs_data[_ini:_end]
               coeffs = vcat(coeffs,_coeffs)
             else # well-posed
               coeffs = vcat(coeffs,[hdof_to_coeffs[hdof][i]])
@@ -1118,9 +686,9 @@ module DistributedAggregationP4estMeshes
       else # well-posed
         coeffs = hdof_to_coeffs[hdof]
       end
-      p = aggdof_to_dofs_ptrs[n_agg_fdofs+hdof]-1
+      p = sDOF_to_dofs_ptrs[n_agg_fdofs+hdof]-1
       for (i,coeff) in enumerate(coeffs)
-        aggdof_to_coeffs_data[p+i] = coeff
+        sDOF_to_coeffs_data[p+i] = coeff
       end
     end
     nothing

@@ -196,10 +196,9 @@ function _fill_aggdof_to_dofs_data!(
     ! acell_to_is_owned[acell] && continue
     acellin = acell_to_acellin[acell]
     dofs = getindex!(cache,acell_to_dof_ids,acellin)
-    p = aggdof_to_dofs_ptrs[aggdof]-1
-    for (i,dof) in enumerate(dofs)
-      aggdof_to_dofs_data[p+i] = dof
-    end
+    p_ini = aggdof_to_dofs_ptrs[aggdof]
+    p_end = aggdof_to_dofs_ptrs[aggdof+1]-1
+    aggdof_to_dofs_data[p_ini:p_end] .= dofs
   end
   nothing
 end
