@@ -58,7 +58,11 @@ n_Γg = get_normal_vector(Γg)
 order = 1
 degree = 2*order
 dΩ = Measure(Ω,degree)
-dΓ = Measure(Γ,degree)
+# dΓ = Measure(Γ,degree)             # does NOT pass test with Gridap >= 0.19.7
+using Gridap.ReferenceFEs
+quad = Quadrature(duffy,degree)
+dΓ = Measure(Γ,quad)                 # passes test with duffy and subintegration
+# dΓ = Measure(Γ,degree*num_dims(Ω)) # passes test with default quad and exact integration
 dΓg = Measure(Γg,degree)
 
 # Setup FESpace
