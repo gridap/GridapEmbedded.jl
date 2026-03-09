@@ -6,7 +6,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.9.9] - 2026-2-27
 
-Allowed `CxxWrap.jl` (and thus `Algoim.jl`) update
+### Changed
+
+- Updated to Algoim v0.2.4, which runs on Julia 1.10-13. Since PR [#119](https://github.com/gridap/GridapEmbedded.jl/pull/119).
 
 ## [0.9.8] - 2025-7-10
 
