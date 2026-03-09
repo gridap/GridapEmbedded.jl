@@ -1,6 +1,7 @@
 module PoissonCutFEMTests
 
 using Gridap
+using Gridap.ReferenceFEs
 using GridapEmbedded
 using Test
 
@@ -58,8 +59,26 @@ n_Γg = get_normal_vector(Γg)
 order = 1
 degree = 2*order
 dΩ = Measure(Ω,degree)
-dΓ = Measure(Γ,degree)
 dΓg = Measure(Γg,degree)
+
+# RMK: Strictly, the measure on the EmbeddedBoundary 
+# should exactly integrate the mass term of tensor-product
+# shape functions restricted to the planes of the Embedded
+# boundary. This is achieved by setting the integration 
+# degree to 2*order*dim.
+# dΓ = Measure(Γ,degree*num_dims(Ω))
+
+# In many cases, however, we can subintegrate while keeping 
+# convergence and accuracy. For this problem, here are some
+# working examples:
+# quad = Quadrature(witherden_vincent,degree+1)
+# dΓ = Measure(Γ,quad) # 6 integration points when order = 1
+# quad = Quadrature(strang,degree+1)
+# dΓ = Measure(Γ,quad) # 4 integration points when order = 1
+quad = Quadrature(duffy,degree)
+dΓ = Measure(Γ,quad) # 4 integration points when order = 1
+# See also https://github.com/gridap/Gridap.jl/issues/1242
+# for more details.
 
 # Setup FESpace
 V = TestFESpace(Ωact,ReferenceFE(lagrangian,Float64,order),conformity=:H1)
