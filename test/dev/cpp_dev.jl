@@ -36,7 +36,7 @@ with_mpi() do distribute
   # dists = compute_distance_fe_function(model,V,φ_fun,order,cppdegree=3)
   # writevtk(Ω,"Ω",cellfields=["dist"=>dists],nsubcells=1)
 
-  # Coarsen first for cells
+  # Coarsen first four cells
   fmodel_refine_coarsen_flags = 
     map(ranks,partition(get_cell_gids(dmodel.dmodel))) do rank,indices
       flags = zeros(Int,length(indices))
