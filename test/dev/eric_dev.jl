@@ -19,7 +19,7 @@ module DistributedAggregationP4estMeshes
   function run(distribute)
 
     ranks = distribute(LinearIndices((MPI.Comm_size(MPI.COMM_WORLD),)))
-    coarse_model = CartesianDiscreteModel((-1,-0.5,-1,-0.5),(1,1))
+    coarse_model = CartesianDiscreteModel((-1,1,-1,1),(1,1))
     num_uniform_refinements = 1
     num_ghost_layers = 1
 
@@ -32,7 +32,7 @@ module DistributedAggregationP4estMeshes
                          d1=VectorValue(1.8,0.0),
                          d2=VectorValue(0.0,1.8))
     geo2 = ! disk(0.4)
-    geo = geo1 # intersect(geo1,geo2)
+    geo = intersect(geo1,geo2)
 
     cutgeo = cut(dmodel, geo)
     cell_to_inoutcut = compute_bgcell_to_inoutcut(cutgeo,geo)
@@ -48,7 +48,7 @@ module DistributedAggregationP4estMeshes
     end
     fmodel,_ = Gridap.Adaptivity.adapt(dmodel,fmodel_refine_coarsen_flags);
 
-    for i in 1:1 # 5
+    for i in 1:5
       cutgeo = cut(fmodel, geo)
       cell_to_inoutcut = compute_bgcell_to_inoutcut(cutgeo,geo)
       fmodel_refine_coarsen_flags = 
@@ -64,24 +64,22 @@ module DistributedAggregationP4estMeshes
     end
     fmodel, _ = GridapDistributed.redistribute(fmodel)
 
-    cutgeo = cut(fmodel, geo)
+    cutgeo = cut(fmodel,geo)
     Γ = EmbeddedBoundary(cutgeo)
     Ωᵃ = Triangulation(cutgeo,ACTIVE_IN)
     Ωᵖ = Triangulation(cutgeo,PHYSICAL_IN)
 
     writevtk(Γ,"data/quad_bnd");
-    # The next line fails unless I comment out the assertion 
-    # in the constructor of AppendedTriangulations.jl:
-    # @assert get_background_model(a) === get_background_model(b)
     writevtk(Ωᵃ,"data/quad_act");
-    # writevtk(Ωᵖ,"data/quad_phys");
 
     cell_gids = get_cell_gids(fmodel)
     cell_indices = partition(cell_gids)
 
+    # Need the non-conforming grid topology
+    # to find coarser neighbours around cells
     ncgt = NonConformingGridTopology(fmodel)
     strategy = AggregateCutCellsByThreshold(1.0)
-    lcell_to_lroot, lcell_to_root, lcell_to_value =
+    _, lcell_to_root, _ =
       map(local_views(cutgeo),cell_indices,ncgt) do cutgeo,cell_indices,ncgt
         lid_to_gid = local_to_global(cell_indices)
         aggregate(strategy,cutgeo,geo,lid_to_gid,IN,grid_topology=ncgt)
@@ -101,23 +99,20 @@ module DistributedAggregationP4estMeshes
     u(x) = x[1]^2 + x[2]^2
     reffe = ReferenceFE(lagrangian,Float64,order)
     
-    # 0. FE space without resolved hanging dof constraints (i.e. with ill-posed free dofs)
-    _, sDOF_to_dof, sDOF_to_dofs, sDOF_to_coeffs, _, _, _, _ =
+    # 0. FE space without resolved hanging dof constraints 
+    #    (i.e. with ill-posed free dofs)
+    spaces_wo_constraints, sDOF_to_dof, sDOF_to_dofs, sDOF_to_coeffs, _, _, _, _ =
         generate_local_fe_spaces_and_constraints(
           Ωᵃ,reffe;conformity=:H1,dirichlet_tags="boundary")
-    # 1. FE space with resolved hanging dof constraints
-    Vₕ = FESpace(Ωᵃ,reffe,conformity=:H1;dirichlet_tags="boundary")
-    Uₕ = TrialFESpace(Vₕ,u)
-    # A simple sanity check
-    uₕ = interpolate_everywhere(u,Uₕ)
-    writevtk(Ωᵖ,"data/quad_interpolated",cellfields=["uh"=>uₕ]);
-
-    map(local_views(Vₕ),
+    
+    # 1. FE space with resolved hanging and aggregated dof constraints
+    map(spaces_wo_constraints,
         lcell_to_root,
         sDOF_to_dof,
         sDOF_to_dofs,
         sDOF_to_coeffs) do Vₕ,aggregates,sDOF_to_dof,sDOF_to_dofs,sDOF_to_coeffs
-      hagfemspace = hAgFEMSpace(Vₕ,aggregates,sDOF_to_dof,sDOF_to_dofs,sDOF_to_coeffs)
+      hagfemspace = hAgFEMSpace(
+        Vₕ,aggregates,sDOF_to_dof,sDOF_to_dofs,sDOF_to_coeffs)
       uₕ = interpolate_everywhere(u,hagfemspace)
       writevtk(Ωᵖ,"data/quad_check",cellfields=["uh"=>uₕ,"eh"=>u-uₕ]);
     end
@@ -144,7 +139,14 @@ module DistributedAggregationP4estMeshes
     args...)
 
     @assert get_triangulation(f) === get_triangulation(g)
-    hAgFEMSpace(f,bgcell_to_bgcellin,get_fe_basis(g),get_fe_dof_basis(g),sDOF_to_dof,sDOF_to_dofs,sDOF_to_coeffs,args...)
+    hAgFEMSpace(f,
+                bgcell_to_bgcellin,
+                get_fe_basis(g),
+                get_fe_dof_basis(g),
+                sDOF_to_dof,
+                sDOF_to_dofs,
+                sDOF_to_coeffs,
+                args...)
   end
 
   # Note: cell is in fact bgcell in this function since f will usually be an ExtendedFESpace
@@ -180,29 +182,24 @@ module DistributedAggregationP4estMeshes
     # Compute data needed to compute the constraints
     dofs_f = get_fe_dof_basis(f)
     shfns_f = get_fe_basis(f)
-    acell_to_coeffs = dofs_f(root_shfns_g) # [!] In the non-conforming space
+    acell_to_coeffs = dofs_f(root_shfns_g)
     acell_to_proj = dofs_g(shfns_f)
-    acell_to_dof_ids = get_cell_dof_ids(f.space)
+    acell_to_dof_ids = get_cell_dof_ids(f) # On non-conforming space
 
     aggdof_to_dof, aggdof_to_dofs, aggdof_to_coeffs = _setup_hagfem_constraints(
-      num_free_dofs(f.space), # Number of free dofs in the non-conforming space
-      length(sDOF_to_dof),    # Number of hanging dofs
+      num_free_dofs(f),    # Number of free dofs in the non-conforming space
+      length(sDOF_to_dof), # Number of hanging dofs
       acell_to_acellin,
-      acell_to_dof_ids,
+      acell_to_dof_ids,    # On non-conforming space
       acell_to_coeffs,
       acell_to_proj,
       acell_to_gcell,
       sDOF_to_dof,
       sDOF_to_dofs,
       sDOF_to_coeffs,
-      f.mDOF_to_DOF,   # Needed for LinearConstraintMap
-      f.DOF_to_mDOFs,  # Needed for LinearConstraintMap
-      f.DOF_to_coeffs, # Needed for LinearConstraintMap
-      get_cell_constraints(f.space)) # Extract constraint data
+      f)
 
-    # Throwing away initial FESpaceWithLinearConstraints 
-    # where only the hanging dofs were constrained
-    FESpaceWithLinearConstraints(aggdof_to_dof,aggdof_to_dofs,aggdof_to_coeffs,f.space)
+    FESpaceWithLinearConstraints(aggdof_to_dof,aggdof_to_dofs,aggdof_to_coeffs,f)
   end
 
   using DataStructures: OrderedSet
@@ -218,18 +215,15 @@ module DistributedAggregationP4estMeshes
     n_fdofs, # Number of free dofs in the non-conforming space
     n_hdofs, # Number of hanging dofs
     acell_to_acellin,
-    acell_to_nc_dof_ids,
+    acell_to_dof_ids,
     acell_to_nc_coeffs,
     acell_to_proj,
     acell_to_gcell,
     hdof_to_dof,
     hdof_to_dofs,
     hdof_to_coeffs,
-    mDOF_to_DOF,
-    DOF_to_mDOFs,
-    DOF_to_coeffs,
-    acell_nc_constraints,
-    acell_to_is_owned=fill(true,length(acell_to_acellin)))
+    space,
+    acell_to_is_owned=fill(true,length(acell_to_acellin))) # For distributed
 
     # REFERENCE: [R] https://arxiv.org/pdf/2006.05373
 
@@ -259,13 +253,13 @@ module DistributedAggregationP4estMeshes
     # dofs making them well posed (see Figure 3b of [R])    
     _fill_dof_to_is_agg!(dof_to_is_agg,
                          acell_to_acellin,
-                         acell_to_nc_dof_ids,
+                         acell_to_dof_ids,
                          dof_to_is_hdof,
                          dof_to_hdof,
                          hdof_to_dofs)
     _fill_dof_to_cell_and_ldof!(dof_to_acell,
                                 dof_to_ldof,
-                                acell_to_nc_dof_ids,
+                                acell_to_dof_ids,
                                 acell_to_gcell)
     
     # # #
@@ -290,7 +284,7 @@ module DistributedAggregationP4estMeshes
     #
     # RMK: Due to different dof numbering, it is NOT equivalent 
     #      to the cell dof ids of the conforming space.
-    acell_to_mdofs = _fill_cell_to_mdofs(acell_to_nc_dof_ids,
+    acell_to_mdofs = _fill_cell_to_mdofs(acell_to_dof_ids,
                                          dof_to_is_hdof,
                                          dof_to_hdof,
                                          hdof_to_dofs)
@@ -316,7 +310,7 @@ module DistributedAggregationP4estMeshes
                           dof_to_hdof, # On non-conforming space
                           dof_to_is_hdof,
                           acell_to_acellin,
-                          acell_to_nc_dof_ids)
+                          acell_to_dof_ids)
 
     # TODO: Determine the number of constraining dofs
     # per ill-posed hanging dof without repetitions.
@@ -356,21 +350,10 @@ module DistributedAggregationP4estMeshes
     #       have to recompute them with the local numbering of (lmdof)
     #       induced by the OrderedSet in _fill_cell_to_mdofs.
 
-    DOF_to_DOFs_data = lazy_map(
-      Broadcasting(Reindex(mDOF_to_DOF)),DOF_to_mDOFs.data)
-    DOF_to_DOFs = Table(DOF_to_DOFs_data,DOF_to_mDOFs.ptrs)
-
-    k = LinearConstraintsMap(
-      DOF_to_DOFs,
-      DOF_to_coeffs,
-      length(DOF_to_DOFs),
-      n_fdofs,
-      n_fdofs)
-
-    acell_constraints = lazy_map(k,
-             acell_to_mdofs,
-             acell_to_nc_dof_ids,
-             acell_nc_constraints)
+    acell_constraints = get_cell_constraints(space,
+                                             hdof_to_dof,
+                                             hdof_to_dofs,
+                                             hdof_to_coeffs)
     acellin_constraints = lazy_map(Reindex(acell_constraints),acell_to_acellin)
 
     _fill_aggdof_to_coeffs_data!(sDOF_to_coeffs_data,
@@ -448,12 +431,12 @@ module DistributedAggregationP4estMeshes
   function _fill_dof_to_cell_and_ldof!(
     dof_to_acell,
     dof_to_ldof,
-    acell_to_nc_dof_ids,
+    acell_to_dof_ids,
     acell_to_gcell)
 
-    cache = array_cache(acell_to_nc_dof_ids)
+    cache = array_cache(acell_to_dof_ids)
     for (acell,gcell) in enumerate(acell_to_gcell)
-      dofs = getindex!(cache,acell_to_nc_dof_ids,acell)
+      dofs = getindex!(cache,acell_to_dof_ids,acell)
       for (ldof,dof) in enumerate(dofs)
         if (dof > 0)
           acell_dof = dof_to_acell[dof]
@@ -526,13 +509,13 @@ module DistributedAggregationP4estMeshes
                                  dof_to_hdof, # On non-conforming space
                                  dof_to_is_hdof,
                                  acell_to_acellin,
-                                 acell_to_nc_dof_ids)
+                                 acell_to_dof_ids)
     
-    cache = array_cache(acell_to_nc_dof_ids)
+    cache = array_cache(acell_to_dof_ids)
     for (acell,acellin) in enumerate(acell_to_acellin)
       iscut = acell != acellin
       if !iscut
-        dofs = getindex!(cache,acell_to_nc_dof_ids,acell)
+        dofs = getindex!(cache,acell_to_dof_ids,acell)
         for dof in dofs
           if (dof > 0) && (dof_to_is_hdof[dof]) # It's a hanging dof
             hdof_to_is_agg[dof_to_hdof[dof]] = false
