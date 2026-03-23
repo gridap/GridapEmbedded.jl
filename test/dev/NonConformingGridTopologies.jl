@@ -135,12 +135,12 @@ module NonConformingGridTopologies
     append_tables_locally(r,h)
   end
 
-  # Overload case dimfrom == dimto == Dc to avoid ambiguity
+  # TODO: Overload case dimfrom == dimto == Dc to avoid ambiguity
   function get_faces(ncgt::NonConformingGridTopology{Dc,Dp,T,O}, 
                      ::Val{Dc},::Val{Dc}) where {Dc,Dp,T,O}
     get_faces(ncgt.conforming_grid_topology,Dc,Dc)
   end
 
-  # What other procs do I need? Review CA (e.g., facet_to_inoutcut)
+  # TODO: What other procs do I need? Review CA (e.g., facet_to_inoutcut)
 
 end # module

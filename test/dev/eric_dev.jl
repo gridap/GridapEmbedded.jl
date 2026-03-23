@@ -217,11 +217,11 @@ module DistributedAggregationP4estMeshes
   function _setup_hagfem_constraints(
     n_fdofs, # Number of free dofs in the non-conforming space
     n_hdofs, # Number of hanging dofs
-    acell_to_acellin,
+    acell_to_acellin, # This array only needs be queried in the owned portion
     acell_to_dof_ids,
     acell_to_coeffs,
     acell_to_proj,
-    acell_to_gcell,
+    acell_to_gcell,   # This array must be known in the whole local portion
     hdof_to_dof,
     hdof_to_dofs,
     hdof_to_coeffs,
@@ -254,7 +254,21 @@ module DistributedAggregationP4estMeshes
     # free dofs that constrain well-posed hanging dofs
     # turning them into well posed (see Figure 3b of [R])
     #
-    # TODO: Do not mark DoFs that are not on owned cells
+    # TODO: To avoid marking as ill-posed free dofs that are not 
+    #       on owned cells, I use dof_to_is_owned. It might be
+    #       cleaner to reindex the arrays in the owned portion,
+    #       but I am not sure if this is a good idea, because the
+    #       acell_to_gcell has to be known in the whole local portion.
+    dof_to_is_owned = fill(false,n_fdofs)
+    _fill_dof_to_is_owned!(dof_to_is_owned,
+                           acell_to_is_owned,
+                           acell_to_dof_ids)
+    non_owned_dofs = findall(!,dof_to_is_owned)
+    dof_to_is_fagg[non_owned_dofs] .= false # [!] Exclude non-owned dofs
+    
+    #       Another ides is to use the own_to_local on the dof gids,
+    #       but I do not have this information yet at this stage, because
+    #       my input are the local FE spaces, not the global one.
     _fill_dof_to_is_fagg!(dof_to_is_fagg,
                           acell_to_acellin,
                           acell_to_dof_ids,
@@ -311,15 +325,14 @@ module DistributedAggregationP4estMeshes
 
     # A hanging dof might be mapped to >1 root cells
     hdof_to_is_agg = fill(true,n_hdofs)
-    # TODO: Do not mark DoFs that are not on owned cells
     _fill_hdof_to_is_agg!(hdof_to_is_agg,
                           dof_to_is_fagg,
                           dof_to_is_hdof,
+                          dof_to_is_owned,
                           dof_to_hdof,
                           hdof_to_dofs,
                           acell_to_acellin,
                           acell_to_dof_ids)
-    @show hdof_to_is_agg
 
     # TODO: Determine the number of constraining dofs
     # per ill-posed hanging dof without repetitions.
@@ -353,17 +366,18 @@ module DistributedAggregationP4estMeshes
     #       to resolve the constraints of hanging dofs on root cells.
     #       
     #       This means, in practice, that I need to generate the
-    #       conforming space.
+    #       whole conforming space.
 
-    @time acell_constraints = get_cell_constraints(space,
+    acell_constraints = get_cell_constraints(space,
                                              hdof_to_dof,
                                              hdof_to_dofs,
                                              hdof_to_coeffs)
-    acellin_constraints = lazy_map(Reindex(acell_constraints),acell_to_acellin)
+    acellin_constraints = lazy_map(Reindex(acell_constraints),
+                                   acell_to_acellin)
 
-    # TODO: One hundred times slower than other stages, 
-    #       understand why and optimize.
-    @time _fill_aggdof_to_coeffs_data!(sDOF_to_coeffs_data,
+    # [!]: One hundred times slower than other stages, 
+    #      due to evaluating root shape funs on cut cell.
+    _fill_aggdof_to_coeffs_data!(sDOF_to_coeffs_data,
                                  sDOF_to_dofs_ptrs,
                                  fagg_dof_to_dof,
                                  dof_to_acell,
@@ -404,6 +418,22 @@ module DistributedAggregationP4estMeshes
     sDOF_to_coeffs = Table(sDOF_to_coeffs_data,sDOF_to_dofs_ptrs)
 
     sDOF_to_dof, sDOF_to_dofs, sDOF_to_coeffs
+  end
+
+  function _fill_dof_to_is_owned!(
+    dof_to_is_owned,
+    acell_to_is_owned,
+    acell_to_dof_ids)
+
+    cache = array_cache(acell_to_dof_ids)
+    for (acell,is_owned) in enumerate(acell_to_is_owned)
+      if is_owned
+        dofs = getindex!(cache,acell_to_dof_ids,acell)
+        for dof in dofs
+          (dof > 0) && (dof_to_is_owned[dof] = true)
+        end
+      end
+    end
   end
 
   function _fill_dof_to_is_fagg!(
@@ -516,6 +546,7 @@ module DistributedAggregationP4estMeshes
   function _fill_hdof_to_is_agg!(hdof_to_is_agg,
                                  dof_to_is_fagg,
                                  dof_to_is_hdof,
+                                 dof_to_is_owned,
                                  dof_to_hdof, # On non-conforming space
                                  hdof_to_dofs,
                                  acell_to_acellin,
@@ -528,6 +559,7 @@ module DistributedAggregationP4estMeshes
       for dof in dofs
         if (dof > 0) && (dof_to_is_hdof[dof]) # It's a hanging dof
           hdof = dof_to_hdof[dof]
+          !dof_to_is_owned[dof] && (hdof_to_is_agg[hdof]=false) && continue
           if !iscut
             hdof_to_is_agg[hdof] = false
           else
@@ -576,8 +608,8 @@ module DistributedAggregationP4estMeshes
     sDOF_to_coeffs_data,
     sDOF_to_dofs_ptrs,
     fagg_dof_to_dof,
-    fdof_to_acell,
-    fdof_to_ldof,
+    dof_to_acell,
+    dof_to_ldof,
     acellin_constraints,
     acell_to_coeffs,
     acell_to_proj,
@@ -590,13 +622,13 @@ module DistributedAggregationP4estMeshes
     T = eltype(eltype(acell_to_coeffs))
     z = zero(T)
 
-    for (aggdof,fdof) in enumerate(fagg_dof_to_dof)
-      acell = fdof_to_acell[fdof]
+    for (aggdof,dof) in enumerate(fagg_dof_to_dof)
+      acell = dof_to_acell[dof]
       ! acell_to_is_owned[acell] && continue
-      coeffs = getindex!(cache2,acell_to_coeffs,acell)
+      coeffs = getindex!(cache2,acell_to_coeffs,acell) # hotspot: eval coeffs on root
       proj = getindex!(cache3,acell_to_proj,acell)
       constr = getindex!(cache4,acellin_constraints,acell) # lmdof x ldof
-      ldof = fdof_to_ldof[fdof]
+      ldof = dof_to_ldof[dof]
       p = sDOF_to_dofs_ptrs[aggdof]-1
       for lmdof in 1:size(constr,1) # lmdof on acellin
         coeff = z
