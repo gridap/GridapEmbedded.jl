@@ -100,10 +100,10 @@ module DistributedAggregationP4estMeshes
     reffe = ReferenceFE(lagrangian,Float64,order)
     
     # 0. FE space without resolved hanging dof constraints 
-    #    (i.e. with ill-posed free dofs)
+    #    (i.e. non-conforming FE space with ill-posed free dofs)
     #
     # QUESTION TODO: Are sDOF_to_dof, sDOF_to_dofs, sDOF_to_coeffs consistent?
-    #                Are hanging DoFs known on the ghost boundary?
+    #                 \-> Are hanging DoFs known on the ghost boundary?
     spaces_wo_constraints, sDOF_to_dof, sDOF_to_dofs, sDOF_to_coeffs, _, _, _, _ =
         generate_local_fe_spaces_and_constraints(
           Ωᵃ,reffe;conformity=:H1,dirichlet_tags="boundary")
@@ -235,8 +235,8 @@ module DistributedAggregationP4estMeshes
 
     # # #
     # 1. Identify ill-posed free dofs (dof_to_is_fagg), 
-    #    their root cells (dof_to_acell) and 
-    #    the local dof number on the root cell (dof_to_ldof)
+    #    assign their cut cell aroungwith higher GiD (dof_to_acell)
+    #    and the local dof number on the assigned cell (dof_to_ldof)
     # # #
 
     # [!] dofs follow the numbering of the non-conforming space
@@ -250,9 +250,9 @@ module DistributedAggregationP4estMeshes
     dof_to_is_hdof[hdof_to_dof] .= true
     dof_to_is_fagg[hdof_to_dof] .= false # [!] Exclude hanging dofs
 
-    # We use the hanging dof constraints to determine
-    # the free dofs that constrain well-posed hanging 
-    # dofs making them well posed (see Figure 3b of [R])
+    # We use the hanging dof constraints to identify the
+    # free dofs that constrain well-posed hanging dofs
+    # turning them into well posed (see Figure 3b of [R])
     #
     # TODO: Do not mark DoFs that are not on owned cells
     _fill_dof_to_is_fagg!(dof_to_is_fagg,
@@ -274,6 +274,9 @@ module DistributedAggregationP4estMeshes
     dof_to_fagg_dof = zeros(Int32,n_fdofs)    # [!] Non-conforming space
     n_fagg_dofs     = length(fagg_dof_to_dof)
     dof_to_fagg_dof[fagg_dof_to_dof] .= 1:n_fagg_dofs
+    # [!] This list of DoFs should only have
+    # those whose shape functions have local 
+    # support in the owned portion.
     sDOF_to_dof = vcat(fagg_dof_to_dof,hdof_to_dof)
 
     # # #
@@ -287,7 +290,7 @@ module DistributedAggregationP4estMeshes
     # space _with the dof numbering of the non-conforming space_.
     #
     # RMK: Due to different dof numbering, it is NOT equivalent to the cell
-    #  dof ids of the conforming space (obtained by only resolving hanging)
+    #  dof ids of the conforming space (i.e. the one that resolves hanging)
     #
     # This array is, at least, correct in the owned portion.
     acell_to_mdofs = _fill_cell_to_mdofs(acell_to_dof_ids,
@@ -308,17 +311,15 @@ module DistributedAggregationP4estMeshes
 
     # A hanging dof might be mapped to >1 root cells
     hdof_to_is_agg = fill(true,n_hdofs)
-    # TODO:
-    # We could further filter those that are 
-    # only constrained by well-posed free dofs.
-    # We do not do it right now, for simplicity.
-    #
     # TODO: Do not mark DoFs that are not on owned cells
     _fill_hdof_to_is_agg!(hdof_to_is_agg,
-                          dof_to_hdof,
+                          dof_to_is_fagg,
                           dof_to_is_hdof,
+                          dof_to_hdof,
+                          hdof_to_dofs,
                           acell_to_acellin,
                           acell_to_dof_ids)
+    @show hdof_to_is_agg
 
     # TODO: Determine the number of constraining dofs
     # per ill-posed hanging dof without repetitions.
@@ -513,19 +514,25 @@ module DistributedAggregationP4estMeshes
   end
 
   function _fill_hdof_to_is_agg!(hdof_to_is_agg,
-                                 dof_to_hdof, # On non-conforming space
+                                 dof_to_is_fagg,
                                  dof_to_is_hdof,
+                                 dof_to_hdof, # On non-conforming space
+                                 hdof_to_dofs,
                                  acell_to_acellin,
                                  acell_to_dof_ids)
     
     cache = array_cache(acell_to_dof_ids)
     for (acell,acellin) in enumerate(acell_to_acellin)
       iscut = acell != acellin
-      if !iscut
-        dofs = getindex!(cache,acell_to_dof_ids,acell)
-        for dof in dofs
-          if (dof > 0) && (dof_to_is_hdof[dof]) # It's a hanging dof
-            hdof_to_is_agg[dof_to_hdof[dof]] = false
+      dofs = getindex!(cache,acell_to_dof_ids,acell)
+      for dof in dofs
+        if (dof > 0) && (dof_to_is_hdof[dof]) # It's a hanging dof
+          hdof = dof_to_hdof[dof]
+          if !iscut
+            hdof_to_is_agg[hdof] = false
+          else
+            mdofs = hdof_to_dofs[hdof]
+            all(dof_to_is_fagg[mdofs].==false) && (hdof_to_is_agg[hdof]=false)
           end
         end
       end
