@@ -444,16 +444,18 @@ module DistributedAggregationP4estMeshes
     fdof_to_hdof,
     hdof_to_dofs)
 
-    cache = array_cache(acell_to_dof_ids)
+    cache1 = array_cache(acell_to_dof_ids)
+    cache2 = array_cache(hdof_to_dofs)
     for (acell,acellin) in enumerate(acell_to_acellin)
       iscut = acell != acellin
       if !iscut
-        dofs = getindex!(cache,acell_to_dof_ids,acell)
+        dofs = getindex!(cache1,acell_to_dof_ids,acell)
         for dof in dofs
           dof < 0 && continue
           if dof_to_is_hdof[dof]
             # Mark as well-posed all constraining free dofs
-            for mdof in hdof_to_dofs[fdof_to_hdof[dof]]
+            mdofs = getindex!(cache2,hdof_to_dofs,fdof_to_hdof[dof])
+            for mdof in mdofs
               (mdof > 0) && (dof_to_is_fagg[mdof] = false)
             end
           else
@@ -552,10 +554,11 @@ module DistributedAggregationP4estMeshes
                                  acell_to_acellin,
                                  acell_to_dof_ids)
     
-    cache = array_cache(acell_to_dof_ids)
+    cache1 = array_cache(acell_to_dof_ids)
+    cache2 = array_cache(hdof_to_dofs)
     for (acell,acellin) in enumerate(acell_to_acellin)
       iscut = acell != acellin
-      dofs = getindex!(cache,acell_to_dof_ids,acell)
+      dofs = getindex!(cache1,acell_to_dof_ids,acell)
       for dof in dofs
         if (dof > 0) && (dof_to_is_hdof[dof]) # It's a hanging dof
           hdof = dof_to_hdof[dof]
@@ -563,8 +566,15 @@ module DistributedAggregationP4estMeshes
           if !iscut
             hdof_to_is_agg[hdof] = false
           else
-            mdofs = hdof_to_dofs[hdof]
-            all(dof_to_is_fagg[mdofs].==false) && (hdof_to_is_agg[hdof]=false)
+            mdofs = getindex!(cache2,hdof_to_dofs,hdof)
+            all_mdofs_well_posed = true
+            for mdof in mdofs
+              if (mdof > 0) && (dof_to_is_fagg[mdof]) 
+                all_mdofs_well_posed = false 
+                break
+              end
+            end
+            all_mdofs_well_posed && (hdof_to_is_agg[hdof]=false)
           end
         end
       end
@@ -580,9 +590,11 @@ module DistributedAggregationP4estMeshes
     hdof_to_is_agg,
     hdof_to_dofs)
 
+    cache = array_cache(hdof_to_dofs)
     for (hdof,hdof_is_agg) in enumerate(hdof_to_is_agg)
+      mdofs = getindex!(cache,hdof_to_dofs,hdof)
       if hdof_is_agg # ill-posed
-        for mdof in hdof_to_dofs[hdof]
+        for mdof in mdofs
           if mdof > 0 # It's a free dof
             mdof_is_agg = dof_to_is_fagg[mdof]
             if mdof_is_agg # ill-posed
@@ -597,8 +609,7 @@ module DistributedAggregationP4estMeshes
           end
         end
       else # well-posed
-        sDOF_to_dofs_ptrs[n_fagg_dofs+hdof+1] = 
-          length(hdof_to_dofs[hdof])
+        sDOF_to_dofs_ptrs[n_fagg_dofs+hdof+1] = length(mdofs)
       end
     end
     nothing
@@ -652,10 +663,12 @@ module DistributedAggregationP4estMeshes
     hdof_to_dofs,
     dof_to_fagg_dof)
 
+    cache = array_cache(hdof_to_dofs)
     for (hdof,hdof_is_agg) in enumerate(hdof_to_is_agg)
+      mdofs = getindex!(cache,hdof_to_dofs,hdof)
       if hdof_is_agg # ill-posed
         dofs = eltype(sDOF_to_dofs_data)[]
-        for dof in hdof_to_dofs[hdof]
+        for dof in mdofs
           if dof > 0 # free master dof
             dof_is_agg = dof_to_is_fagg[dof]
             if dof_is_agg # ill-posed
@@ -672,7 +685,7 @@ module DistributedAggregationP4estMeshes
           end
         end
       else # well-posed
-        dofs = hdof_to_dofs[hdof]
+        dofs = mdofs
       end
       p = sDOF_to_dofs_ptrs[n_fagg_dofs+hdof]-1
       for (i,dof) in enumerate(dofs)
@@ -692,28 +705,32 @@ module DistributedAggregationP4estMeshes
     dof_to_fagg_dof,
     hdof_to_coeffs)
 
+    cache1 = array_cache(hdof_to_dofs)
+    cache2 = array_cache(hdof_to_coeffs)
     for (hdof,hdof_is_agg) in enumerate(hdof_to_is_agg)
+      mcoeffs = getindex!(cache2,hdof_to_coeffs,hdof)
       if hdof_is_agg # ill-posed
         coeffs = eltype(sDOF_to_coeffs_data)[]
-        for (i,dof) in enumerate(hdof_to_dofs[hdof])
+        mdofs = getindex!(cache1,hdof_to_dofs,hdof)
+        for (i,dof) in enumerate(mdofs)
           if dof > 0 # free master dof
             dof_is_agg = dof_to_is_fagg[dof]
             if dof_is_agg # ill-posed
               aggdof = dof_to_fagg_dof[dof]
               _ini = sDOF_to_dofs_ptrs[aggdof]
               _end = sDOF_to_dofs_ptrs[aggdof+1]-1
-              _coeffs = hdof_to_coeffs[hdof][i] .* 
+              _coeffs = mcoeffs[i] .* 
                 sDOF_to_coeffs_data[_ini:_end]
               coeffs = vcat(coeffs,_coeffs)
             else # well-posed
-              coeffs = vcat(coeffs,[hdof_to_coeffs[hdof][i]])
+              coeffs = vcat(coeffs,[mcoeffs[i]])
             end
           else # Dirichlet master dof
-            coeffs = vcat(coeffs,[hdof_to_coeffs[hdof][i]])
+            coeffs = vcat(coeffs,[mcoeffs[i]])
           end
         end
       else # well-posed
-        coeffs = hdof_to_coeffs[hdof]
+        coeffs = mcoeffs
       end
       p = sDOF_to_dofs_ptrs[n_fagg_dofs+hdof]-1
       for (i,coeff) in enumerate(coeffs)
