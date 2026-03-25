@@ -1,7 +1,7 @@
 name = "GridapEmbedded"
 uuid = "8838a6a3-0006-4405-b874-385995508d5d"
 authors = ["Francesc Verdugo <f.verdugo.rojano@vu.nl>", "Eric Neiva <eric.neiva@college-de-france.fr>", "Pere Antoni Martorell <pere.antoni.martorell@upc.edu>", "Santiago Badia <santiago.badia@monash.edu>"]
-version = "0.9.9"
+version = "0.9.10"
 
 [deps]
 AbstractTrees = "1520ce14-60c1-5f80-bbc7-55ef81b5835c"
@@ -30,7 +30,7 @@ FillArrays = "0.10, 0.11, 0.12, 0.13, 1"
 FiniteDiff = "2.27.0"
 ForwardDiff = "0.10.38, 1"
 Graphs = "1.12.0"
-Gridap = "0.18.12, 0.19"
+Gridap = "0.20.3"
 GridapDistributed = "0.3, 0.4"
 MPI = "0.20"
 MiniQhull = "0.1.0, 0.2, 0.3, 0.4"
