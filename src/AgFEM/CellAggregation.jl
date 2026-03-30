@@ -393,7 +393,7 @@ function aggregate(bgmodel::DiscreteModel,
   facet_to_inoutcut = fill(in_or_out,num_faces(bgmodel,D-1)) 
 
   threshold = 1.0
-  lid_to_gid = 1:num_cells(model)
+  lid_to_gid = 1:num_cells(bgmodel)
   cell_to_cellin,_,all_aggregated = _aggregate_by_threshold_barrier(
     threshold,cell_to_unit_cut_meas,facet_to_inoutcut,cell_to_inoutcut,
     in_or_out,cell_to_coords,cell_to_faces,face_to_cells,lid_to_gid)
