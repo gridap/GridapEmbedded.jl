@@ -590,6 +590,54 @@ function compute_closest_point_projections(model::OctreeDistributedDiscreteModel
   fgrid = vec(map(i->xmin+Point((Tuple(i).-1).*fsizes),
               CartesianIndices((fcells...,))))
   fvals = φ.(fgrid)
+  @show length(fvals)
+
+  # Coordinates of free DoFs on each local partition
+  coords = interpolate_everywhere(identity,V)
+  coords_vals = get_free_dof_values(coords)
+
+  cpps = map(local_views(model),local_views(coords_vals)) do m,coords
+    fill_cpp_data(fvals,fine_partition,xmin,xmax,coords,
+                  cppdegree,trim,limitstol)
+  end
+
+  FEFunction(V,PVector(cpps,partition(V.gids)))
+end
+
+function compute_closest_point_projections(model::OctreeDistributedDiscreteModel,
+                                           V::DistributedFESpace,
+                                           φ::DistributedAlgoimCallLevelSetFunction,
+                                           order::Int,
+                                           max_refinement_level::Int;
+                                           cppdegree::Int=2,
+                                           trim::Bool=false,
+                                           limitstol::Float64=1.0e-8)
+  
+  # Uniform partition at the maximum refinement level
+  coarse_desc = get_cartesian_descriptor(model.coarse_model)
+  xmin = coarse_desc.origin
+  coarse_partition = Int32[coarse_desc.partition...]
+  fine_partition = 
+   coarse_partition .* ( Int32(2^max_refinement_level)*Int32(order) )
+  xmax = xmin + Point(coarse_desc.sizes .* coarse_partition)
+
+  # The level set values at the maximum refinement level
+  fsizes = 
+    coarse_desc.sizes ./ ( Int32(2^max_refinement_level) * Int32(order) )
+  fcells = fine_partition.+1
+  fgrid = vec(map(i->xmin+Point((Tuple(i).-1).*fsizes),
+              CartesianIndices((fcells...,))))
+
+  # This is a hack to evaluate the LS function on 2D  
+  # OctreeDistributedDiscreteModels, as the current
+  # implementation of Interpolable is not using the
+  # NonConformingGridapTopology, so the list of cells
+  # around hanging nodes is incomplete.
+  sm = Gridap.CellData.KDTreeSearch(num_nearest_vertices=3)
+  iφ = map(local_views(φ.values)) do lφ
+    Gridap.CellData.Interpolable(lφ,searchmethod=sm)
+  end |> GridapDistributed.DistributedInterpolable
+  fvals = evaluate(iφ,fgrid)
 
   # Coordinates of free DoFs on each local partition
   coords = interpolate_everywhere(identity,V)
