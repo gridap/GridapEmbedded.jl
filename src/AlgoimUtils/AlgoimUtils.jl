@@ -633,7 +633,7 @@ function compute_closest_point_projections(model::OctreeDistributedDiscreteModel
   # implementation of Interpolable is not using the
   # NonConformingGridapTopology, so the list of cells
   # around hanging nodes is incomplete.
-  sm = Gridap.CellData.KDTreeSearch(num_nearest_vertices=3)
+  sm = Gridap.CellData.KDTreeSearch(num_nearest_vertices=5)
   iφ = map(local_views(φ.values)) do lφ
     Gridap.CellData.Interpolable(lφ,searchmethod=sm)
   end |> GridapDistributed.DistributedInterpolable
