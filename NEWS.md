@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+## [0.9.10] - 2026-3-24
+
+### Changed
+
+- Updated to Gridap 0.20. Since PR[#120](https://github.com/gridap/GridapEmbedded.jl/pull/120).
+
+## [0.9.9] - 2026-3-9
+
+### Changed
+
+- Updated to Algoim v0.2.4, which runs on Julia 1.10-13. Since PR [#119](https://github.com/gridap/GridapEmbedded.jl/pull/119).
+
 ## [0.9.8] - 2025-7-10
 
 ### Added
