@@ -16,6 +16,28 @@ module DistributedAggregationP4estMeshes
   include("NonConformingGridTopologies.jl")
   using .NonConformingGridTopologies
 
+  import Gridap.FESpaces: get_cell_constraints
+  function get_cell_constraints(space::Gridap.FESpaces.SingleFieldFESpace,
+                                sDOF_to_dof::AbstractVector{<:Integer},
+                                sDOF_to_dofs::Gridap.Arrays.Table,
+                                sDOF_to_coeffs::Gridap.Arrays.Table,
+  )
+    mDOF_to_dof, sDOF_to_mdofs, n_fmdofs = Gridap.FESpaces._find_master_dofs(
+      sDOF_to_dof, sDOF_to_dofs, space
+    )
+    n_fmdofs = Gridap.FESpaces._count_free_mdofs(mDOF_to_dof,sDOF_to_mdofs)
+    cell_to_mdofs = Gridap.FESpaces._generate_cell_to_mdofs(
+      space, mDOF_to_dof, sDOF_to_dof, sDOF_to_mdofs, n_fmdofs
+    )
+    DOF_to_msDOF = Gridap.FESpaces.generate_DOF_to_msDOF_map(space,mDOF_to_dof,sDOF_to_dof)
+    k = LinearConstraintsMap(
+      DOF_to_msDOF, sDOF_to_mdofs, sDOF_to_coeffs,
+      length(mDOF_to_dof), n_fmdofs, num_free_dofs(space)
+    )
+    cell_to_mat = get_cell_constraints(space)
+    return lazy_map(k,cell_to_mdofs,get_cell_dof_ids(space),cell_to_mat)
+  end
+
   function run(distribute)
 
     ranks = distribute(LinearIndices((MPI.Comm_size(MPI.COMM_WORLD),)))
@@ -235,46 +257,36 @@ module DistributedAggregationP4estMeshes
 
     # # #
     # 1. Identify ill-posed free dofs (dof_to_is_fagg), 
-    #    assign their cut cell aroungwith higher GiD (dof_to_acell)
+    #    assign their cut cell around with higher GiD (dof_to_acell)
     #    and the local dof number on the assigned cell (dof_to_ldof)
     # # #
 
     # [!] dofs follow the numbering of the non-conforming space
     dof_to_is_fagg, dof_to_acell, dof_to_ldof = 
       _allocate_fdof_to_data(n_fdofs)
-    # Arrays mapping dofs to hdofs already needed here
+    
+    # Arrays mapping dofs to hdofs already needed here because
+    # we use the hanging dof constraints to identify the
+    # free dofs that constrain well-posed hanging dofs
+    # turning them into well posed (see Figure 3b of [R])
     dof_to_hdof = zeros(Int32,n_fdofs)
     dof_to_hdof[hdof_to_dof] .= 1:n_hdofs
-    # This info can also be inferred when dof_to_hdof[dof] = 0
+    # Note that this info can also be inferred when dof_to_hdof[dof] = 0
     dof_to_is_hdof = fill(false,n_fdofs)
     dof_to_is_hdof[hdof_to_dof] .= true
     dof_to_is_fagg[hdof_to_dof] .= false # [!] Exclude hanging dofs
 
-    # We use the hanging dof constraints to identify the
-    # free dofs that constrain well-posed hanging dofs
-    # turning them into well posed (see Figure 3b of [R])
-    #
-    # TODO: To avoid marking as ill-posed free dofs that are not 
-    #       on owned cells, I use dof_to_is_owned. It might be
-    #       cleaner to reindex the arrays in the owned portion,
-    #       but I am not sure if this is a good idea, because the
-    #       acell_to_gcell has to be known in the whole local portion.
-    dof_to_is_owned = fill(false,n_fdofs)
-    _fill_dof_to_is_owned!(dof_to_is_owned,
-                           acell_to_is_owned,
-                           acell_to_dof_ids)
-    non_owned_dofs = findall(!,dof_to_is_owned)
-    dof_to_is_fagg[non_owned_dofs] .= false # [!] Exclude non-owned dofs
-    
-    #       Another ides is to use the own_to_local on the dof gids,
-    #       but I do not have this information yet at this stage, because
-    #       my input are the local FE spaces, not the global one.
     _fill_dof_to_is_fagg!(dof_to_is_fagg,
                           acell_to_acellin,
                           acell_to_dof_ids,
                           dof_to_is_hdof,
                           dof_to_hdof,
                           hdof_to_dofs)
+
+    # # #
+    # IN DISTRIBUTED TODO: dof_to_is_fagg must be consistent
+    # # #
+
     _fill_dof_to_cell_and_ldof!(dof_to_acell,
                                 dof_to_ldof,
                                 acell_to_dof_ids,
@@ -288,8 +300,8 @@ module DistributedAggregationP4estMeshes
     dof_to_fagg_dof = zeros(Int32,n_fdofs)    # [!] Non-conforming space
     n_fagg_dofs     = length(fagg_dof_to_dof)
     dof_to_fagg_dof[fagg_dof_to_dof] .= 1:n_fagg_dofs
-    # [!] This list of DoFs should only have
-    # those whose shape functions have local 
+    # [!] This list of DoFs strictly only needs to
+    # include those whose shape functions have local 
     # support in the owned portion.
     sDOF_to_dof = vcat(fagg_dof_to_dof,hdof_to_dof)
 
@@ -323,19 +335,23 @@ module DistributedAggregationP4estMeshes
     # 3.b. Compute sDOF_to_dofs_ptrs for ill-posed hanging dofs
     # # #
 
-    # A hanging dof might be mapped to >1 root cells
+    # A hanging dof might be mapped to >1 root cells via its constraining free dofs
     hdof_to_is_agg = fill(true,n_hdofs)
     _fill_hdof_to_is_agg!(hdof_to_is_agg,
                           dof_to_is_fagg,
                           dof_to_is_hdof,
-                          dof_to_is_owned,
                           dof_to_hdof,
                           hdof_to_dofs,
                           acell_to_acellin,
                           acell_to_dof_ids)
 
+    # # #
+    # IN DISTRIBUTED TODO: if include non-owned hanging DOFs,
+    #                      then make hdof_to_is_agg consistent
+    # # #
+
     # TODO: Determine the number of constraining dofs
-    # per ill-posed hanging dof without repetitions.
+    #       per ill-posed hanging dof without repetitions.
     _fill_hdof_to_dofs_ptrs!(sDOF_to_dofs_ptrs,
                              n_fagg_dofs,
                              dof_to_is_fagg,
@@ -365,8 +381,11 @@ module DistributedAggregationP4estMeshes
     # TODO: I need the get_cell_constraints of the conforming space
     #       to resolve the constraints of hanging dofs on root cells.
     #       
-    #       This means, in practice, that I need to generate the
+    #       [!] This means, in practice, that I need to generate the
     #       whole conforming space.
+    #
+    #       [!] This is the sticky point that does not let me decouple
+    #       the combination of constraints from FESpaceWithLinearConstraints
 
     acell_constraints = get_cell_constraints(space,
                                              hdof_to_dof,
@@ -375,7 +394,7 @@ module DistributedAggregationP4estMeshes
     acellin_constraints = lazy_map(Reindex(acell_constraints),
                                    acell_to_acellin)
 
-    # [!]: One hundred times slower than other stages, 
+    # [!]: ONE HUNDRED TIMES SLOWER THAN OTHER STAGES, 
     #      due to evaluating root shape funs on cut cell.
     _fill_aggdof_to_coeffs_data!(sDOF_to_coeffs_data,
                                  sDOF_to_dofs_ptrs,
@@ -394,6 +413,11 @@ module DistributedAggregationP4estMeshes
 
     # # #
     # 4.b. Compute aggdof_to_dofs/coeffs_data for ill-posed hanging dofs
+    #
+    # If sDOF_to_dof only includes owned hanging dofs, then 
+    # **no communication needed**, because they only depend on 
+    # the (consistent) constraint data of owned ill-posed DOFs.
+    #
     # # #
 
     # TODO: Assemble/Compress the constraints without repetitions.
@@ -420,28 +444,12 @@ module DistributedAggregationP4estMeshes
     sDOF_to_dof, sDOF_to_dofs, sDOF_to_coeffs
   end
 
-  function _fill_dof_to_is_owned!(
-    dof_to_is_owned,
-    acell_to_is_owned,
-    acell_to_dof_ids)
-
-    cache = array_cache(acell_to_dof_ids)
-    for (acell,is_owned) in enumerate(acell_to_is_owned)
-      if is_owned
-        dofs = getindex!(cache,acell_to_dof_ids,acell)
-        for dof in dofs
-          (dof > 0) && (dof_to_is_owned[dof] = true)
-        end
-      end
-    end
-  end
-
   function _fill_dof_to_is_fagg!(
     dof_to_is_fagg,
     acell_to_acellin,
     acell_to_dof_ids,
     dof_to_is_hdof,
-    fdof_to_hdof,
+    dof_to_hdof,
     hdof_to_dofs)
 
     cache1 = array_cache(acell_to_dof_ids)
@@ -454,7 +462,7 @@ module DistributedAggregationP4estMeshes
           dof < 0 && continue
           if dof_to_is_hdof[dof]
             # Mark as well-posed all constraining free dofs
-            mdofs = getindex!(cache2,hdof_to_dofs,fdof_to_hdof[dof])
+            mdofs = getindex!(cache2,hdof_to_dofs,dof_to_hdof[dof])
             for mdof in mdofs
               (mdof > 0) && (dof_to_is_fagg[mdof] = false)
             end
@@ -548,7 +556,6 @@ module DistributedAggregationP4estMeshes
   function _fill_hdof_to_is_agg!(hdof_to_is_agg,
                                  dof_to_is_fagg,
                                  dof_to_is_hdof,
-                                 dof_to_is_owned,
                                  dof_to_hdof, # On non-conforming space
                                  hdof_to_dofs,
                                  acell_to_acellin,
@@ -562,7 +569,6 @@ module DistributedAggregationP4estMeshes
       for dof in dofs
         if (dof > 0) && (dof_to_is_hdof[dof]) # It's a hanging dof
           hdof = dof_to_hdof[dof]
-          !dof_to_is_owned[dof] && (hdof_to_is_agg[hdof]=false) && continue
           if !iscut
             hdof_to_is_agg[hdof] = false
           else
