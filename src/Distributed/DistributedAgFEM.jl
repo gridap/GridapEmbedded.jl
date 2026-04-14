@@ -87,15 +87,17 @@ function _distributed_aggregate_by_threshold_barrier(
   threshold,cell_to_unit_cut_meas,facet_to_inoutcut,cell_to_inoutcut,
   loc,cell_to_coords,cell_to_faces,face_to_cells,gids
 )
+  cell_to_root_centroid = map(cell_to_coords) do cell_to_coords
+    map(i->sum(i)/length(i),cell_to_coords)
+  end
+  pv_root_centroid = PVector(cell_to_root_centroid,partition(gids))
+  t_rc = consistent!(pv_root_centroid)
+
   ocell_to_touched = map(cell_to_unit_cut_meas) do c_to_m
     map(≥,c_to_m,Fill(threshold,length(c_to_m)))
   end
   cell_to_touched = _add_ghost_values(ocell_to_touched,gids)
-
-  cell_to_root_centroid = map(cell_to_coords) do cell_to_coords
-    map(i->sum(i)/length(i),cell_to_coords)
-  end
-  PVector(cell_to_root_centroid,partition(gids)) |> consistent! |> wait
+  pv_touched = PVector(cell_to_touched,partition(gids))
 
   n_cells = map(length,cell_to_touched)
   touched_cells = map(findall,cell_to_touched)
@@ -105,16 +107,21 @@ function _distributed_aggregate_by_threshold_barrier(
     gcells = lazy_map(Reindex(l_to_g),cells)
     c_to_ci[cells] = gcells
   end
+  pv_cellin = PVector(cell_to_cellin,partition(gids))
 
   cell_to_neig = map(n->zeros(Int32,n),n_cells)
   cell_to_root_part = map(collect,local_to_owner(gids))
+  pv_neig = PVector(cell_to_neig,partition(gids))
+  pv_root_part = PVector(cell_to_root_part,partition(gids))
 
+  wait(t_rc)
   c1 = map(array_cache,cell_to_faces)
   c2 = map(array_cache,face_to_cells)
 
   max_iters = 20
   for iter in 1:max_iters
-    all_aggregated = _aggregate_one_step!(c1,c2,gids,
+    all_aggregated = _aggregate_one_step!(
+      c1,c2,gids,
       cell_to_inoutcut,
       cell_to_touched,
       cell_to_neig,
@@ -127,13 +134,13 @@ function _distributed_aggregate_by_threshold_barrier(
       loc
     )
 
-    PVector(cell_to_touched,partition(gids)) |> consistent! |> wait
-    PVector(cell_to_neig,partition(gids)) |> consistent! |> wait
-    PVector(cell_to_cellin,partition(gids)) |> consistent! |> wait
-    PVector(cell_to_root_centroid,partition(gids)) |> consistent! |> wait
-    PVector(cell_to_root_part,partition(gids)) |> consistent! |> wait
-
+    tt  = consistent!(pv_touched)
+    tn  = consistent!(pv_neig)
+    tci = consistent!(pv_cellin)
+    trc = consistent!(pv_root_centroid)
+    trp = consistent!(pv_root_part)
     reduction!(&,all_aggregated,all_aggregated,destination=:all)
+    wait(tt); wait(tn); wait(tci); wait(trc); wait(trp);
 
     if PartitionedArrays.getany(all_aggregated)
       break

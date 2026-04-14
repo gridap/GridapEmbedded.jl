@@ -141,6 +141,15 @@ ranks = collect(1:prod(np))
 bgmodel, geo = asymmetric_kettlebell(ranks, np, 8, 4)
 cutgeo = cut(bgmodel, geo)
 
+#####
+# Old aggregation
+
+old_aggbgmodel, old_aggcutgeo, old_lcell_to_root = aggregate(
+  AggregateCutCellsByThreshold(1.0),cutgeo
+)
+
+#####
+
 cell_indices = partition(get_cell_gids(bgmodel))
 
 strategy = AggregateCutCellsByThreshold(1.0)
