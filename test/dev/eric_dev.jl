@@ -250,9 +250,9 @@ module DistributedAggregationP4estMeshes
     space,
     acell_to_is_owned=fill(true,length(acell_to_acellin))) # For distributed
 
-    # REFERENCE: [R] https://arxiv.org/pdf/2006.05373
-
-    # Refactor of FESpaceWithLinearConstraints:
+    # REFERENCES: 
+    #  [R1] https://arxiv.org/pdf/2006.05373
+    #  [R2] Refactor of FESpaceWithLinearConstraints:
     # https://github.com/gridap/Gridap.jl/blob/constraints/src/FESpaces/FESpacesWithLinearConstraints.jl
 
     # # #
@@ -382,7 +382,7 @@ module DistributedAggregationP4estMeshes
     #       to resolve the constraints of hanging dofs on root cells.
     #       
     #       [!] This means, in practice, that I need to generate the
-    #       whole conforming space.
+    #       whole conforming FE space.
     #
     #       [!] This is the sticky point that does not let me decouple
     #       the combination of constraints from FESpaceWithLinearConstraints
@@ -642,6 +642,8 @@ module DistributedAggregationP4estMeshes
     for (aggdof,dof) in enumerate(fagg_dof_to_dof)
       acell = dof_to_acell[dof]
       ! acell_to_is_owned[acell] && continue
+      # coeffs of the shape functions of the root cell
+      # evaluated on the dofs of the cut cell
       coeffs = getindex!(cache2,acell_to_coeffs,acell) # hotspot: eval coeffs on root
       proj = getindex!(cache3,acell_to_proj,acell)
       constr = getindex!(cache4,acellin_constraints,acell) # lmdof x ldof
