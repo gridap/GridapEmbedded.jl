@@ -590,8 +590,7 @@ function compute_closest_point_projections(model::OctreeDistributedDiscreteModel
   fgrid = vec(map(i->xmin+Point((Tuple(i).-1).*fsizes),
               CartesianIndices((fcells...,))))
   fvals = φ.(fgrid)
-  @show length(fvals)
-
+  
   # Coordinates of free DoFs on each local partition
   coords = interpolate_everywhere(identity,V)
   coords_vals = get_free_dof_values(coords)
@@ -604,14 +603,15 @@ function compute_closest_point_projections(model::OctreeDistributedDiscreteModel
   FEFunction(V,PVector(cpps,partition(V.gids)))
 end
 
-function compute_closest_point_projections(model::OctreeDistributedDiscreteModel,
-                                           V::DistributedFESpace,
-                                           φ::DistributedAlgoimCallLevelSetFunction,
-                                           order::Int,
-                                           max_refinement_level::Int;
-                                           cppdegree::Int=2,
-                                           trim::Bool=false,
-                                           limitstol::Float64=1.0e-8)
+function compute_closest_point_projections(
+    model::OctreeDistributedDiscreteModel,
+    V::DistributedFESpace,
+    φ::DistributedAlgoimCallLevelSetFunction,
+    order::Int,
+    max_refinement_level::Int;
+    cppdegree::Int=2,
+    trim::Bool=false,
+    limitstol::Float64=1.0e-8)
   
   # Uniform partition at the maximum refinement level
   coarse_desc = get_cartesian_descriptor(model.coarse_model)
@@ -624,11 +624,10 @@ function compute_closest_point_projections(model::OctreeDistributedDiscreteModel
   # The level set values at the maximum refinement level
   fsizes = 
     coarse_desc.sizes ./ ( Int32(2^max_refinement_level) * Int32(order) )
-  fcells = fine_partition.+1
+  fcells = fine_partition .+ 1
   fgrid = vec(map(i->xmin+Point((Tuple(i).-1).*fsizes),
               CartesianIndices((fcells...,))))
-
-  # This is a hack to evaluate the LS function on 2D  
+  # A hack follows to evaluate the LS function on 2D  
   # OctreeDistributedDiscreteModels, as the current
   # implementation of Interpolable is not using the
   # NonConformingGridapTopology, so the list of cells
@@ -1121,6 +1120,34 @@ function compute_distance_fe_function(
                local_views(cps_vals),
                local_views(coords_vals)) do fs,cp,cos
     _compute_signed_distance(φ,cp,cos,num_free_dofs(fs),
+      num_dims(bgmodel.coarse_model))
+  end
+  dists = PVector(_dists,partition(fespace_scalar_type.gids))
+  FEFunction(fespace_scalar_type,dists)
+end
+
+function compute_distance_fe_function(
+    bgmodel::OctreeDistributedDiscreteModel,
+    fespace_scalar_type::DistributedFESpace,
+    fespace_vector_type::DistributedFESpace,
+    φ::DistributedAlgoimCallLevelSetFunction,
+    order::Int,
+    max_refinement_level::Int;
+    cppdegree::Int=2)
+  
+  cps = compute_closest_point_projections(
+    bgmodel,fespace_vector_type,φ,order,
+    max_refinement_level,cppdegree=cppdegree)
+  cps_vals = get_free_dof_values(cps)
+  
+  coords = interpolate_everywhere(identity,fespace_vector_type)
+  coords_vals = get_free_dof_values(coords)
+
+  _dists = map(local_views(fespace_scalar_type),
+               local_views(cps_vals),
+               local_views(coords_vals),
+               local_views(φ)) do fs,cp,cos,φl
+    _compute_signed_distance(φl,cp,cos,num_free_dofs(fs),
       num_dims(bgmodel.coarse_model))
   end
   dists = PVector(_dists,partition(fespace_scalar_type.gids))

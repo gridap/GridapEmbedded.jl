@@ -8,5 +8,6 @@
 Manifest.toml
 LocalPreferences.toml
 .vscode/
+data/
 *.swp
 data
