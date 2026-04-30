@@ -270,15 +270,30 @@ function _cell_quadrature_and_active_mask(trian::DistributedTriangulation,
   cell_quad, cell_to_is_active
 end
 
+function _get_tface_to_mface(trian)
+  trian.tface_to_mface
+end
+
+function _get_tface_to_mface(trian::AdaptedTriangulation)
+  trian.trian.tface_to_mface
+end
+
+function _get_tface_to_mface(trian::DistributedTriangulation)
+  map(local_views(trian)) do t
+    _get_tface_to_mface(t)
+  end
+end
+
 function _cell_quadrature_and_active_mask(trian::DistributedTriangulation,
     ::Algoim,
     phi::DistributedAlgoimCallLevelSetFunction,
     args;kwargs)
   ltrians = local_views(trian); lphis = local_views(phi)
   phitrian = get_triangulation(phi.values)
+  tface_to_mface = _get_tface_to_mface(phitrian)
   gids = get_cell_gids(get_background_model(phitrian))
-  own_to_local = map(local_views(phitrian),local_views(gids)) do t,g
-    findall(!iszero,local_to_own(g)[t.tface_to_mface])
+  own_to_local = map(local_views(tface_to_mface),local_views(gids)) do tf_to_mf,g
+    findall(!iszero,local_to_own(g)[tf_to_mf])
   end
   cell_quad = map(
     (t,p,otl)->Quadrature(t,algoim,p,otl,args...;kwargs...),ltrians,lphis,own_to_local)
@@ -293,9 +308,10 @@ function _cell_quadrature_and_active_mask(trian::DistributedTriangulation,
     args;kwargs)
   ltrians = local_views(trian); lphis = local_views(phi1)
   phitrian = get_triangulation(phi1.values)
+  tface_to_mface = _get_tface_to_mface(phitrian)
   gids = get_cell_gids(get_background_model(phitrian))
-  own_to_local = map(local_views(phitrian),local_views(gids)) do t,g
-    findall(!iszero,local_to_own(g)[t.tface_to_mface])
+  own_to_local = map(local_views(tface_to_mface),local_views(gids)) do tf_to_mf,g
+    findall(!iszero,local_to_own(g)[tf_to_mf])
   end
   cell_quad = map(
     (t,p,otl)->Quadrature(t,algoim,p,phi2,otl,args...;kwargs...),ltrians,lphis,own_to_local)
@@ -310,9 +326,10 @@ function _cell_quadrature_and_active_mask(trian::DistributedTriangulation,
     args;kwargs)
   ltrians = local_views(trian); lphis1 = local_views(phi1); lphis2 = local_views(phi2)
   phitrian = get_triangulation(phi1.values)
+  tface_to_mface = _get_tface_to_mface(phitrian)
   gids = get_cell_gids(get_background_model(phitrian))
-  own_to_local = map(local_views(phitrian),local_views(gids)) do t,g
-    findall(!iszero,local_to_own(g)[t.tface_to_mface])
+  own_to_local = map(local_views(tface_to_mface),local_views(gids)) do tf_to_mf,g
+    findall(!iszero,local_to_own(g)[tf_to_mf])
   end
   cell_quad = map(
     (t,p1,p2,otl)->Quadrature(t,algoim,p1,p2,otl,args...;kwargs...),ltrians,lphis1,lphis2,own_to_local)
