@@ -689,7 +689,31 @@ function AgFEMSpace(
   bgcell_to_gcell
 )
   trian = get_triangulation(f)
-  spaces = local_views(f) # Not even necessary to have a DistributedFESpace
+  spaces = local_views(f)
+
+  sDOF_gids, mfdof_gids, mddof_gids, mDOF_to_dof, sDOF_to_dof, sDOF_to_mdofs, sDOF_to_coeffs = generate_aggregated_space_constraints(
+    trian, spaces, bgcell_to_bgroot, shfns_g, dofs_g, bgcell_to_gcell
+  )
+
+  nfmdofs = map(local_length, partition(mfdof_gids))
+  aggspaces = map(
+    FESpaces.FESpaceWithLinearConstraints, spaces, mDOF_to_dof, sDOF_to_dof, sDOF_to_mdofs, sDOF_to_coeffs, nfmdofs
+  )
+
+  metadata = DistributedLinearConstraintsCache(sDOF_gids, mddof_gids)
+  return GridapDistributed.DistributedSingleFieldFESpace(
+    aggspaces, mfdof_gids, get_triangulation(f), get_vector_type(f), metadata
+  )
+end
+
+function generate_aggregated_space_constraints(
+  trian::DistributedTriangulation, 
+  spaces::AbstractArray{<:FESpace},
+  bgcell_to_bgroot::AbstractVector,
+  shfns_g::DistributedCellField,
+  dofs_g::DistributedCellDof,
+  bgcell_to_gcell
+)
   cell_gids = GridapDistributed.generate_cell_gids(trian)
 
   # The following is the same as in serial, it's just some reindexing onto the triangulation
@@ -804,15 +828,7 @@ function AgFEMSpace(
     return mDOF_to_DOF, sDOF_to_DOF
   end |> tuple_of_arrays
 
-  nfmdofs = map(local_length, partition(new_mfdof_gids))
-  aggspaces = map(
-    FESpaces.FESpaceWithLinearConstraints, spaces, mDOF_to_dof, sDOF_to_dof, sDOF_to_mdofs, sDOF_to_coeffs, nfmdofs
-  )
-
-  metadata = DistributedLinearConstraintsCache(sDOF_gids, new_mddof_gids)
-  return GridapDistributed.DistributedSingleFieldFESpace(
-    aggspaces, new_mfdof_gids, get_triangulation(f), get_vector_type(f), metadata
-  )
+  return sDOF_gids, new_mfdof_gids, new_mddof_gids, mDOF_to_dof, sDOF_to_dof, sDOF_to_mdofs, sDOF_to_coeffs
 end
 
 # This is easy, all nonzero entries are local
