@@ -17,7 +17,7 @@ using BenchmarkTools
 using FillArrays
 using LinearAlgebra
 
-#######################
+############################################################################################
 # Cartesian map optimization
 # Note: Not really that big of a difference. 
 
@@ -208,14 +208,105 @@ function _fill_aggdof_to_coeffs_data_v2!(
   nothing
 end
 
-n = 10
+function _fill_aggdof_to_coeffs_data_v3!(
+  aggdof_to_coeffs_data,
+  aggdof_to_dofs_ptrs,
+  acells,
+  acell_to_aggdofs,
+  acell_to_coeffs,
+  acell_to_proj,
+  acell_to_is_owned
+)
+  cache2 = array_cache(acell_to_coeffs)
+  cache3 = array_cache(acell_to_proj)
+  for acell in acells
+    ! acell_to_is_owned[acell] && continue
+    coeffs = getindex!(cache2,acell_to_coeffs,acell)
+    proj = getindex!(cache3,acell_to_proj,acell)
+    agg_dofs = dataview(acell_to_aggdofs,acell)
+    for (ldof,aggdof) in enumerate(agg_dofs)
+      iszero(aggdof) && continue
+      p = aggdof_to_dofs_ptrs[aggdof]-1
+      row = @view coeffs[ldof,:]
+      aggdof_to_coeffs_data[(p+1):(p+size(proj,2))] .= (row' * proj)'
+    end
+  end
+  nothing
+end
+
+function _fill_aggdof_to_coeffs_data_v4!(
+  aggdof_to_coeffs_data,
+  aggdof_to_dofs_ptrs,
+  acells,
+  acell_to_aggdofs,
+  acell_to_coeffs,
+  acell_to_proj,
+  acell_to_is_owned
+)
+  T = eltype(eltype(acell_to_coeffs))
+  cache1 = CachedMatrix(T)
+  cache2 = array_cache(acell_to_coeffs)
+  cache3 = array_cache(acell_to_proj)
+  for acell in acells
+    ! acell_to_is_owned[acell] && continue
+    coeffs = getindex!(cache2,acell_to_coeffs,acell)
+    proj = getindex!(cache3,acell_to_proj,acell)
+    setsize!(cache1, (size(proj,2), size(coeffs,2)))
+    res = cache1.array
+    mul!(res, proj', coeffs, 1.0, 0.0)
+    agg_dofs = dataview(acell_to_aggdofs,acell)
+    for (ldof,aggdof) in enumerate(agg_dofs)
+      iszero(aggdof) && continue
+      p = aggdof_to_dofs_ptrs[aggdof]-1
+      aggdof_to_coeffs_data[(p+1):(p+size(proj,2))] .= (@view res[:,ldof])
+    end
+  end
+  nothing
+end
+
+function _fill_aggdof_to_coeffs_data_v5!(
+  aggdof_to_coeffs_data,
+  aggdof_to_dofs_ptrs,
+  acells,
+  acell_to_ldofs,
+  acell_to_coeffs,
+  acell_to_proj,
+  acell_to_is_owned
+)
+  T = eltype(eltype(acell_to_coeffs))
+  cache1 = CachedMatrix(T)
+  cache2 = array_cache(acell_to_coeffs)
+  cache3 = array_cache(acell_to_proj)
+  p = 1
+  for acell in acells
+    ! acell_to_is_owned[acell] && continue
+    coeffs = getindex!(cache2,acell_to_coeffs,acell)
+    proj = getindex!(cache3,acell_to_proj,acell)
+    ldofs = dataview(acell_to_ldofs,acell)
+    nl = length(ldofs)
+
+    setsize!(cache1, (size(proj,2), nl))
+    res = cache1.array
+    mul!(res', (@view coeffs[ldofs,:]), proj, 1.0, 0.0)
+
+    # WARNING: This relies on the fact that the aggdofs 
+    # corresponding to a cell are contiguous in memory !!!
+    range = aggdof_to_dofs_ptrs[p]:(aggdof_to_dofs_ptrs[p+nl]-1)
+    @inbounds aggdof_to_coeffs_data[range] .= vec(res)
+
+    p += nl
+  end
+  nothing
+end
+
+n = 20
 geom = disk(1.4,x0=Point(1.0,1.7))
 bgmodel = CartesianDiscreteModel((0,1,0,1),(n,n))
 cutgeo = cut(bgmodel,geom)
 
 trian = Triangulation(cutgeo,ACTIVE)
 
-order = 2
+order = 3
 reffe = ReferenceFE(lagrangian,Float64,order)
 V = FESpace(trian,reffe)
 
@@ -233,6 +324,7 @@ _fill_aggdof_to_coeffs_data_v0!(
   data.acell_to_coeffs, data.acell_to_proj, data.acell_to_is_owned, perm
 )
 
+# Optimizing cache hits by sorting aggdofs
 function bm_v0(data,perm)
   _fill_aggdof_to_coeffs_data_v0!(
     data.aggdof_to_coeffs.data, data.aggdof_to_dofs.ptrs, data.aggdof_to_fdof, data.fdof_to_acell, data.fdof_to_ldof, 
@@ -243,6 +335,7 @@ bm_v0(data, perm)
 @benchmark bm_v0($data, $(eachindex(data.aggdof_to_fdof)))
 @benchmark bm_v0($data, $perm)
 
+# Optimizing vectorization by using views and BLAS
 function bm_v1(data,perm)
   _fill_aggdof_to_coeffs_data_v1!(
     data.aggdof_to_coeffs.data, data.aggdof_to_dofs.ptrs, data.aggdof_to_fdof, data.fdof_to_acell, data.fdof_to_ldof, 
@@ -250,7 +343,6 @@ function bm_v1(data,perm)
   )
 end
 bm_v1(data, perm)
-@benchmark bm_v1($data, $(eachindex(data.aggdof_to_fdof)))
 @benchmark bm_v1($data, $perm)
 
 function bm_v2(data,perm)
@@ -260,10 +352,80 @@ function bm_v2(data,perm)
   )
 end
 bm_v2(data, perm)
-@benchmark bm_v2($data, $(eachindex(data.aggdof_to_fdof)))
 @benchmark bm_v2($data, $perm)
 
+# Iterating over cells to avoid dictionary lookups when accessing the same array multiple times
+fdof_to_aggdof = find_inverse_index_map(data.aggdof_to_fdof, length(data.fdof_to_acell))
+aggdof_to_acell = data.fdof_to_acell[data.aggdof_to_fdof]
+acells = sort!(unique(aggdof_to_acell))
+is_aggdof = falses(length(data.fdof_to_acell)); is_aggdof[data.aggdof_to_fdof] .= true;
+acell_to_dofs = get_cell_dof_ids(V)
+acell_to_aggdofs = Table(collect(Int32,fdof_to_aggdof[acell_to_dofs.data]),acell_to_dofs.ptrs)
 
+function bm_v3(data,acells,acell_to_aggdofs)
+  _fill_aggdof_to_coeffs_data_v3!(
+    data.aggdof_to_coeffs.data, data.aggdof_to_dofs.ptrs, acells, acell_to_aggdofs, 
+    data.acell_to_coeffs, data.acell_to_proj, data.acell_to_is_owned
+  )
+end
+bm_v3(data, acells, acell_to_aggdofs)
+@benchmark bm_v3($data, $acells, $acell_to_aggdofs)
+
+# Computing the whole matrix-matrix product. This will get less worth it 
+# as the number of aggdofs per slave cell goes down.
+function bm_v4(data,acells,acell_to_aggdofs)
+  _fill_aggdof_to_coeffs_data_v4!(
+    data.aggdof_to_coeffs.data, data.aggdof_to_dofs.ptrs, acells, acell_to_aggdofs, 
+    data.acell_to_coeffs, data.acell_to_proj, data.acell_to_is_owned
+  )
+end
+bm_v4(data, acells, acell_to_aggdofs)
+@benchmark bm_v4($data, $acells, $acell_to_aggdofs)
+
+# Lets actually reorder the aggdofs in memory to improve locality.
+
+old_aggdof_to_acell = data.fdof_to_acell[data.aggdof_to_fdof]
+new_aggdof_to_old_aggdof = sortperm(old_aggdof_to_acell)
+
+data = setup_aggdata_v0(cutgeo,V,V)
+data = (;
+  aggdof_to_fdof = data.aggdof_to_fdof[new_aggdof_to_old_aggdof],
+  aggdof_to_dofs = data.aggdof_to_dofs[new_aggdof_to_old_aggdof],
+  aggdof_to_coeffs = data.aggdof_to_coeffs[new_aggdof_to_old_aggdof],
+  fdof_to_acell = data.fdof_to_acell,
+  fdof_to_ldof = data.fdof_to_ldof,
+  acell_to_gcell = data.acell_to_gcell,
+  acell_to_coeffs = data.acell_to_coeffs,
+  acell_to_proj = data.acell_to_proj,
+  acell_to_is_owned = data.acell_to_is_owned
+)
+
+fdof_to_aggdof = find_inverse_index_map(data.aggdof_to_fdof, length(data.fdof_to_acell))
+aggdof_to_acell = data.fdof_to_acell[data.aggdof_to_fdof]
+acells = sort!(unique(aggdof_to_acell))
+is_aggdof = falses(length(data.fdof_to_acell)); is_aggdof[data.aggdof_to_fdof] .= true;
+acell_to_dofs = get_cell_dof_ids(V)
+
+acell_to_aggdofs = map(enumerate(acell_to_dofs)) do (acell,fdofs)
+  aggdofs = map(fdofs) do fdof
+    data.fdof_to_acell[fdof] == acell ? fdof_to_aggdof[fdof] : 0
+  end
+  collect(Int32,aggdofs)
+end |> Table
+@assert all(map(x -> issorted(findall(!iszero,x)), acell_to_aggdofs))
+
+acell_to_ldofs = Table(map(x -> findall(!iszero,x), acell_to_aggdofs))
+
+function bm_v5(data,acells,acell_to_ldofs)
+  _fill_aggdof_to_coeffs_data_v5!(
+    data.aggdof_to_coeffs.data, data.aggdof_to_dofs.ptrs, acells, acell_to_ldofs, 
+    data.acell_to_coeffs, data.acell_to_proj, data.acell_to_is_owned
+  )
+end
+bm_v5(data, acells, acell_to_ldofs)
+@benchmark bm_v5($data, $acells, $acell_to_ldofs)
+
+############################################################################################
 
 dofs = get_fe_dof_basis(V)
 basis = get_fe_basis(V)
