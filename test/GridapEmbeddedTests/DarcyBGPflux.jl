@@ -1,3 +1,10 @@
+module DarcyBGPflux
+# Darcy problem: BGP stabilisation with flux boundary conditions (pure pressure trace).
+# A Lagrange multiplier fixes the mean pressure to close the system.
+#
+# Ref: Badia, Boschman, Martín, Nilsson, Ruiz-Baier, Zahedi (2026)
+#      "Divergence-free unfitted finite element discretisations for the Darcy problem"
+#      arXiv:2603.26212
 
 using Test
 using Gridap
@@ -41,7 +48,7 @@ function generate_mesh(n,R=0.4,x0=0.835)
   return cutgeo
 end
 
-function driver(n,order,u_exact,p_exact,η=1.0,γ=10.0,τ=10.0)
+function driver(n,order,u_exact,p_exact,η=1.0,γ=10.0,τ=1.0)
   cutgeo = generate_mesh(n)
   bgmodel = get_background_model(cutgeo)
   qdegree = 2*(order+1)
@@ -49,19 +56,18 @@ function driver(n,order,u_exact,p_exact,η=1.0,γ=10.0,τ=10.0)
   Ω_ac = Triangulation(cutgeo,ACTIVE)
   V = FESpace(Ω_ac,ReferenceFE(raviart_thomas,Float64,order); conformity=:Hdiv)
   Q = FESpace(Ω_ac,ReferenceFE(lagrangian,Float64,order); conformity=:L2)
-  X = MultiFieldFESpace([V,Q])
+  Λ = ConstantFESpace(Ω_ac)
+  X = MultiFieldFESpace([V,Q,Λ])
 
   ptopo = PatchTopology(get_grid_topology(bgmodel), get_aggregates(cutgeo))
   Ωp = PatchTriangulation(bgmodel, ptopo)
-  
+
   Ω = Triangulation(cutgeo,PHYSICAL)
-  Γu = EmbeddedBoundary(cutgeo, "disk","domain")
-  Γp = EmbeddedBoundary(cutgeo, "plane","domain")
+  Γu = EmbeddedBoundary(cutgeo)
 
   dΩ = Measure(Ω, qdegree)
   dΩp = Measure(Ωp, qdegree)
   dΓu = Measure(Γu, 2*qdegree)
-  dΓp = Measure(Γp, 2*qdegree)
 
   Wd = FESpaces.PatchFESpace(bgmodel,Ωp,Float64,order;space=:RT)
   Πd = projection_operator(ptopo, V, Wd, Ωp, dΩp)
@@ -74,25 +80,25 @@ function driver(n,order,u_exact,p_exact,η=1.0,γ=10.0,τ=10.0)
 
   h = γ/n
   n_Γu = get_normal_vector(Γu)
-  n_Γp = get_normal_vector(Γp)
   a(u,v) = ∫(η*(u⋅v))dΩ + ∫(h*(u⋅n_Γu)*(v⋅n_Γu))dΓu
   b(u,q) = ∫(-(∇⋅u)*q)dΩ
   btilde(u,q) = b(u,q) + ∫((u⋅n_Γu)*q)dΓu
-  l((v,q)) = ∫(v⋅f + g⋅q)dΩ  + ∫(h*(v⋅n_Γu)⋅(u_exact⋅n_Γu))dΓu - ∫((v⋅n_Γp)*p_exact)dΓp
+  c(λ,q) = ∫(λ*q)dΩ
+  l((v,q,μ)) = ∫(v⋅f + g⋅q)dΩ  + ∫(h*(v⋅n_Γu)⋅(u_exact⋅n_Γu))dΓu + c(μ,p_exact)
 
   sd(u,v) = ∫(τ*(u⋅v))dΩp
-  s0(p,q) = ∫(τ*p*q)dΩp
+  s0(p,q) = ∫(τ*(p*q))dΩp
 
   function weakform(x,y)
-    u, p = x
-    v, q = y
+    u, p, λ = x
+    v, q, μ = y
     Πu, Πv = Πd(u), Πd(v)
     Πp, Πq = Π0(p), Π0(q)
     divu, divv = ∇⋅u, ∇⋅v
     Πdivu, Πdivv = Π0div(u), Π0div(v)
     Xp = FESpaces.PatchFESpace(X,ptopo)
     data = FESpaces.collect_and_merge_cell_matrix_and_vector(
-      (X, X  , a(u,v) + btilde(v,p) + b(u,q) + sd(u,v) - s0(divu,q) - s0(divv,p), l(y)),
+      (X, X  , a(u,v) + btilde(v,p) + b(u,q) + c(λ,q) + c(μ,p) + sd(u,v) - s0(divu,q) - s0(divv,p), l(y)),
       (X, Xp , s0(divu,Πq) + s0(Πdivv,p) - sd(u,Πv), DomainContribution()),
       (Xp, X , s0(Πdivu,q) + s0(divv,Πp) - sd(Πu,v), DomainContribution()),
       (Xp, Xp, sd(Πu,Πv) - s0(Πdivu,Πq) - s0(Πdivv,Πp), DomainContribution()),
@@ -103,7 +109,7 @@ function driver(n,order,u_exact,p_exact,η=1.0,γ=10.0,τ=10.0)
   end
 
   op = weakform(get_trial_fe_basis(X),get_fe_basis(X))
-  uh, ph = solve(op)
+  uh, ph, λh = solve(op)
 
   eu = uh-u_exact
   ep = ph-p_exact
@@ -136,7 +142,7 @@ p_conv(x) = sin(π*x[1]) - sin(π*x[2])
 l2_u, l2_p, su, sp = convergence([8,16,32,64],1,u_conv,p_conv)
 
 writevtk(
-  Ω, "darcy_BGP_mixed"; append=false, 
+  Ω, "darcy_BGP_flux"; append=false,
   cellfields=[
     "uh"=>uh,"ph"=>ph,"u_exact"=>u_exact,"p_exact"=>p_exact,
     "eu"=>uh-u_exact,"ep"=>ph-p_exact
@@ -155,11 +161,9 @@ function normal_at_centroid(Γ)
   return n(x)
 end
 
-Γu = EmbeddedBoundary(cutgeo, "disk","domain")
-Γp = EmbeddedBoundary(cutgeo, "plane","domain")
+Γu = EmbeddedBoundary(cutgeo)
 writevtk(
   Γu, "boundary_u"; append=false, celldata=["n"=>normal_at_centroid(Γu)]
 )
-writevtk(
-  Γp, "boundary_p"; append=false, celldata=["n"=>normal_at_centroid(Γp)]
-)
+
+end # module
