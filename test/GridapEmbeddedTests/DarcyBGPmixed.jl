@@ -140,7 +140,7 @@ cutgeo, uh, ph, l2_err_u, l2_err_p = driver(8,1,u_exact,p_exact)
 
 u_conv(x) = VectorValue(x[1] + sin(π*x[2]), -x[2] + sin(π*x[1]))
 p_conv(x) = sin(π*x[1]) - sin(π*x[2])
-l2_u, l2_p, su, sp = convergence([8,16,32,64],1,u_conv,p_conv)
+# l2_u, l2_p, su, sp = convergence([8,16,32,64],1,u_conv,p_conv)
 
 writevtk(
   Ω, "darcy_BGP_mixed"; append=false, 
