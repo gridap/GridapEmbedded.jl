@@ -278,6 +278,7 @@ end
 
 function get_edge_tangents(trian::BoundaryTriangulation{1})
   function t(c)
+    isempty(c) && return zero(eltype(c))
     @assert length(c) == 2
     t = c[2] - c[1]
     return t/norm(t)
