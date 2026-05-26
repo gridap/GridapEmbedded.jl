@@ -322,11 +322,17 @@ function compute_bgcell_to_active_inoutcut(
   compute_bgcell_to_active_inoutcut(cut, in_or_out.in_or_out, geo)
 end
 
+# Deals with the phantom cut issue (see Issue #115)
 function compute_bgcell_to_active_inoutcut(
   cut::EmbeddedDiscretization, in_or_out::Integer, geo::CSG.Geometry
 )
-  @check in_or_out in (IN,OUT)
+  @check in_or_out in (IN,OUT,CUT)
+  
   bgcell_to_inoutcut = compute_bgcell_to_inoutcut(cut, geo)
+  if in_or_out == CUT
+    # CUT cells are always genuinely cut (no phantom issue), so no filtering needed
+    return bgcell_to_inoutcut
+  end
 
   subcell_to_inout  = compute_subcell_to_inout(cut, geo)
   subcell_to_bgcell = cut.subcells.cell_to_bgcell
