@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Fix for issue #115, which is a bug in the logic of the `ACTIVE` mask and `GhostSkeleton` construction. Since PR [#123](https://github.com/gridap/GridapEmbedded.jl/pull/123).
+
 ## [0.9.11] - 2026-4-28
 
 - Small bugfix for empty embedded facet triangulations, following changes in Gridap v0.20.4. Since PR[#121](https://github.com/gridap/GridapEmbedded.jl/pull/121). 
