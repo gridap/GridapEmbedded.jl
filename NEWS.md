@@ -10,6 +10,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.9.11] - 2026-4-28
 
+### Fixed
+
+### Fixed
+
 - Small bugfix for empty embedded facet triangulations, following changes in Gridap v0.20.4. Since PR[#121](https://github.com/gridap/GridapEmbedded.jl/pull/121).
 
 ## [0.9.10] - 2026-3-24
