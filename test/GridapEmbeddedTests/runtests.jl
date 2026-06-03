@@ -20,4 +20,9 @@ using Test
 
 @time @testset "TraceFEM" begin include("TraceFEMTests.jl") end
 
+@time @testset "DarcyBGP" begin 
+  include("DarcyBGPflux.jl")
+  include("DarcyBGPmixed.jl")
+end
+
 end

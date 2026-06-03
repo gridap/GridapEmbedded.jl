@@ -6,6 +6,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Added drivers for Darcy flow using the BGP method. Since PR[#122](https://github.com/gridap/GridapEmbedded.jl/pull/122).
+
 ### Fixed
 
 - Fix for issue #115, which is a bug in the logic of the `ACTIVE` mask and `GhostSkeleton` construction. Since PR [#123](https://github.com/gridap/GridapEmbedded.jl/pull/123).
