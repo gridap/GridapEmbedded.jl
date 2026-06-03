@@ -316,9 +316,42 @@ function Triangulation(cut::EmbeddedDiscretization,in_or_out::Integer,geo::CSG.G
   Triangulation(cut.bgmodel,cell_to_mask)
 end
 
+function compute_bgcell_to_active_inoutcut(
+  cut::EmbeddedDiscretization, in_or_out, geo::CSG.Geometry
+)
+  compute_bgcell_to_active_inoutcut(cut, in_or_out.in_or_out, geo)
+end
+
+# Deals with the phantom cut issue (see Issue #115)
+function compute_bgcell_to_active_inoutcut(
+  cut::EmbeddedDiscretization, in_or_out::Integer, geo::CSG.Geometry
+)
+  @check in_or_out in (IN,OUT,CUT)
+  
+  bgcell_to_inoutcut = compute_bgcell_to_inoutcut(cut, geo)
+  if in_or_out == CUT
+    # CUT cells are always genuinely cut (no phantom issue), so no filtering needed
+    return bgcell_to_inoutcut
+  end
+
+  subcell_to_inout  = compute_subcell_to_inout(cut, geo)
+  subcell_to_bgcell = cut.subcells.cell_to_bgcell
+
+  keep = isequal(in_or_out)
+  bgcell_to_true_cut = fill(false, length(bgcell_to_inoutcut))
+  for (bgcell,io) in zip(subcell_to_bgcell, subcell_to_inout)
+    bgcell_to_true_cut[bgcell] |= keep(io)
+  end
+
+  out = -Int8(in_or_out) # IN → OUT, OUT → IN
+  map(bgcell_to_inoutcut, bgcell_to_true_cut) do ioc, is_true_cut
+    ifelse(ioc == CUT, ifelse(is_true_cut, ioc, out), ioc)
+  end
+end
+
 function Triangulation(cut::EmbeddedDiscretization,in_or_out::ActiveInOrOut,geo::CSG.Geometry)
-  cell_to_inoutcut = compute_bgcell_to_inoutcut(cut,geo)
-  cell_to_mask = lazy_map(i-> i==CUT || i==in_or_out.in_or_out,cell_to_inoutcut)
+  cell_to_inoutcut = compute_bgcell_to_active_inoutcut(cut, in_or_out, geo)
+  cell_to_mask = map(i -> i==CUT || i==in_or_out.in_or_out, cell_to_inoutcut)
   Triangulation(cut.bgmodel,cell_to_mask)
 end
 
@@ -486,29 +519,26 @@ function GhostSkeleton(cut::EmbeddedDiscretization,geo::CSG.Geometry)
   GhostSkeleton(cut,ACTIVE_IN,geo)
 end
 
-#function GhostSkeleton(cut::EmbeddedDiscretization,name::String,in_or_out)
-#  GhostSkeleton(cut,in_or_out,name)
-#end
-#
-#function GhostSkeleton(cut::EmbeddedDiscretization,geo::CSG.Geometry,in_or_out)
-#  GhostSkeleton(cut,in_or_out,geo)
-#end
-
 function GhostSkeleton(cut::EmbeddedDiscretization,in_or_out,name::String)
   geo = get_geometry(cut.geo,name)
   GhostSkeleton(cut,in_or_out,geo)
 end
 
-GhostSkeleton(cut::EmbeddedDiscretization,in_or_out::Integer,geo::CSG.Geometry) = GhostSkeleton(cut,ActiveInOrOut(in_or_out),geo)
+function GhostSkeleton(cut::EmbeddedDiscretization,in_or_out::Integer,geo::CSG.Geometry) 
+  GhostSkeleton(cut,ActiveInOrOut(in_or_out),geo)
+end
 
 function GhostSkeleton(cut::EmbeddedDiscretization,in_or_out,geo::CSG.Geometry)
-
-  @notimplementedif in_or_out in (PHYSICAL_IN,PHYSICAL_OUT) "Not implemented but not needed in practice. Ghost stabilization can be integrated in full facets."
+  @notimplementedif in_or_out in (PHYSICAL_IN,PHYSICAL_OUT) """
+    Not implemented but not needed in practice. Ghost stabilization can be integrated in full facets.
+  """
   @assert in_or_out in (ACTIVE_IN,ACTIVE_OUT) || in_or_out.in_or_out in (IN,OUT,CUT)
-  cell_to_inoutcut = compute_bgcell_to_inoutcut(cut,geo)
+
   model = cut.bgmodel
   topo = get_grid_topology(model)
   D = num_cell_dims(model)
+
+  cell_to_inoutcut = compute_bgcell_to_active_inoutcut(cut, in_or_out, geo)
   facet_to_cells = Table(get_faces(topo,D-1,D))
   facet_to_mask = fill(false,length(facet_to_cells))
   _fill_ghost_skeleton_mask!(facet_to_mask,facet_to_cells,cell_to_inoutcut,in_or_out.in_or_out)
@@ -516,10 +546,10 @@ function GhostSkeleton(cut::EmbeddedDiscretization,in_or_out,geo::CSG.Geometry)
   SkeletonTriangulation(model,facet_to_mask)
 end
 
-function _fill_ghost_skeleton_mask!(facet_to_mask,facet_to_cells::Table,cell_to_inoutcut,in_or_out)
-
-  nfacets = length(facet_to_cells)
-  for facet in 1:nfacets
+function _fill_ghost_skeleton_mask!(
+  facet_to_mask,facet_to_cells::Table,cell_to_inoutcut,in_or_out
+)
+  for facet in eachindex(facet_to_cells)
     a = facet_to_cells.ptrs[facet]
     b = facet_to_cells.ptrs[facet+1]
     ncells_around = b-a
@@ -539,5 +569,4 @@ function _fill_ghost_skeleton_mask!(facet_to_mask,facet_to_cells::Table,cell_to_
       facet_to_mask[facet] = true
     end
   end
-
 end
