@@ -315,7 +315,9 @@ function merge_nodes(model::DiscreteModel,ids)
   lnew_to_l = findall(map(==,l_to_lparent,1:n_local))
   l_to_lnew = zeros(Int,n_local)
   l_to_lnew[lnew_to_l] = 1:length(lnew_to_l)
-  g_to_lnew = map(l->iszero(l) ? l : l_to_lnew[l], g_to_l)
+  g_to_lnew = VectorFromDict(reverse(l_to_g[lnew_to_l]),
+                             reverse(1:length(lnew_to_l)),
+                             n_global)
   l_to_lnew = g_to_lnew[l_to_g]
 
   grid = get_grid(model)
