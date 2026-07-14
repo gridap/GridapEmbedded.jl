@@ -135,10 +135,12 @@ model, cutgeo, geo = with_mpi() do distribute
 end
 
 Γ = EmbeddedBoundary(cutgeo)
+Ω = Triangulation(model)
 Ωa = Triangulation(cutgeo,ACTIVE_IN)
 Ωp = Triangulation(cutgeo,PHYSICAL_IN)
 
 writevtk(Γ,datadir("boundary"));
+writevtk(Ω,datadir("model"));
 writevtk(Ωa,datadir("active"));
 writevtk(Ωp,datadir("physical"));
 
@@ -169,14 +171,17 @@ agg_sDOF_keep = map(
   spaces, amr_sDOF_to_dof, amr_sDOF_to_dofs, agg_sDOF_to_dof, agg_sDOF_to_dofs,
 ) do space, amr_sDOF_to_dof, amr_sDOF_to_dofs, agg_sDOF_to_dof, agg_sDOF_to_dofs
   ndofs = num_free_dofs(space)
-  is_hanging_master = falses(ndofs)
-  for (sDOF, dof) in enumerate(amr_sDOF_to_dof)
+  is_agg_dof = falses(ndofs)
+  is_agg_dof[agg_sDOF_to_dof] .= true
+  amr_only_sDOF = findall(dof->!is_agg_dof[dof],amr_sDOF_to_dof)
+  is_master_of_well_posed_hanging = falses(ndofs)
+  for sDOF in amr_only_sDOF
     masters = amr_sDOF_to_dofs[sDOF]
-    is_hanging_master[masters] .= true
+    is_master_of_well_posed_hanging[masters] .= true
   end
   keep_agg_constraint = falses(length(agg_sDOF_to_dof))
   for (sDOF,dof) in enumerate(agg_sDOF_to_dof)
-    keep_agg_constraint[sDOF] = !is_hanging_master[dof]
+    keep_agg_constraint[sDOF] = !is_master_of_well_posed_hanging[dof]
   end
   display("Removing $(count(!,keep_agg_constraint)) agg constraints:")
   display(findall(!,keep_agg_constraint))
@@ -204,5 +209,18 @@ sDOF_to_dof, sDOF_to_dofs, sDOF_to_coeffs = map(
     space, sDOF_to_dof, sDOF_to_dofs, sDOF_to_coeffs, sDOF_to_offsets
   )
 end |> tuple_of_arrays;
+
+hagfemspaces = map(sDOF_to_dof,
+                   sDOF_to_dofs,
+                   sDOF_to_coeffs,
+                   spaces) do sDOF_to_dof,sDOF_to_dofs,sDOF_to_coeffs,space
+  FESpaceWithLinearConstraints(sDOF_to_dof,sDOF_to_dofs,sDOF_to_coeffs,space)
+end
+
+u(x) = x[1]^2 + x[2]^2
+map(hagfemspaces) do hagfemspace
+  uₕ = interpolate_everywhere(u,hagfemspace)
+  writevtk(Ωa,datadir("check"),cellfields=["uh"=>uₕ,"eh"=>u-uₕ]);
+end
 
 end # module
