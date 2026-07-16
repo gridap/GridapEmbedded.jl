@@ -40,7 +40,7 @@ aggregates = aggregate(strategy,cutgeo)
 n_Γ = get_normal_vector(Γ)
 
 order = 1
-degree = 2*order
+degree = 2*order*2
 dΩ = Measure(Ω,degree)
 dΓ = Measure(Γ,degree)
 
@@ -75,8 +75,10 @@ uh1 = h1(uh)
 
 #colors = color_aggregates(aggregates,bgmodel)
 #writevtk(Ω_bg,"trian",celldata=["aggregate"=>aggregates,"color"=>colors],cellfields=["uh"=>uh])
-#writevtk(Ω,"trian_O",cellfields=["uh"=>uh])
-#writevtk(Γ,"trian_G")
+writevtk(Ω,"trian_O",cellfields=["uh"=>uh,"e"=>e])
+writevtk(Γ,"trian_G")
+display("L2 error: $(el2/ul2)")
+display("H1 error: $(eh1/uh1)")
 @test el2/ul2 < 1.e-8
 @test eh1/uh1 < 1.e-7
 

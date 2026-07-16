@@ -1,8 +1,10 @@
 module DistributedAggregationP4estMeshes
 
 using Gridap
+using Gridap.Helpers
 using GridapEmbedded
 using GridapEmbedded.Interfaces: CUT
+using GridapEmbedded.LevelSetCutters: Leaf
 using GridapDistributed
 using PartitionedArrays
 using MPI
@@ -18,6 +20,23 @@ using GridapP4est: generate_local_fe_spaces_and_constraints
 using GridapDistributed: DistributedCellField, DistributedCellDof
 
 using DrWatson
+
+# This respects the input triangulation, without adding back all the ghosts
+function MyFESpace(
+  trian::GridapDistributed.DistributedTriangulation,reffe,spaces,
+  sDOF_to_dof,sDOF_to_dofs,sDOF_to_coeffs;split_own_and_ghost=false,constraint=nothing,kwargs...
+)
+  myfespaces = map(sDOF_to_dof,sDOF_to_dofs,sDOF_to_coeffs,spaces) do sDOF_to_dof,sDOF_to_dofs,sDOF_to_coeffs,spaces
+    FESpaceWithLinearConstraints(sDOF_to_dof,
+                                 sDOF_to_dofs,
+                                 sDOF_to_coeffs,
+                                 spaces)
+  end
+  gids = GridapDistributed.generate_gids(trian,myfespaces)
+  vector_type = GridapDistributed._find_vector_type(myfespaces,gids;split_own_and_ghost=split_own_and_ghost)
+  space = GridapDistributed.DistributedSingleFieldFESpace(myfespaces,gids,trian,vector_type)
+  return GridapDistributed._add_distributed_constraint(space,reffe,constraint)
+end
 
 function Gridap.Adaptivity.get_model(model::GridapP4est.OctreeDistributedDiscreteModel)
   dmodel = GridapDistributed.GenericDistributedDiscreteModel(
@@ -40,23 +59,49 @@ end
 include("NonConformingGridTopologies.jl")
 using .NonConformingGridTopologies
 
-function generate_geometry(distribute,np)
-  ranks = distribute(LinearIndices((np,)))
-  coarse_model = CartesianDiscreteModel((-1,1,-1,1),(1,1))
-  num_uniform_refinements = 1
-  num_ghost_layers = 1
+function square()
+  quadrilateral(;x0=Point(-0.9,-0.9),
+                 d1=VectorValue(1.8,0.0),
+                 d2=VectorValue(0.0,1.8))
+end
 
-  dmodel = OctreeDistributedDiscreteModel(
-    ranks,coarse_model,num_uniform_refinements;num_ghost_layers=num_ghost_layers
-  )
-  
+function square_with_circular_hole()
   geo1 = quadrilateral(;x0=Point(-0.9,-0.9),
                         d1=VectorValue(1.8,0.0),
                         d2=VectorValue(0.0,1.8))
   geo2 = ! disk(0.4)
   geo = intersect(geo1,geo2)
+  return geo
+end
 
-  cutgeo = cut(dmodel, geo)
+function flower(;x₀=Point(0.0,0.0),R₀=0.6,m=0.6,ω=10.0)
+  name="flower"
+  function flowerfun(x)
+    _flower(x,x₀,R₀,m,ω)
+  end
+  tree = Leaf((flowerfun,name,nothing))
+  geo = AnalyticalGeometry(tree)
+  return geo
+end
+
+@inline function _flower(x::Point,x₀,R₀,m,ω)
+  w = x - x₀
+  t = angle(w[1]+w[2]*im)
+  w⋅w - (R₀*(1.0+m*sin(ω*t)))^2
+end
+
+function generate_unfitted_model(distribute,np,generate_geometry)
+  ranks = distribute(LinearIndices((np,)))
+  coarse_model = CartesianDiscreteModel((-1,1,-1,1),(1,1))
+  num_uniform_refinements = 6
+  num_ghost_layers = 1
+
+  dmodel = OctreeDistributedDiscreteModel(
+    ranks,coarse_model,num_uniform_refinements;num_ghost_layers=num_ghost_layers
+  )
+
+  geo = generate_geometry()
+  cutgeo = cut(dmodel,geo)
   cell_to_inoutcut = compute_bgcell_to_inoutcut(cutgeo,geo)
   fmodel_refine_coarsen_flags = 
     map(ranks,
@@ -64,22 +109,22 @@ function generate_geometry(distribute,np)
         cell_to_inoutcut) do rank,indices,cell_to_inoutcut
       flags = zeros(Int,length(indices))
       flags .= nothing_flag
-      toref = findall(c->c==CUT,cell_to_inoutcut)
-      flags[toref] .= refine_flag
+      toref = findall(c->c!=CUT,cell_to_inoutcut)
+      flags[toref] .= coarsen_flag
       flags
   end
   fmodel,_ = Gridap.Adaptivity.adapt(dmodel,fmodel_refine_coarsen_flags);
 
-  for i in 1:5
-    cutgeo = cut(fmodel, geo)
+  for i in 1:num_uniform_refinements-1
+    cutgeo = cut(fmodel,geo)
     cell_to_inoutcut = compute_bgcell_to_inoutcut(cutgeo,geo)
     fmodel_refine_coarsen_flags = 
       map(partition(get_cell_gids(fmodel)),
           cell_to_inoutcut) do indices,cell_to_inoutcut
         flags = zeros(Int,length(indices))
         flags .= nothing_flag
-        toref = findall(c->c==CUT,cell_to_inoutcut)
-        flags[toref] .= refine_flag
+        toref = findall(c->c!=CUT,cell_to_inoutcut)
+        flags[toref] .= coarsen_flag
         flags
     end
     fmodel,_ = Gridap.Adaptivity.adapt(fmodel,fmodel_refine_coarsen_flags);
@@ -131,11 +176,12 @@ function generate_agfem_constraints(trian, spaces, bgcell_to_bgroot)
 end
 
 model, cutgeo, geo = with_mpi() do distribute
-  generate_geometry(distribute, 1)
+  generate_unfitted_model(distribute,1,flower)
 end
 
-Γ = EmbeddedBoundary(cutgeo)
 Ω = Triangulation(model)
+Γ = EmbeddedBoundary(cutgeo)
+n_Γ = get_normal_vector(Γ)
 Ωa = Triangulation(cutgeo,ACTIVE_IN)
 Ωp = Triangulation(cutgeo,PHYSICAL_IN)
 
@@ -145,20 +191,20 @@ writevtk(Ωa,datadir("active"));
 writevtk(Ωp,datadir("physical"));
 
 cell_gids = partition(get_cell_gids(model))
-cell_to_root = generate_aggregates(model, cutgeo, geo)
+cell_to_root = generate_aggregates(model,cutgeo,geo)
 
-writevtk(Triangulation(model),datadir("aggregates"), celldata = ["aggregate"=>cell_to_root]);
+writevtk(Triangulation(model),datadir("aggregates"),celldata=["aggregate"=>cell_to_root]);
 
 order = 2
 reffe = ReferenceFE(lagrangian,Float64,order)
 spaces = map(local_views(Ωa)) do trian
-  FESpace(trian, reffe; conformity=:H1)
+  FESpace(trian,reffe;conformity=:H1)
 end
 
-amr_sDOF_to_dof, amr_sDOF_to_dofs, amr_sDOF_to_coeffs = generate_amr_constraints(model, Ωa, spaces, reffe);
+amr_sDOF_to_dof, amr_sDOF_to_dofs, amr_sDOF_to_coeffs = generate_amr_constraints(model,Ωa,spaces,reffe);
 
 agg_sDOF_gids, agg_mfdof_gids, agg_mddof_gids, agg_mDOF_to_dof, agg_sDOF_to_dof, agg_sDOF_to_mdofs, agg_sDOF_to_coeffs = 
-  generate_agfem_constraints(Ωa, spaces, cell_to_root); 
+  generate_agfem_constraints(Ωa,spaces,cell_to_root); 
 
 # Only works because we dont have bcs or exterior MDOFs, otherwise a bit more work is needed
 agg_sDOF_to_dofs = map(agg_mDOF_to_dof, agg_sDOF_to_mdofs) do mDOF_to_dof, sDOF_to_mdofs
@@ -210,17 +256,38 @@ sDOF_to_dof, sDOF_to_dofs, sDOF_to_coeffs = map(
   )
 end |> tuple_of_arrays;
 
-hagfemspaces = map(sDOF_to_dof,
-                   sDOF_to_dofs,
-                   sDOF_to_coeffs,
-                   spaces) do sDOF_to_dof,sDOF_to_dofs,sDOF_to_coeffs,space
-  FESpaceWithLinearConstraints(sDOF_to_dof,sDOF_to_dofs,sDOF_to_coeffs,space)
-end
-
 u(x) = x[1]^2 + x[2]^2
-map(hagfemspaces) do hagfemspace
-  uₕ = interpolate_everywhere(u,hagfemspace)
-  writevtk(Ωa,datadir("check"),cellfields=["uh"=>uₕ,"eh"=>u-uₕ]);
-end
+f(x) = -Δ(u)(x)
+ud(x) = u(x)
+
+V = MyFESpace(Ωa,reffe,spaces,
+              sDOF_to_dof,sDOF_to_dofs,sDOF_to_coeffs)
+uᵢ = interpolate_everywhere(u,V)
+U = TrialFESpace(V)
+
+D = 2
+degree = 2*order*D
+dΩ = Measure(Ωp,degree)
+dΓ = Measure(Γ,degree)
+
+cell_meas = map(get_cell_measure∘Triangulation,local_views(Ω))
+meas = map(minimum,cell_meas) |> PartitionedArrays.getany
+const h = meas^(1/D)
+const γd = 10.0
+
+a(u,v) =
+  ∫( ∇(v)⋅∇(u) )dΩ +
+  ∫( (γd/h)*v*u  - v*(n_Γ⋅∇(u)) - (n_Γ⋅∇(v))*u )dΓ
+
+l(v) =
+  ∫( v*f )dΩ + ∫( (γd/h)*v*ud - (n_Γ⋅∇(v))*ud )dΓ
+
+op = AffineFEOperator(a,l,U,V)
+uₕ = solve(op)
+
+writevtk(Ωa,datadir("check_active"),
+         cellfields=["ui"=>uᵢ,"ei"=>u-uᵢ,"uh"=>uₕ,"eh"=>u-uₕ]);
+writevtk(Ωp,datadir("check_physical"),
+         cellfields=["ui"=>uᵢ,"ei"=>u-uᵢ,"uh"=>uₕ,"eh"=>u-uₕ]);
 
 end # module
