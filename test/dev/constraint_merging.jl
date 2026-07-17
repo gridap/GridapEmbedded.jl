@@ -60,13 +60,16 @@ include("NonConformingGridTopologies.jl")
 using .NonConformingGridTopologies
 
 function square()
-  quadrilateral(;x0=Point(-0.9,-0.9),
+  quadrilateral(;x0=Point(-0.9,-0.88),
                  d1=VectorValue(1.8,0.0),
-                 d2=VectorValue(0.0,1.8))
+                 d2=VectorValue(0.0,1.75))
+  # quadrilateral(;x0=Point(-0.750001,-0.750001),
+  #                d1=VectorValue(1.500002,0.0),
+  #                d2=VectorValue(0.0,1.500002))
 end
 
 function square_with_circular_hole()
-  geo1 = quadrilateral(;x0=Point(-0.9,-0.9),
+  geo1 = quadrilateral(;x0=Point(-0.9,-1.1),
                         d1=VectorValue(1.8,0.0),
                         d2=VectorValue(0.0,1.8))
   geo2 = ! disk(0.4)
@@ -93,13 +96,11 @@ end
 function generate_unfitted_model(distribute,np,generate_geometry)
   ranks = distribute(LinearIndices((np,)))
   coarse_model = CartesianDiscreteModel((-1,1,-1,1),(1,1))
-  num_uniform_refinements = 6
+  num_uniform_refinements = 4
   num_ghost_layers = 1
-
   dmodel = OctreeDistributedDiscreteModel(
     ranks,coarse_model,num_uniform_refinements;num_ghost_layers=num_ghost_layers
   )
-
   geo = generate_geometry()
   cutgeo = cut(dmodel,geo)
   cell_to_inoutcut = compute_bgcell_to_inoutcut(cutgeo,geo)
@@ -129,6 +130,16 @@ function generate_unfitted_model(distribute,np,generate_geometry)
     end
     fmodel,_ = Gridap.Adaptivity.adapt(fmodel,fmodel_refine_coarsen_flags);
   end
+  cutgeo = cut(fmodel,geo)
+  fmodel_refine_coarsen_flags = 
+    map(partition(get_cell_gids(fmodel))) do indices
+      flags = zeros(Int,length(indices))
+      flags .= nothing_flag
+      flags[14:17] .= coarsen_flag
+      flags[length(flags)-16:length(flags)-13] .= coarsen_flag
+      flags
+  end
+  fmodel,_ = Gridap.Adaptivity.adapt(fmodel,fmodel_refine_coarsen_flags); 
   if np > 1
     fmodel, _ = GridapDistributed.redistribute(fmodel)
   end
@@ -176,7 +187,7 @@ function generate_agfem_constraints(trian, spaces, bgcell_to_bgroot)
 end
 
 model, cutgeo, geo = with_mpi() do distribute
-  generate_unfitted_model(distribute,1,flower)
+  generate_unfitted_model(distribute,1,square)
 end
 
 Ω = Triangulation(model)
@@ -195,7 +206,7 @@ cell_to_root = generate_aggregates(model,cutgeo,geo)
 
 writevtk(Triangulation(model),datadir("aggregates"),celldata=["aggregate"=>cell_to_root]);
 
-order = 2
+order = 3
 reffe = ReferenceFE(lagrangian,Float64,order)
 spaces = map(local_views(Ωa)) do trian
   FESpace(trian,reffe;conformity=:H1)
@@ -256,7 +267,7 @@ sDOF_to_dof, sDOF_to_dofs, sDOF_to_coeffs = map(
   )
 end |> tuple_of_arrays;
 
-u(x) = x[1]^2 + x[2]^2
+u(x) = x[1]^3 + x[2]^3
 f(x) = -Δ(u)(x)
 ud(x) = u(x)
 
