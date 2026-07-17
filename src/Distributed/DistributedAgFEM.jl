@@ -773,6 +773,11 @@ function generate_aggregated_space_constraints(
       aggdof_to_dofs!(
         sDOF_to_dofs_data,ptrs,sDOF_to_dof,fdof_to_cell,cell_to_root,cell_to_dofs,own_to_local(sDOF_ids)
       )
+      # Reindex the dofs with the "pas the end" indexing, as required by the callback of generate_distributed_constraints
+      nf = num_free_dofs(space)
+      nd = num_dirichlet_dofs(space)
+      dof_to_DOF_reindex = PosNegReindex(Int32(1):Int32(nf),Int32(nf+1):Int32(nf+nd))
+      sDOF_to_dofs_data = collect(lazy_map(dof_to_DOF_reindex,sDOF_to_dofs_data))
       aggdof_to_coeffs!(
         sDOF_to_coeffs_data,ptrs,sDOF_to_dof,fdof_to_cell,fdof_to_ldof,cell_to_coeffs,cell_to_proj,own_to_local(sDOF_ids)
       )

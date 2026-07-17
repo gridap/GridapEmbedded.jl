@@ -60,8 +60,8 @@ include("NonConformingGridTopologies.jl")
 using .NonConformingGridTopologies
 
 function square()
-  quadrilateral(;x0=Point(-0.9,-0.88),
-                 d1=VectorValue(1.8,0.0),
+  quadrilateral(;x0=Point(-1.1,-0.88),
+                 d1=VectorValue(2.2,0.0),
                  d2=VectorValue(0.0,1.75))
   # quadrilateral(;x0=Point(-0.750001,-0.750001),
   #                d1=VectorValue(1.500002,0.0),
@@ -135,11 +135,11 @@ function generate_unfitted_model(distribute,np,generate_geometry)
     map(partition(get_cell_gids(fmodel))) do indices
       flags = zeros(Int,length(indices))
       flags .= nothing_flag
-      flags[14:17] .= coarsen_flag
-      flags[length(flags)-16:length(flags)-13] .= coarsen_flag
+      flags[11:16] .= coarsen_flag
+      flags[length(flags)-13:length(flags)-10] .= coarsen_flag
       flags
   end
-  fmodel,_ = Gridap.Adaptivity.adapt(fmodel,fmodel_refine_coarsen_flags); 
+  fmodel,_ = Gridap.Adaptivity.adapt(fmodel,fmodel_refine_coarsen_flags);
   if np > 1
     fmodel, _ = GridapDistributed.redistribute(fmodel)
   end
@@ -206,20 +206,25 @@ cell_to_root = generate_aggregates(model,cutgeo,geo)
 
 writevtk(Triangulation(model),datadir("aggregates"),celldata=["aggregate"=>cell_to_root]);
 
-order = 3
+order = 2
 reffe = ReferenceFE(lagrangian,Float64,order)
 spaces = map(local_views(Ωa)) do trian
-  FESpace(trian,reffe;conformity=:H1)
+  FESpace(trian,reffe;conformity=:H1,dirichlet_tags=[1,2,3,4,7,8])
 end
 
 amr_sDOF_to_dof, amr_sDOF_to_dofs, amr_sDOF_to_coeffs = generate_amr_constraints(model,Ωa,spaces,reffe);
 
 agg_sDOF_gids, agg_mfdof_gids, agg_mddof_gids, agg_mDOF_to_dof, agg_sDOF_to_dof, agg_sDOF_to_mdofs, agg_sDOF_to_coeffs = 
-  generate_agfem_constraints(Ωa,spaces,cell_to_root); 
+  generate_agfem_constraints(Ωa,spaces,cell_to_root);
 
-# Only works because we dont have bcs or exterior MDOFs, otherwise a bit more work is needed
+# Only works because we dont have bcs or exterior mDOFs, otherwise a bit more work is needed
 agg_sDOF_to_dofs = map(agg_mDOF_to_dof, agg_sDOF_to_mdofs) do mDOF_to_dof, sDOF_to_mdofs
-  data = mDOF_to_dof[sDOF_to_mdofs.data]
+  T = eltype(sDOF_to_mdofs.data)
+  data = Vector{T}(undef, length(sDOF_to_mdofs.data))
+  @inbounds for i in eachindex(sDOF_to_mdofs.data)
+    mdof = sDOF_to_mdofs.data[i]
+    data[i] = ifelse(mdof > zero(T), mDOF_to_dof[mdof], mdof)
+  end
   return Table(data, sDOF_to_mdofs.ptrs)
 end
 
@@ -231,14 +236,15 @@ agg_sDOF_keep = map(
   is_agg_dof = falses(ndofs)
   is_agg_dof[agg_sDOF_to_dof] .= true
   amr_only_sDOF = findall(dof->!is_agg_dof[dof],amr_sDOF_to_dof)
-  is_master_of_well_posed_hanging = falses(ndofs)
+  is_mfdof_of_well_posed_hanging = falses(ndofs)
   for sDOF in amr_only_sDOF
     masters = amr_sDOF_to_dofs[sDOF]
-    is_master_of_well_posed_hanging[masters] .= true
+    fmasters = masters[masters .> 0]
+    is_mfdof_of_well_posed_hanging[fmasters] .= true
   end
   keep_agg_constraint = falses(length(agg_sDOF_to_dof))
   for (sDOF,dof) in enumerate(agg_sDOF_to_dof)
-    keep_agg_constraint[sDOF] = !is_master_of_well_posed_hanging[dof]
+    keep_agg_constraint[sDOF] = !is_mfdof_of_well_posed_hanging[dof]
   end
   display("Removing $(count(!,keep_agg_constraint)) agg constraints:")
   display(findall(!,keep_agg_constraint))
@@ -267,14 +273,14 @@ sDOF_to_dof, sDOF_to_dofs, sDOF_to_coeffs = map(
   )
 end |> tuple_of_arrays;
 
-u(x) = x[1]^3 + x[2]^3
+u(x) = x[1]^2 + x[2]^2
 f(x) = -Δ(u)(x)
 ud(x) = u(x)
 
 V = MyFESpace(Ωa,reffe,spaces,
               sDOF_to_dof,sDOF_to_dofs,sDOF_to_coeffs)
 uᵢ = interpolate_everywhere(u,V)
-U = TrialFESpace(V)
+U = TrialFESpace(V,ud)
 
 D = 2
 degree = 2*order*D
