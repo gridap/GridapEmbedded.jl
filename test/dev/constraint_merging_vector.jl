@@ -60,121 +60,14 @@ end
 include("NonConformingGridTopologies.jl")
 using .NonConformingGridTopologies
 
-abstract type UnfittedGeometry end
-
-function generate_geometry(::UnfittedGeometry)
-  @notimplemented "`generate_geometry` must be implemented for this UnfittedGeometry subtype"
-end
-
-struct Square <: UnfittedGeometry end
-
-struct SquareWithCoarseCuts <: UnfittedGeometry end
-
-function generate_geometry(::Union{Square,SquareWithCoarseCuts})
-  quadrilateral(;x0=Point(-1.1,-0.88),
-                 d1=VectorValue(2.2,0.0),
-                 d2=VectorValue(0.0,1.75))
-  # quadrilateral(;x0=Point(-0.750001,-0.750001),
-  #                d1=VectorValue(1.500002,0.0),
-  #                d2=VectorValue(0.0,1.500002))
-end
-
-struct SquareWithCircularHole <: UnfittedGeometry end
-
-function generate_geometry(::SquareWithCircularHole)
-  geo1 = quadrilateral(;x0=Point(-0.9,-0.9),
-                        d1=VectorValue(1.8,0.0),
-                        d2=VectorValue(0.0,1.8))
-  geo2 = ! disk(0.4)
-  geo = intersect(geo1,geo2)
-  return geo
-end
-
-struct Flower <: UnfittedGeometry
-  x₀
-  R₀::Float64
-  m::Float64
-  ω::Float64
-end
-
-Flower(;x₀=Point(0.0,0.0),R₀=0.6,m=0.6,ω=10.0) = Flower(x₀,R₀,m,ω)
-
-function generate_geometry(geometry::Flower)
-  name="flower"
-  function flowerfun(x)
-    _flower(x,geometry.x₀,geometry.R₀,geometry.m,geometry.ω)
-  end
-  tree = Leaf((flowerfun,name,nothing))
-  geo = AnalyticalGeometry(tree)
-  return geo
-end
-
-@inline function _flower(x::Point,x₀,R₀,m,ω)
-  w = x - x₀
-  t = angle(w[1]+w[2]*im)
-  w⋅w - (R₀*(1.0+m*sin(ω*t)))^2
-end
-
-struct SinusoidalBand <: UnfittedGeometry
-  y₀::Float64
-  thickness::Float64
-  lower_amplitude::Float64
-  lower_period::Float64
-  upper_amplitude::Float64
-  upper_period::Float64
-  lower_phase::Float64
-  upper_phase::Float64
-end
-
-SinusoidalBand(;y₀=0.0,
-                thickness=0.6,
-                lower_amplitude=0.08,
-                lower_period=1.1,
-                upper_amplitude=0.12,
-                upper_period=1.7,
-                lower_phase=0.0,
-                upper_phase=pi/3) =
-  SinusoidalBand(y₀,
-                 thickness,
-                 lower_amplitude,
-                 lower_period,
-                 upper_amplitude,
-                 upper_period,
-                 lower_phase,
-                 upper_phase)
-
-function generate_geometry(geometry::SinusoidalBand)
-  name="sinusoidal_band"
-  function bandfun(x)
-    _sinusoidal_band(x,geometry)
-  end
-  tree = Leaf((bandfun,name,nothing))
-  geo = AnalyticalGeometry(tree)
-  return geo
-end
-
-@inline function _sinusoidal_band(x::Point,geometry::SinusoidalBand)
-  ξ = x[1]
-  y = x[2]
-  lower = geometry.y₀ - geometry.thickness/2 +
-          geometry.lower_amplitude*sin(2*pi*ξ/geometry.lower_period + geometry.lower_phase)
-  upper = geometry.y₀ + geometry.thickness/2 +
-          geometry.upper_amplitude*sin(2*pi*ξ/geometry.upper_period + geometry.upper_phase)
-  return max(lower - y, y - upper)
-end
-
-function generate_unfitted_model(distribute,
-                                 geometry::UnfittedGeometry;
-                                 num_parts=1,
-                                 initial_uniform_refs=4,
-                                 post_uniform_refinements=0)
+function generate_unfitted_model(distribute,geo;
+                                 num_parts=1,initial_uniform_refs=4)
   ranks = distribute(LinearIndices((num_parts,)))
-  coarse_model = CartesianDiscreteModel((-1,1,-1,1),(1,1))
+  coarse_model = CartesianDiscreteModel((-1,1,0,1),(2,1))
   num_ghost_layers = 1
   dmodel = OctreeDistributedDiscreteModel(
     ranks,coarse_model,initial_uniform_refs;num_ghost_layers=num_ghost_layers
   )
-  geo = generate_geometry(geometry)
   cutgeo = cut(dmodel,geo)
   cell_to_inoutcut = compute_bgcell_to_inoutcut(cutgeo,geo)
   fmodel_refine_coarsen_flags = 
@@ -188,7 +81,6 @@ function generate_unfitted_model(distribute,
       flags
   end
   fmodel,_ = Gridap.Adaptivity.adapt(dmodel,fmodel_refine_coarsen_flags);
-
   for i in 1:initial_uniform_refs-1
     cutgeo = cut(fmodel,geo)
     cell_to_inoutcut = compute_bgcell_to_inoutcut(cutgeo,geo)
@@ -199,28 +91,6 @@ function generate_unfitted_model(distribute,
         flags .= nothing_flag
         toref = findall(c->c!=CUT,cell_to_inoutcut)
         flags[toref] .= coarsen_flag
-        flags
-    end
-    fmodel,_ = Gridap.Adaptivity.adapt(fmodel,fmodel_refine_coarsen_flags);
-  end
-  if ( geometry isa SquareWithCoarseCuts ) && ( initial_uniform_refs == 4 )
-    cutgeo = cut(fmodel,geo)
-    fmodel_refine_coarsen_flags = 
-      map(partition(get_cell_gids(fmodel))) do indices
-        flags = zeros(Int,length(indices))
-        flags .= nothing_flag
-        flags[11:16] .= coarsen_flag
-        flags[length(flags)-13:length(flags)-10] .= coarsen_flag
-        flags
-    end
-    fmodel,_ = Gridap.Adaptivity.adapt(fmodel,fmodel_refine_coarsen_flags);
-  end
-  for i in 1:post_uniform_refinements
-    cutgeo = cut(fmodel,geo)
-    fmodel_refine_coarsen_flags = 
-      map(partition(get_cell_gids(fmodel))) do indices
-        flags = zeros(Int,length(indices))
-        flags .= refine_flag
         flags
     end
     fmodel,_ = Gridap.Adaptivity.adapt(fmodel,fmodel_refine_coarsen_flags);
@@ -256,7 +126,7 @@ function generate_aggregates(fmodel, cutgeo, geo)
     local_views(cutgeo),partition(cell_gids),ncgt
   ) do cutgeo,cell_indices,ncgt
     lid_to_gid = local_to_global(cell_indices)
-    aggregate(strategy,cutgeo,geo,lid_to_gid,IN,grid_topology=ncgt)
+    aggregate(strategy,cutgeo,geo,lid_to_gid,OUT,grid_topology=ncgt)
   end |> tuple_of_arrays
   return lcell_to_root
 end
@@ -276,51 +146,52 @@ function generate_agfem_constraints(trian, spaces, bgcell_to_bgroot)
 end
 
 function in_fe_space(;order=2)
-  u(x) = x[1]^order + x[2]^order
+  _u(x) = x[1]^order + x[2]^order
+  u(x) = VectorValue(_u(x),_u(x))
   f(x) = -Δ(u)(x)
   ud(x) = u(x)
   return (u, f, ud)
 end
 
 function out_fe_space(;kx=1.0,ky=1.0)
-  u(x) = sin(2*pi*kx*x[1]) * cos(2*pi*ky*x[2])
+  _u(x) = sin(2*pi*kx*x[1]) * cos(2*pi*ky*x[2])
+  u(x) = VectorValue(_u(x),_u(x))
   f(x) = -Δ(u)(x)
   ud(x) = u(x)
   return (u, f, ud)
 end
 
-function solve_on_model(model,cutgeo,geo,geometry::UnfittedGeometry;
+function solve_on_model(model,cutgeo,geo;
                         order=2::Integer,
                         problem::Tuple=in_fe_space(),
-                        write_solution::Bool=false,
-                        vtk_suffix::String="")
-  vtk_name(name::String) = isempty(vtk_suffix) ? name : "$(name)_$(vtk_suffix)"
+                        write_solution::Bool=false)
+
   Ω = Triangulation(model)
   Γ = EmbeddedBoundary(cutgeo)
   n_Γ = get_normal_vector(Γ)
-  Ωa = Triangulation(cutgeo,ACTIVE_IN)
-  Ωp = Triangulation(cutgeo,PHYSICAL_IN)
+  Ωa = Triangulation(cutgeo,ACTIVE_OUT)
+  Ωp = Triangulation(cutgeo,PHYSICAL_OUT)
 
   if write_solution
-    writevtk(Γ,datadir(vtk_name("boundary")));
-    writevtk(Ω,datadir(vtk_name("model")));
-    writevtk(Ωa,datadir(vtk_name("active")));
-    writevtk(Ωp,datadir(vtk_name("physical")));
+    writevtk(Γ,datadir("boundary"));
+    writevtk(Ω,datadir("model"));
+    writevtk(Ωa,datadir("active"));
+    writevtk(Ωp,datadir("physical"));
   end
 
   cell_to_root = generate_aggregates(model,cutgeo,geo)
 
   if write_solution
-    writevtk(Triangulation(model),datadir(vtk_name("aggregates")),celldata=["aggregate"=>cell_to_root]);
+    writevtk(Triangulation(model),datadir("aggregates"),celldata=["aggregate"=>cell_to_root]);
   end
 
-  reffe = ReferenceFE(lagrangian,Float64,order)
+  reffe = ReferenceFE(lagrangian,VectorValue{2,Float64},order)
   spaces = map(local_views(Ωa)) do trian
-    if geometry isa Union{SquareWithCoarseCuts,SinusoidalBand}
-      FESpace(trian,reffe;conformity=:H1,dirichlet_tags=[1,2,3,4,7,8])
-    else
-      FESpace(trian,reffe;conformity=:H1)
-    end
+    TestFESpace(trian,reffe;conformity=:H1,dirichlet_tags="boundary")
+                            # dirichlet_tags=[1,2,5, 7,8, 3,4,6],
+                            # dirichlet_masks=[(false,true),(false,true),(false,true),
+                            #                  (false,true),(false,true),
+                            #                  (false,true),(false,true),(false,true)])
   end
 
   amr_sDOF_to_dof, amr_sDOF_to_dofs, amr_sDOF_to_coeffs = generate_amr_constraints(model,Ωa,spaces,reffe);
@@ -401,118 +272,47 @@ function solve_on_model(model,cutgeo,geo,geometry::UnfittedGeometry;
   h = meas^(1/D)
   γd = 10.0
 
+  # [WARNING] Sign of normal is flipped because OUT domain
+
   a(u,v) =
-    ∫( ∇(v)⋅∇(u) )dΩ +
-    ∫( (γd/h)*v*u  - v*(n_Γ⋅∇(u)) - (n_Γ⋅∇(v))*u )dΓ
+    ∫( ∇(v)⊙∇(u) )dΩ +
+    ∫( (γd/h)*(v⋅u)  + v⋅(n_Γ⋅∇(u)) + (n_Γ⋅∇(v))⋅u )dΓ
 
   l(v) =
-    ∫( v*f )dΩ + ∫( (γd/h)*v*ud - (n_Γ⋅∇(v))*ud )dΓ
+    ∫( v⋅f )dΩ + ∫( (γd/h)*(v⋅ud) + (n_Γ⋅∇(v))⋅ud )dΓ
 
   op = AffineFEOperator(a,l,U,V)
   uₕ = solve(op)
 
   if write_solution
-    writevtk(Ωa,datadir(vtk_name("check_active")),
+    writevtk(Ωa,datadir("check_active"),
              cellfields=["ui"=>uᵢ,"ei"=>u-uᵢ,"uh"=>uₕ,"eh"=>u-uₕ]);
-    writevtk(Ωp,datadir(vtk_name("check_physical")),
+    writevtk(Ωp,datadir("check_physical"),
              cellfields=["ui"=>uᵢ,"ei"=>u-uᵢ,"uh"=>uₕ,"eh"=>u-uₕ]);
   end
 
   e = u - uₕ
-  el2 = sqrt(sum(∫( e*e )dΩ))
-  eh1 = sqrt(sum(∫( e*e + ∇(e)⋅∇(e) )dΩ))
+  el2 = sqrt(sum(∫( e⋅e )dΩ))
+  eh1 = sqrt(sum(∫( e⋅e + ∇(e)⊙∇(e) )dΩ))
 
-  return model, cutgeo, geo, uₕ, el2, eh1, h
+  return el2, eh1, h
 end
 
-function run_single_test(geometry::UnfittedGeometry;
-                         initial_uniform_refs::Integer,
-                         order::Integer,
-                         problem::Tuple=in_fe_space(),
-                         write_solution::Bool=false)
-  model, cutgeo, geo = with_mpi() do distribute
-    generate_unfitted_model(distribute,geometry,initial_uniform_refs=initial_uniform_refs)
-  end
-  model, cutgeo, geo, uₕ, _, _, _ = solve_on_model(
-    model,cutgeo,geo,geometry;
-    order,
-    problem,
-    write_solution
-  )
-  return model, cutgeo, geo, uₕ
+geo = disk(0.45)
+initial_uniform_refs = 4
+order = 2
+problem = in_fe_space(order=order)
+write_solution = true
+
+model, cutgeo, _ = with_mpi() do distribute
+  generate_unfitted_model(distribute,geo,initial_uniform_refs=initial_uniform_refs)
 end
 
-function run_convergence_test(geometry::UnfittedGeometry;
-                              initial_uniform_refs::Integer,
-                              order::Integer,
-                              num_refinements::Integer,
-                              problem::Tuple=in_fe_space(),
-                              write_solution::Bool=false)
-  
-  @assert num_refinements >= 1 "num_refinements must be >= 1"
-
-  el2s = Float64[]
-  eh1s = Float64[]
-  hs = Float64[]
-
-  for level in 1:num_refinements
-    suffix = "level_$(level)"
-    model, cutgeo, geo = with_mpi() do distribute 
-      generate_unfitted_model(distribute,geometry,
-        initial_uniform_refs=initial_uniform_refs,
-        post_uniform_refinements=level-1)
-    end
-    _, _, _, _, el2, eh1, h = solve_on_model(
-      model,cutgeo,geo,geometry;
-      order,
-      problem,
-      write_solution,
-      vtk_suffix=suffix
-    )
-    push!(el2s,el2)
-    push!(eh1s,eh1)
-    push!(hs,h)
-  end
-
-  function slope(hs,errors)
-    x = log10.(hs)
-    y = log10.(errors)
-    linreg = hcat(fill!(similar(x),1),x) \ y
-    linreg[2]
-  end
-
-  l2_slope = slope(hs,el2s)
-  h1_slope = slope(hs,eh1s)
-
-  p = plot(
-    hs,
-    [el2s eh1s],
-    xaxis=:log,
-    yaxis=:log,
-    label=["L2 (slope = $(round(l2_slope,digits=2)))" "H1 (slope = $(round(h1_slope,digits=2)))"],
-    shape=:auto,
-    xlabel="h",
-    ylabel="error norm",
-    title="Convergence test",
-    legend=:bottomright,
-  )
-
-  geom_name = lowercase(string(nameof(typeof(geometry))))
-  plot_path = datadir("convergence_$(geom_name)_k$(order).png")
-  mkpath(dirname(plot_path))
-  savefig(p, plot_path)
-
-  return el2s, eh1s, hs
-end
-
-# Square:                 begin with initial_uniform_refs = 3
-# SquareWithCircularHole: begin with initial_uniform_refs = 3
-# Flower:                 begin with initial_uniform_refs = 6
-# SinusoidalBand:         begin with initial_uniform_refs = 5
-el2s, eh1s, hs = run_convergence_test(SquareWithCircularHole(),
-                     initial_uniform_refs=3,
-                     order=2,
-                     num_refinements=4,
-                     problem=out_fe_space())
+solve_on_model(
+  model, cutgeo, geo;
+  order,
+  problem,
+  write_solution
+)
 
 end # module
