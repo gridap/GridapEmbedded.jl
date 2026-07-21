@@ -38,7 +38,9 @@ module NonConformingGridTopologies
     ncg::NonConformingGlue,num_cells::Int,D::Int)
 
     hanging_faces_to_cell_data = 
-      map(Broadcasting(first),ncg.hanging_faces_glue)
+      map(ncg.hanging_faces_glue) do glue
+        isempty(glue) ? Int32[] : map(x -> Int32(first(x)), glue)
+      end
 
     hanging_faces_to_cell_ptrs = 
       map(Broadcasting(zeros),tfill(Int32,Val{D}()),
@@ -82,8 +84,9 @@ module NonConformingGridTopologies
     return nothing
   end
 
-  function _count_owned_hanging_faces(x::AbstractArray,num_cells::Int)
+  function _count_owned_hanging_faces(x::AbstractArray{<:Integer},num_cells::Int)
     r = zeros(Int32,num_cells+1)
+    length(x) == 0 && return r
     for xi in x
       r[xi+1] += 1
     end
