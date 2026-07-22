@@ -145,58 +145,9 @@ function generate_agfem_constraints(trian, spaces, bgcell_to_bgroot)
   return sDOF_gids, mfdof_gids, mddof_gids, mDOF_to_dof, sDOF_to_dof, sDOF_to_mdofs, sDOF_to_coeffs
 end
 
-function in_fe_space(;order=2)
-  _u(x) = x[1]^order + x[2]^order
-  u(x) = VectorValue(_u(x),_u(x))
-  f(x) = -Δ(u)(x)
-  ud(x) = u(x)
-  return (u, f, ud)
-end
-
-function out_fe_space(;kx=1.0,ky=1.0)
-  _u(x) = sin(2*pi*kx*x[1]) * cos(2*pi*ky*x[2])
-  u(x) = VectorValue(_u(x),_u(x))
-  f(x) = -Δ(u)(x)
-  ud(x) = u(x)
-  return (u, f, ud)
-end
-
-function solve_on_model(model,cutgeo,geo;
-                        order=2::Integer,
-                        problem::Tuple=in_fe_space(),
-                        write_solution::Bool=false)
-
-  Ω = Triangulation(model)
-  Γ = EmbeddedBoundary(cutgeo)
-  n_Γ = get_normal_vector(Γ)
-  Ωa = Triangulation(cutgeo,ACTIVE_OUT)
-  Ωp = Triangulation(cutgeo,PHYSICAL_OUT)
-
-  if write_solution
-    writevtk(Γ,datadir("boundary"));
-    writevtk(Ω,datadir("model"));
-    writevtk(Ωa,datadir("active"));
-    writevtk(Ωp,datadir("physical"));
-  end
-
-  cell_to_root = generate_aggregates(model,cutgeo,geo)
-
-  if write_solution
-    writevtk(Triangulation(model),datadir("aggregates"),celldata=["aggregate"=>cell_to_root]);
-  end
-
-  reffe = ReferenceFE(lagrangian,VectorValue{2,Float64},order)
-  spaces = map(local_views(Ωa)) do trian
-    TestFESpace(trian,reffe;conformity=:H1,dirichlet_tags="boundary")
-                            # dirichlet_tags=[1,2,5, 7,8, 3,4,6],
-                            # dirichlet_masks=[(false,true),(false,true),(false,true),
-                            #                  (false,true),(false,true),
-                            #                  (false,true),(false,true),(false,true)])
-  end
-
+function generate_constrained_fe_space(model, Ωa, spaces, reffe, cell_to_root)
   amr_sDOF_to_dof, amr_sDOF_to_dofs, amr_sDOF_to_coeffs = generate_amr_constraints(model,Ωa,spaces,reffe);
-
-  agg_sDOF_gids, agg_mfdof_gids, agg_mddof_gids, agg_mDOF_to_dof, agg_sDOF_to_dof, agg_sDOF_to_mdofs, agg_sDOF_to_coeffs = 
+  _, _, _, agg_mDOF_to_dof, agg_sDOF_to_dof, agg_sDOF_to_mdofs, agg_sDOF_to_coeffs =
     generate_agfem_constraints(Ωa,spaces,cell_to_root);
 
   # Only works because we dont have bcs or exterior mDOFs, otherwise a bit more work is needed
@@ -238,15 +189,15 @@ function solve_on_model(model,cutgeo,geo;
     return agg_sDOF_to_dof[agg_sDOF_keep], agg_sDOF_to_dofs[agg_sDOF_keep], agg_sDOF_to_coeffs[agg_sDOF_keep]
   end |> tuple_of_arrays;
 
-  # Merge and close the constraint tables, preferring the AMR constraints in case of conflict 
+  # Merge and close the constraint tables, preferring the AMR constraints in case of conflict
   # for ill-posed dofs that are also hanging
   sDOF_to_dof, sDOF_to_dofs, sDOF_to_coeffs = map(
     spaces, agg_sDOF_to_dof, agg_sDOF_to_dofs, agg_sDOF_to_coeffs, amr_sDOF_to_dof, amr_sDOF_to_dofs, amr_sDOF_to_coeffs
   ) do space, agg_sDOF_to_dof, agg_sDOF_to_dofs, agg_sDOF_to_coeffs, amr_sDOF_to_dof, amr_sDOF_to_dofs, amr_sDOF_to_coeffs
     on_conflict(dof, dofs1, coeffs1, offset1, dofs2, coeffs2, offset2) = (dofs2, coeffs2, offset2)
     sDOF_to_dof, sDOF_to_dofs, sDOF_to_coeffs, sDOF_to_offsets = FESpaces.merge_slave_constraint_tables(
-      space, 
-      agg_sDOF_to_dof, agg_sDOF_to_dofs, agg_sDOF_to_coeffs, 
+      space,
+      agg_sDOF_to_dof, agg_sDOF_to_dofs, agg_sDOF_to_coeffs,
       amr_sDOF_to_dof, amr_sDOF_to_dofs, amr_sDOF_to_coeffs;
       on_conflict
     )
@@ -255,12 +206,78 @@ function solve_on_model(model,cutgeo,geo;
     )
   end |> tuple_of_arrays;
 
-  u, f, ud = problem
-
   V = MyFESpace(Ωa,reffe,spaces,
                 sDOF_to_dof,sDOF_to_dofs,sDOF_to_coeffs)
-  uᵢ = interpolate_everywhere(u,V)
-  U = TrialFESpace(V,ud)
+  return V
+end
+
+function in_fe_space_if_u_order_two()
+  u(x) = VectorValue( x[1]*x[1], x[2] )
+  p(x) = x[1]
+  f(x) = -Δ(u)(x) + ∇(p)(x)
+  g(x) = (∇⋅u)(x)
+  ∇u(x) = ∇(u)(x)
+  return (u, p, f, g, ∇u)
+end
+
+function out_fe_space()
+  @notimplemented "Out FE space example is not implemented yet"
+end
+
+function solve_on_model(model,cutgeo,geo;
+                        order=2::Integer,
+                        problem::Tuple=in_fe_space_if_u_order_two(),
+                        write_solution::Bool=false)
+
+  Ω = Triangulation(model)
+  Γ = EmbeddedBoundary(cutgeo)
+  nΓ = get_normal_vector(Γ)
+  Ωa = Triangulation(cutgeo,ACTIVE_OUT)
+  Ωp = Triangulation(cutgeo,PHYSICAL_OUT)
+
+  if write_solution
+    writevtk(Γ,datadir("boundary"));
+    writevtk(Ω,datadir("model"));
+    writevtk(Ωa,datadir("active"));
+    writevtk(Ωp,datadir("physical"));
+  end
+
+  cell_to_root = generate_aggregates(model,cutgeo,geo)
+
+  if write_solution
+    writevtk(Triangulation(model),datadir("aggregates"),celldata=["aggregate"=>cell_to_root]);
+  end
+
+  D = 2
+  
+  reffeᵘ = ReferenceFE(lagrangian,VectorValue{D,Float64},order)
+  spacesᵘ = map(local_views(Ωa)) do trian
+    TestFESpace(trian,reffeᵘ;conformity=:H1,dirichlet_tags="boundary")
+      # dirichlet_tags=[1,2,5, 7,8, 3,4,6],
+      # dirichlet_masks=[(false,true),(false,true),(false,true),
+      #                  (false,true),(false,true),
+      #                  (false,true),(false,true),(false,true)])
+  end
+  V = generate_constrained_fe_space(model, Ωa, spacesᵘ, reffeᵘ, cell_to_root)
+
+  reffeᵖ = ReferenceFE(lagrangian,Float64,order-1,space=:P)
+  spacesᵖ = map(local_views(Ωa)) do trian
+    TestFESpace(trian,reffeᵖ)
+  end
+  Q = generate_constrained_fe_space(model, Ωa, spacesᵖ, reffeᵖ, cell_to_root)
+
+  K = ConstantFESpace(model)
+
+  u, p, f, g, ∇u = problem
+
+  U = TrialFESpace(V,u)
+  P = TrialFESpace(Q)
+  L = TrialFESpace(K)
+
+  Y = MultiFieldFESpace([V,Q,K])
+  X = MultiFieldFESpace([U,P,L])
+
+  uᵢ, pᵢ, _ = interpolate_everywhere([u,p,0.0],X)
 
   D = 2
   degree = 2*order*D
@@ -270,38 +287,42 @@ function solve_on_model(model,cutgeo,geo;
   cell_meas = map(get_cell_measure∘Triangulation,local_views(Ω))
   meas = map(minimum,cell_meas) |> PartitionedArrays.getany
   h = meas^(1/D)
-  γd = 10.0
+  γ = 10.0
 
   # [WARNING] Sign of normal is flipped because OUT domain
 
-  a(u,v) =
-    ∫( ∇(v)⊙∇(u) )dΩ +
-    ∫( (γd/h)*(v⋅u)  + v⋅(n_Γ⋅∇(u)) + (n_Γ⋅∇(v))⋅u )dΓ
+  α(u,v) = ∫( ∇(u)⊙∇(v) )dΩ
+  β(v,q) = ∫( q*(∇⋅v) )dΩ
 
-  l(v) =
-    ∫( v⋅f )dΩ + ∫( (γd/h)*(v⋅ud) + (n_Γ⋅∇(v))⋅ud )dΓ
+  γˡ(u,v,p,q) = ∫( (γ/h)*(v⋅u) +
+    v⋅(nΓ⋅∇(u)) + (nΓ⋅∇(v))⋅u - (p*nΓ)⋅v - (q*nΓ)⋅u )dΓ
+  γʳ(v,q) = ∫( (γ/h)*(v⋅u) + (nΓ⋅∇(v))⋅u - (q*nΓ)⋅u )dΓ
 
-  op = AffineFEOperator(a,l,U,V)
-  uₕ = solve(op)
+  r(p,ℓ) = ∫( p*ℓ )dΩ
+
+  a((u,p,l),(v,q,ℓ)) = 
+    α(u,v) - β(v,p) - β(u,q) + 
+    γˡ(u,v,p,q) + r(p,ℓ) + r(q,l)
+  b((v,q,l)) = γʳ(v,q) + ∫( v⋅f - q*g )dΩ
+
+  op = AffineFEOperator(a,b,X,Y)
+  uₕ, pₕ, _ = solve(op)
 
   if write_solution
     writevtk(Ωa,datadir("check_active"),
-             cellfields=["ui"=>uᵢ,"ei"=>u-uᵢ,"uh"=>uₕ,"eh"=>u-uₕ]);
+            cellfields=["ui"=>uᵢ,"eui"=>u-uᵢ,"p"=>pᵢ,"epi"=>p-pᵢ,
+                        "uh"=>uₕ,"euh"=>u-uₕ,"ph"=>pₕ,"eph"=>p-pₕ]);
     writevtk(Ωp,datadir("check_physical"),
-             cellfields=["ui"=>uᵢ,"ei"=>u-uᵢ,"uh"=>uₕ,"eh"=>u-uₕ]);
+            cellfields=["ui"=>uᵢ,"eui"=>u-uᵢ,"p"=>pᵢ,"epi"=>p-pᵢ,
+                        "uh"=>uₕ,"euh"=>u-uₕ,"ph"=>pₕ,"eph"=>p-pₕ]);
   end
 
-  e = u - uₕ
-  el2 = sqrt(sum(∫( e⋅e )dΩ))
-  eh1 = sqrt(sum(∫( e⋅e + ∇(e)⊙∇(e) )dΩ))
-
-  return el2, eh1, h
 end
 
 geo = disk(0.45)
 initial_uniform_refs = 4
 order = 2
-problem = in_fe_space(order=order)
+problem = in_fe_space_if_u_order_two()
 write_solution = true
 
 model, cutgeo, _ = with_mpi() do distribute
