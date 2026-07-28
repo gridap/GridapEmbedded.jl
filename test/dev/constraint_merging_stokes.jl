@@ -22,6 +22,18 @@ using GridapDistributed: DistributedCellField, DistributedCellDof
 using DrWatson
 using Plots
 
+# REFERENCES
+#
+# 1. p4est: SCALABLE ALGORITHMS FOR PARALLEL ADAPTIVE MESH REFINEMENT ON FORESTS OF OCTREES
+# 2. A GENERIC FINITE ELEMENT FRAMEWORK ON PARALLEL TREE-BASED ADAPTIVE MESHES https://arxiv.org/pdf/1907.03709
+# 3. THE AGGREGATED UNFITTED FINITE ELEMENT METHOD ON PARALLEL TREE-BASED ADAPTIVE MESHES https://arxiv.org/pdf/2006.05373
+
+# BRANCHES
+# 1. GridapP4est.jl: https://github.com/gridap/GridapP4est.jl/tree/fe_space_on_triangulation
+# 2. Gridap.jl: https://github.com/gridap/Gridap.jl/tree/constraints
+# 3. GridapDistributed.jl: https://github.com/gridap/GridapDistributed.jl/tree/agfem
+# 4. GridapEmbedded.jl: https://github.com/gridap/GridapEmbedded.jl/tree/distributed_aggregate_p4est_meshes
+
 # This respects the input triangulation, without adding back all the ghosts
 function MyFESpace(
   trian::GridapDistributed.DistributedTriangulation,reffe,spaces,
@@ -68,8 +80,12 @@ function generate_unfitted_model(distribute,geo;
   dmodel = OctreeDistributedDiscreteModel(
     ranks,coarse_model,initial_uniform_refs;num_ghost_layers=num_ghost_layers
   )
+  # From here on we illustrate how to refine and coarsen the model based on the cut geometry
+  # Beware that cell_to_inoutcut and fmodel_refine_coarsen_flags are distributed MPI arrays
+  # https://partitionedarrays.github.io/PartitionedArrays.jl/stable/usage/#Basic-usage
+  # See also tests from PartitionedArrays.jl and GridapDistributed.jl for more examples
   cutgeo = cut(dmodel,geo)
-  cell_to_inoutcut = compute_bgcell_to_inoutcut(cutgeo,geo)
+  cell_to_inoutcut = compute_bgcell_to_inoutcut(cutgeo,geo) 
   fmodel_refine_coarsen_flags = 
     map(ranks,
         partition(get_cell_gids(dmodel.dmodel)),
@@ -81,6 +97,7 @@ function generate_unfitted_model(distribute,geo;
       flags
   end
   fmodel,_ = Gridap.Adaptivity.adapt(dmodel,fmodel_refine_coarsen_flags);
+  # Exercice: Plot the model at this stage to see the effect of the refinement and coarsening flags
   for i in 1:initial_uniform_refs-1
     cutgeo = cut(fmodel,geo)
     cell_to_inoutcut = compute_bgcell_to_inoutcut(cutgeo,geo)
@@ -145,12 +162,12 @@ function generate_agfem_constraints(trian, spaces, bgcell_to_bgroot)
   return sDOF_gids, mfdof_gids, mddof_gids, mDOF_to_dof, sDOF_to_dof, sDOF_to_mdofs, sDOF_to_coeffs
 end
 
+# My hope is that you can use this function as a blackbox
 function generate_constrained_fe_space(model, Ωa, spaces, reffe, cell_to_root)
   amr_sDOF_to_dof, amr_sDOF_to_dofs, amr_sDOF_to_coeffs = generate_amr_constraints(model,Ωa,spaces,reffe);
   _, _, _, agg_mDOF_to_dof, agg_sDOF_to_dof, agg_sDOF_to_mdofs, agg_sDOF_to_coeffs =
     generate_agfem_constraints(Ωa,spaces,cell_to_root);
 
-  # Only works because we dont have bcs or exterior mDOFs, otherwise a bit more work is needed
   agg_sDOF_to_dofs = map(agg_mDOF_to_dof, agg_sDOF_to_mdofs) do mDOF_to_dof, sDOF_to_mdofs
     T = eltype(sDOF_to_mdofs.data)
     data = Vector{T}(undef, length(sDOF_to_mdofs.data))
@@ -229,6 +246,7 @@ function solve_on_model(model,cutgeo,geo;
                         problem::Tuple=in_fe_space_if_u_order_two(),
                         write_solution::Bool=false)
 
+  # Update à la algoim way                     
   Ω = Triangulation(model)
   Γ = EmbeddedBoundary(cutgeo)
   nΓ = get_normal_vector(Γ)
@@ -277,9 +295,11 @@ function solve_on_model(model,cutgeo,geo;
   Y = MultiFieldFESpace([V,Q,K])
   X = MultiFieldFESpace([U,P,L])
 
+  # First sanity check: interpolate a FE function that can be exactly represented by the FE space that combines hanging and aggregate constraints
   uᵢ, pᵢ, _ = interpolate_everywhere([u,p,0.0],X)
 
   D = 2
+  # Update with algoim
   degree = 2*order*D
   dΩ = Measure(Ωp,degree)
   dΓ = Measure(Γ,degree)
@@ -308,6 +328,8 @@ function solve_on_model(model,cutgeo,geo;
   op = AffineFEOperator(a,b,X,Y)
   uₕ, pₕ, _ = solve(op)
 
+  # Second sanity check: If the first sanity check passes, but the solution to the problem is incorrect, the most typical cause is a problem in the definition of the weak form, e.g. a missing term or a wrong sign.
+
   if write_solution
     writevtk(Ωa,datadir("check_active"),
             cellfields=["ui"=>uᵢ,"eui"=>u-uᵢ,"p"=>pᵢ,"epi"=>p-pᵢ,
@@ -319,16 +341,26 @@ function solve_on_model(model,cutgeo,geo;
 
 end
 
+# MAIN PROGRAMME STARTS HERE
+
 geo = disk(0.45)
 initial_uniform_refs = 4
 order = 2
 problem = in_fe_space_if_u_order_two()
 write_solution = true
 
+# Update generate_unfitted_model to
+# generate model with an algoim LS
+# HINT: Use s_cell_quad,is_c₋ = CellQuadratureAndActiveMask(bgmodel,squad)
+# The model with cutgeo is generate by coarsening a maximumly refined model, so that the cut geometry is well resolved
+# If you start with an analytical LS of disk, you can start with a coarse model (initial_uniform_refs=1) and refine on cut cells until achieving the desired mesh size on the cuts
 model, cutgeo, _ = with_mpi() do distribute
   generate_unfitted_model(distribute,geo,initial_uniform_refs=initial_uniform_refs)
 end
 
+# Although it does not run on a distributed environment,
+# the input arrays are distributed, so all the derived
+# types from them are distributed 
 solve_on_model(
   model, cutgeo, geo;
   order,
