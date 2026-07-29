@@ -649,7 +649,14 @@ function compute_closest_point_projections(
   # implementation of Interpolable is not using the
   # NonConformingGridapTopology, so the list of cells
   # around hanging nodes is incomplete.
-  sm = Gridap.CellData.KDTreeSearch(num_nearest_vertices=5)
+  if num_cell_dims(model) == 2
+    num_nearest_vertices = 5
+  elseif num_cell_dims(model) == 3
+    num_nearest_vertices = 18
+  else
+    error("Unsupported number of dimensions $(num_dims(model))")
+  end
+  sm = Gridap.CellData.KDTreeSearch(num_nearest_vertices=num_nearest_vertices)
   iφ = map(local_views(φ.values)) do lφ
     Gridap.CellData.Interpolable(lφ,searchmethod=sm)
   end |> GridapDistributed.DistributedInterpolable
