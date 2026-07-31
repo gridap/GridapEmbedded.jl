@@ -13,7 +13,6 @@ module DistributedAggregationP4estMeshes
   using GridapP4est
 
   include("NonConformingGridTopologies.jl")
-  using .NonConformingGridTopologies
 
   function run(distribute)
 

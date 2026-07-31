@@ -6,9 +6,9 @@ using MPI
 
 using GridapEmbedded.AlgoimUtils
 
-if !MPI.Initialized()
-  MPI.Init()
-end
+# if !MPI.Initialized()
+#   MPI.Init()
+# end
 
 with_mpi() do distribute
 

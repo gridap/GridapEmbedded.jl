@@ -7,9 +7,11 @@ using MPI
 
 using GridapEmbedded.AlgoimUtils
 
-if !MPI.Initialized()
-  MPI.Init()
-end
+include("NonConformingGridTopologies.jl")
+
+# if !MPI.Initialized()
+#   MPI.Init()
+# end
 
 with_mpi() do distribute
 
@@ -47,6 +49,7 @@ with_mpi() do distribute
   writevtk(fmodel,"fmodel")
 
   Ω = Triangulation(fmodel)
+  ncgt = NonConformingGridTopology(fmodel)
 
   order = 3
   reffe_s = ReferenceFE(lagrangian,Float64,order)
@@ -74,15 +77,16 @@ with_mpi() do distribute
   _φ = interpolate_everywhere(val,Qₕ)
   φ_field = AlgoimCallLevelSetFunction(_φ,∇(_φ))
 
-  sm = Gridap.CellData.KDTreeSearch(num_nearest_vertices=5)
-  iφ_field = map(local_views(φ_field.values)) do iφ
+  iφ_field = map(local_views(φ_field.values),ncgt) do iφ,ncgt
+    vertex_to_cells = Gridap.Geometry.get_faces(ncgt,0,num_cell_dims(fmodel))
+    sm = Gridap.CellData.KDTreeSearch(vertex_to_cells=vertex_to_cells)
     Gridap.CellData.Interpolable(iφ,searchmethod=sm)
   end |> GridapDistributed.DistributedInterpolable
   
   cpps = compute_closest_point_projections(
-    fmodel,Vₕ,φ_field,order,max_refinement_level)
+    fmodel,ncgt,Vₕ,φ_field,order,max_refinement_level)
   dists = compute_distance_fe_function(
-    fmodel,Qₕ,Vₕ,φ_field,order,max_refinement_level)
+    fmodel,ncgt,Qₕ,Vₕ,φ_field,order,max_refinement_level)
 
   writevtk(Ω,"Ω_field",cellfields=["cpp"=>cpps,"dist"=>dists,"phi"=>iφ_field∘cpps],nsubcells=1)
 

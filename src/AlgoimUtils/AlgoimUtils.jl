@@ -622,6 +622,7 @@ end
 
 function compute_closest_point_projections(
     model::OctreeDistributedDiscreteModel,
+    topo::MPIArray{<:Gridap.Geometry.GridTopology},
     V::DistributedFESpace,
     φ::DistributedAlgoimCallLevelSetFunction,
     order::Int,
@@ -644,20 +645,9 @@ function compute_closest_point_projections(
   fcells = fine_partition .+ 1
   fgrid = vec(map(i->xmin+Point((Tuple(i).-1).*fsizes),
               CartesianIndices((fcells...,))))
-  # A hack follows to evaluate the LS function on 2D  
-  # OctreeDistributedDiscreteModels, as the current
-  # implementation of Interpolable is not using the
-  # NonConformingGridapTopology, so the list of cells
-  # around hanging nodes is incomplete.
-  if num_cell_dims(model) == 2
-    num_nearest_vertices = 5
-  elseif num_cell_dims(model) == 3
-    num_nearest_vertices = 18
-  else
-    error("Unsupported number of dimensions $(num_dims(model))")
-  end
-  sm = Gridap.CellData.KDTreeSearch(num_nearest_vertices=num_nearest_vertices)
-  iφ = map(local_views(φ.values)) do lφ
+  iφ = map(local_views(φ.values),topo) do lφ,topo
+    vertex_to_cells = get_faces(topo,0,num_cell_dims(model))
+    sm = Gridap.CellData.KDTreeSearch(vertex_to_cells=vertex_to_cells)
     Gridap.CellData.Interpolable(lφ,searchmethod=sm)
   end |> GridapDistributed.DistributedInterpolable
   fvals = evaluate(iφ,fgrid)
@@ -1152,6 +1142,7 @@ end
 
 function compute_distance_fe_function(
     bgmodel::OctreeDistributedDiscreteModel,
+    topo::MPIArray{<:Gridap.Geometry.GridTopology},
     fespace_scalar_type::DistributedFESpace,
     fespace_vector_type::DistributedFESpace,
     φ::DistributedAlgoimCallLevelSetFunction,
@@ -1160,7 +1151,7 @@ function compute_distance_fe_function(
     cppdegree::Int=2)
   
   cps = compute_closest_point_projections(
-    bgmodel,fespace_vector_type,φ,order,
+    bgmodel,topo,fespace_vector_type,φ,order,
     max_refinement_level,cppdegree=cppdegree)
   cps_vals = get_free_dof_values(cps)
   
