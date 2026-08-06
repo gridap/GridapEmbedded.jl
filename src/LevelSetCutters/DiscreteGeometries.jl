@@ -85,14 +85,15 @@ function DiscreteGeometry(
   DiscreteGeometry(tree,point_to_coords)
 end
 
-# TODO: This assumes that the level set φh is 1st order, i.e that there is a 1-to-1 correspondence
+# NOTE 1: This assumes that the level set φh is 1st order, i.e that there is a 1-to-1 correspondence
 # between nodes in the mesh and dofs in φh. 
 # Even if we allowed higher order, the cuts are always linear. Not only it would be a waste
 # of time to use higher order, but cuts could actually be wrong.
 # This might be developped in the future.
+# NOTE 2: When φh has complex-valued DOFs, we define the geometry using the real part of the dofs.
 function DiscreteGeometry(
   φh::CellField,model::DiscreteModel;name::String="")
-  point_to_value = get_free_dof_values(φh)
+  point_to_value = real(get_free_dof_values(φh))
   point_to_coords = collect1d(get_node_coordinates(model))
   DiscreteGeometry(point_to_value,point_to_coords;name)
 end

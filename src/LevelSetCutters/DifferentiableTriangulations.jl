@@ -432,7 +432,9 @@ function extract_dualized_cell_values(
   bgcell_to_rcoords = lazy_map(get_vertex_coordinates,bgcell_to_polys)
   bgcell_to_fields = CellData.get_data(φh)
   bgcell_to_values = lazy_map(evaluate,bgcell_to_fields,bgcell_to_rcoords)
-  return bgcell_to_values
+  # When φh has complex-valued DOFs, we define the geometry using the real part.
+  bgcell_to_rvalues = lazy_map(real,bgcell_to_values)
+  return bgcell_to_rvalues
 end
 
 # TriangulationView
