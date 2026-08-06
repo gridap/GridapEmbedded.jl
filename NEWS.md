@@ -6,6 +6,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Add support for complex-valued dofs. Since PR [#130](https://github.com/gridap/GridapEmbedded.jl/pull/130).
+
 ### Fixed
 
 - Fix for issue #115, which is a bug in the logic of the `ACTIVE` mask and `GhostSkeleton` construction. Since PR [#123](https://github.com/gridap/GridapEmbedded.jl/pull/123).
