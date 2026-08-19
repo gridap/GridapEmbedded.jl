@@ -636,7 +636,7 @@ function compute_closest_point_projections(
   xmin = coarse_desc.origin
   coarse_partition = Int32[coarse_desc.partition...]
   fine_partition = 
-   coarse_partition .* ( Int32(2^max_refinement_level)*Int32(order) )
+   coarse_partition .* ( Int32(2^max_refinement_level) * Int32(order) )
   xmax = xmin + Point(coarse_desc.sizes .* coarse_partition)
 
   # The level set values at the maximum refinement level
@@ -650,7 +650,9 @@ function compute_closest_point_projections(
     sm = Gridap.CellData.KDTreeSearch(vertex_to_cells=vertex_to_cells)
     Gridap.CellData.Interpolable(lφ,searchmethod=sm)
   end |> GridapDistributed.DistributedInterpolable
-  fvals = evaluate(iφ,fgrid)
+  # Computational hotspot of procedure follows
+  # Point-wise evaluation (faster than vector of points)
+  fvals = iφ(fgrid)
 
   # Coordinates of free DoFs on each local partition
   coords = interpolate_everywhere(identity,V)
