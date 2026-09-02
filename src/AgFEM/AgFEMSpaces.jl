@@ -175,7 +175,7 @@ function _allocate_aggdof_to_data(aggdof_to_dofs_ptrs,
                                   acell_to_coeffs)
   length_to_ptrs!(aggdof_to_dofs_ptrs)
   ndata = aggdof_to_dofs_ptrs[end]-1
-  aggdof_to_dofs_data = zeros(Int,ndata)
+  aggdof_to_dofs_data = zeros(Int32,ndata)
   T = eltype(eltype(acell_to_coeffs))
   aggdof_to_coeffs_data = zeros(T,ndata)
   aggdof_to_dofs_data, aggdof_to_coeffs_data
