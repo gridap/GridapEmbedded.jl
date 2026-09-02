@@ -52,8 +52,7 @@ function Gridap.Adaptivity.get_model(model::GridapP4est.OctreeDistributedDiscret
     model.ptr_pXest,
     model.pXest_type,
     model.pXest_refinement_rule_type,
-    model.owns_ptr_pXest_connectivity,
-    model.gc_ref; num_ghost_layers = model.num_ghost_layers
+    model.connectivity_ref; num_ghost_layers = model.num_ghost_layers
   )
 end
 
@@ -328,7 +327,7 @@ function solve_on_model(model,cutgeo,geo,geometry::UnfittedGeometry;
   agg_sDOF_gids, agg_mfdof_gids, agg_mddof_gids, agg_mDOF_to_dof, agg_sDOF_to_dof, agg_sDOF_to_mdofs, agg_sDOF_to_coeffs = 
     generate_agfem_constraints(Ωa,spaces,cell_to_root);
 
-  # Only works because we dont have bcs or exterior mDOFs, otherwise a bit more work is needed
+  # Deal with Dirichlet BCs
   agg_sDOF_to_dofs = map(agg_mDOF_to_dof, agg_sDOF_to_mdofs) do mDOF_to_dof, sDOF_to_mdofs
     T = eltype(sDOF_to_mdofs.data)
     data = Vector{T}(undef, length(sDOF_to_mdofs.data))

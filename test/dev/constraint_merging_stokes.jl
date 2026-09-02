@@ -64,8 +64,7 @@ function Gridap.Adaptivity.get_model(model::GridapP4est.OctreeDistributedDiscret
     model.ptr_pXest,
     model.pXest_type,
     model.pXest_refinement_rule_type,
-    model.owns_ptr_pXest_connectivity,
-    model.gc_ref; num_ghost_layers = model.num_ghost_layers
+    model.connectivity_ref; num_ghost_layers = model.num_ghost_layers
   )
 end
 
@@ -168,6 +167,7 @@ function generate_constrained_fe_space(model, Ωa, spaces, reffe, cell_to_root)
   _, _, _, agg_mDOF_to_dof, agg_sDOF_to_dof, agg_sDOF_to_mdofs, agg_sDOF_to_coeffs =
     generate_agfem_constraints(Ωa,spaces,cell_to_root);
 
+  # Deal with Dirichlet BCs
   agg_sDOF_to_dofs = map(agg_mDOF_to_dof, agg_sDOF_to_mdofs) do mDOF_to_dof, sDOF_to_mdofs
     T = eltype(sDOF_to_mdofs.data)
     data = Vector{T}(undef, length(sDOF_to_mdofs.data))
