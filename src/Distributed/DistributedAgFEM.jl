@@ -755,7 +755,7 @@ function generate_aggregated_space_constraints(
 
     # Fill the info for the owned sDOFs
     # I.e the returned tables only have entries filled for the owned sDOFs
-    sDOF_to_mdofs, sDOF_to_coeffs = map(
+    sDOF_to_DOFs, sDOF_to_coeffs = map(
       spaces,ptrs,sDOF_to_dof,fdof_to_cell,fdof_to_ldof,cell_to_root,cell_to_dofs,
       local_views(shfns_g),local_views(dofs_g),partition(sDOF_gids),ltrians
     ) do space,ptrs,sDOF_to_dof,fdof_to_cell,fdof_to_ldof,cell_to_root,cell_to_dofs,shfns_g,dofs_g,sDOF_ids,ltrian
@@ -769,22 +769,26 @@ function generate_aggregated_space_constraints(
       cell_to_coeffs = dofs_f(root_shfns_g)
       cell_to_proj = dofs_g(shfns_f)
 
-      sDOF_to_dofs_data, sDOF_to_coeffs_data = AgFEM._allocate_aggdof_to_data(ptrs,cell_to_coeffs)
+      sDOF_to_DOFs_data, sDOF_to_coeffs_data = AgFEM._allocate_aggdof_to_data(ptrs,cell_to_coeffs)
       aggdof_to_dofs!(
-        sDOF_to_dofs_data,ptrs,sDOF_to_dof,fdof_to_cell,cell_to_root,cell_to_dofs,own_to_local(sDOF_ids)
+        sDOF_to_DOFs_data,ptrs,sDOF_to_dof,fdof_to_cell,cell_to_root,cell_to_dofs,own_to_local(sDOF_ids)
       )
       # Reindex the dofs with the "pas the end" indexing, as required by the callback of generate_distributed_constraints
       nf = num_free_dofs(space)
       nd = num_dirichlet_dofs(space)
       dof_to_DOF_reindex = PosNegReindex(Int32(1):Int32(nf),Int32(nf+1):Int32(nf+nd))
-      sDOF_to_dofs_data = collect(lazy_map(dof_to_DOF_reindex,sDOF_to_dofs_data))
+      T = eltype(sDOF_to_DOFs_data)
+      sDOF_to_DOFs_data = map(sDOF_to_DOFs_data) do dof
+        # Remote dofs are not reindexed. Before communication they have a 0 placeholder value.
+        iszero(dof) ? zero(T) : T(evaluate(dof_to_DOF_reindex,dof))
+      end
       aggdof_to_coeffs!(
         sDOF_to_coeffs_data,ptrs,sDOF_to_dof,fdof_to_cell,fdof_to_ldof,cell_to_coeffs,cell_to_proj,own_to_local(sDOF_ids)
       )
-      return Table(sDOF_to_dofs_data,ptrs), Table(sDOF_to_coeffs_data,ptrs)
+      return Table(sDOF_to_DOFs_data,ptrs), Table(sDOF_to_coeffs_data,ptrs)
     end |> tuple_of_arrays
 
-    return sDOF_to_mdofs, sDOF_to_coeffs
+    return sDOF_to_DOFs, sDOF_to_coeffs
   end
 
   return GridapDistributed.generate_distributed_constraints(
