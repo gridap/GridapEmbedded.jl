@@ -19,12 +19,12 @@ model, cutgeo, geo, uₕ = with_mpi() do distribute
   #                      num_refinements=4,
   #                      problem=out_fe_space())
   TestModule.run_single_test(distribute,
-                      TestModule.Square(),
-                      num_parts=4,
-                      initial_uniform_refs=3,
-                      order=2,
-                      problem=TestModule.in_fe_space(order=2),
-                      write_solution=true)
+                             TestModule.SquareWithCircularHole(),
+                             num_parts=5,
+                             initial_uniform_refs=4,
+                             order=2,
+                             problem=TestModule.in_fe_space(order=2),
+                             write_solution=true)
 end
 
 MPI.Finalize()
