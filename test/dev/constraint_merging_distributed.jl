@@ -27,14 +27,15 @@ using Plots
 function MyFESpace(
   trian::GridapDistributed.DistributedTriangulation,reffe,spaces,
   n_fdofs,n_ddofs,gids,
-  sDOF_to_dof,sDOF_to_dofs,sDOF_to_coeffs;
+  mDOF_to_dof,sDOF_to_dof,sDOF_to_mdofs,sDOF_to_coeffs;
   split_own_and_ghost=false,constraint=nothing,kwargs...
 )
-  myfespaces = map(sDOF_to_dof,sDOF_to_dofs,sDOF_to_coeffs,spaces,n_fdofs,n_ddofs) do sDOF_to_dof,sDOF_to_dofs,sDOF_to_coeffs,spaces,n_fdofs,n_ddofs
-    FESpaceWithLinearConstraints(sDOF_to_dof,
-                                 sDOF_to_dofs,
+  myfespaces = map(mDOF_to_dof,sDOF_to_dof,sDOF_to_mdofs,sDOF_to_coeffs,spaces,n_fdofs,n_ddofs) do mDOF_to_dof,sDOF_to_dof,sDOF_to_mdofs,sDOF_to_coeffs,spaces,n_fdofs,n_ddofs
+    FESpaceWithLinearConstraints(spaces,
+                                 mDOF_to_dof,
+                                 sDOF_to_dof,
+                                 sDOF_to_mdofs,
                                  sDOF_to_coeffs,
-                                 spaces,
                                  n_fdofs = n_fdofs,
                                  n_dofs = n_fdofs + n_ddofs)
   end
@@ -279,6 +280,36 @@ function generate_agfem_constraints(trian, spaces, bgcell_to_groot)
   return sDOF_gids, new_n_fdofs, new_n_ddofs, mfdof_gids, mddof_gids, mDOF_to_dof, sDOF_to_dof, sDOF_to_DOFs, sDOF_to_coeffs
 end
 
+function generate_merged_constraints(trian, 
+                                     spaces, 
+                                     bgcell_to_groot, 
+                                     amr_sDOF_to_dof, 
+                                     amr_sDOF_to_dofs, 
+                                     amr_sDOF_to_coeffs)
+  shfns = DistributedCellField(map(get_fe_basis, spaces), trian)
+  dofs = DistributedCellDof(map(get_fe_dof_basis, spaces), trian)
+  model = get_background_model(trian)
+  cell_gids = get_cell_gids(model)
+  bgcell_to_gcell = local_to_global(cell_gids)
+  # (TMP) This gives wrong output when root is not owned, but does 
+  # not affect below, because the bgcell_to_bgroot is only queried
+  # on owned cells
+  bgcell_to_bgroot = _local_aggregates(bgcell_to_groot,cell_gids)
+  sDOF_gids, new_n_fdofs, new_n_ddofs, mfdof_gids, mddof_gids, mDOF_to_dof, sDOF_to_dof, sDOF_to_DOFs, sDOF_to_coeffs = 
+    GridapEmbedded.Distributed.generate_merged_space_constraints(
+      trian, 
+      spaces, 
+      bgcell_to_bgroot, 
+      shfns, 
+      dofs, 
+      bgcell_to_gcell, 
+      amr_sDOF_to_dof, 
+      amr_sDOF_to_dofs, 
+      amr_sDOF_to_coeffs
+    )
+  return sDOF_gids, new_n_fdofs, new_n_ddofs, mfdof_gids, mddof_gids, mDOF_to_dof, sDOF_to_dof, sDOF_to_DOFs, sDOF_to_coeffs
+end
+
 function in_fe_space(;order=2)
   u(x) = x[1]^order + x[2]^order
   f(x) = -Δ(u)(x)
@@ -338,89 +369,94 @@ function solve_on_model(model,cutgeo,geo,geometry::UnfittedGeometry;
   end
 
   # 2.2. Generate AGG constraints (properly)
-  agg_sDOF_gids, new_n_fdofs, new_n_ddofs, agg_mfdof_gids, agg_mddof_gids, agg_mDOF_to_dof, agg_sDOF_to_dof, agg_sDOF_to_DOFs, agg_sDOF_to_coeffs = 
-    generate_agfem_constraints(Ωa,spaces,cell_to_root);
+  agg_sDOF_gids, new_n_fdofs, new_n_ddofs, agg_mfdof_gids, agg_mddof_gids, agg_mDOF_to_dof, agg_sDOF_to_dof, agg_sDOF_to_mdofs, agg_sDOF_to_coeffs = 
+    generate_merged_constraints(Ωa, 
+                                spaces, 
+                                cell_to_root, 
+                                amr_sDOF_to_dof, 
+                                amr_sDOF_to_dofs, # TODO: dof numbered and GD might assume DOF numbered
+                                amr_sDOF_to_coeffs);
 
-  # 2.3. Correct for Dirichlet DoFs
-  agg_sDOF_to_dofs = map(agg_mDOF_to_dof, agg_sDOF_to_DOFs) do mDOF_to_dof, sDOF_to_DOFs
-    T = eltype(sDOF_to_DOFs.data)
-    data = Vector{T}(undef, length(sDOF_to_DOFs.data))
-    @inbounds for i in eachindex(sDOF_to_DOFs.data)
-      mdof = sDOF_to_DOFs.data[i]
-      data[i] = ifelse(mdof > zero(T), mDOF_to_dof[mdof], mdof)
-    end
-    return Table(data, sDOF_to_DOFs.ptrs)
-  end
+  # # 2.3. Correct for Dirichlet DoFs
+  # agg_sDOF_to_dofs = map(agg_mDOF_to_dof, agg_sDOF_to_DOFs) do mDOF_to_dof, sDOF_to_DOFs
+  #   T = eltype(sDOF_to_DOFs.data)
+  #   data = Vector{T}(undef, length(sDOF_to_DOFs.data))
+  #   @inbounds for i in eachindex(sDOF_to_DOFs.data)
+  #     mdof = sDOF_to_DOFs.data[i]
+  #     data[i] = ifelse(mdof > zero(T), mDOF_to_dof[mdof], mdof)
+  #   end
+  #   return Table(data, sDOF_to_DOFs.ptrs)
+  # end
 
-  # 3. Generate AMR-AGG constraints (combine)
+  # # 3. Generate AMR-AGG constraints (combine)
 
-  # 3.1. Remove AGG constraints that are also hanging
-  agg_sDOF_keep = map(
-    spaces, amr_sDOF_to_dof, amr_sDOF_to_dofs, agg_sDOF_to_dof, agg_sDOF_to_dofs,
-  ) do space, amr_sDOF_to_dof, amr_sDOF_to_dofs, agg_sDOF_to_dof, agg_sDOF_to_dofs
-    ndofs = num_free_dofs(space) # agg_sDOFs are always local
-    is_agg_dof = falses(ndofs)
-    is_agg_dof[agg_sDOF_to_dof] .= true
-    amr_only_sDOF = findall(dof->!is_agg_dof[dof],amr_sDOF_to_dof)
-    is_mfdof_of_well_posed_hanging = falses(ndofs)  # amr masters are always local
-    for sDOF in amr_only_sDOF
-      masters = amr_sDOF_to_dofs[sDOF]
-      fmasters = masters[masters .> 0]
-      is_mfdof_of_well_posed_hanging[fmasters] .= true
-    end
-    keep_agg_constraint = falses(length(agg_sDOF_to_dof))
-    for (sDOF,dof) in enumerate(agg_sDOF_to_dof)
-      keep_agg_constraint[sDOF] = !is_mfdof_of_well_posed_hanging[dof]
-    end
-    display("Removing $(count(!,keep_agg_constraint)) agg constraints:")
-    display(findall(!,keep_agg_constraint))
-    return findall(keep_agg_constraint)
-  end;
-  agg_sDOF_to_dof, agg_sDOF_to_dofs, agg_sDOF_to_coeffs = map(
-    agg_sDOF_keep, agg_sDOF_to_dof, agg_sDOF_to_dofs, agg_sDOF_to_coeffs
-  ) do agg_sDOF_keep, agg_sDOF_to_dof, agg_sDOF_to_dofs, agg_sDOF_to_coeffs
-    return agg_sDOF_to_dof[agg_sDOF_keep], agg_sDOF_to_dofs[agg_sDOF_keep], agg_sDOF_to_coeffs[agg_sDOF_keep]
-  end |> tuple_of_arrays;
+  # # 3.1. Remove AGG constraints that are masters of well-posed hanging
+  # agg_sDOF_keep = map(
+  #   spaces, amr_sDOF_to_dof, amr_sDOF_to_dofs, agg_sDOF_to_dof, agg_sDOF_to_dofs,
+  # ) do space, amr_sDOF_to_dof, amr_sDOF_to_dofs, agg_sDOF_to_dof, agg_sDOF_to_dofs
+  #   ndofs = num_free_dofs(space) # agg_sDOFs are always local
+  #   is_agg_dof = falses(ndofs)
+  #   is_agg_dof[agg_sDOF_to_dof] .= true
+  #   amr_only_sDOF = findall(dof->!is_agg_dof[dof],amr_sDOF_to_dof)
+  #   is_mfdof_of_well_posed_hanging = falses(ndofs)  # amr masters are always local
+  #   for sDOF in amr_only_sDOF
+  #     masters = amr_sDOF_to_dofs[sDOF]
+  #     fmasters = masters[masters .> 0]
+  #     is_mfdof_of_well_posed_hanging[fmasters] .= true
+  #   end
+  #   keep_agg_constraint = falses(length(agg_sDOF_to_dof))
+  #   for (sDOF,dof) in enumerate(agg_sDOF_to_dof)
+  #     keep_agg_constraint[sDOF] = !is_mfdof_of_well_posed_hanging[dof]
+  #   end
+  #   display("Removing $(count(!,keep_agg_constraint)) agg constraints:")
+  #   display(findall(!,keep_agg_constraint))
+  #   return findall(keep_agg_constraint)
+  # end;
+  # agg_sDOF_to_dof, agg_sDOF_to_dofs, agg_sDOF_to_coeffs = map(
+  #   agg_sDOF_keep, agg_sDOF_to_dof, agg_sDOF_to_dofs, agg_sDOF_to_coeffs
+  # ) do agg_sDOF_keep, agg_sDOF_to_dof, agg_sDOF_to_dofs, agg_sDOF_to_coeffs
+  #   return agg_sDOF_to_dof[agg_sDOF_keep], agg_sDOF_to_dofs[agg_sDOF_keep], agg_sDOF_to_coeffs[agg_sDOF_keep]
+  # end |> tuple_of_arrays;
 
-  # 3.2. Merge and close the constraint tables, preferring the AMR 
-  #      constraints in case of conflict for ill-posed dofs that 
-  #      are also hanging
-  _sDOF_to_dof, sDOF_to_dofs, sDOF_to_coeffs = map(
-    new_n_fdofs, new_n_ddofs, agg_sDOF_to_dof, agg_sDOF_to_dofs, agg_sDOF_to_coeffs, amr_sDOF_to_dof, amr_sDOF_to_dofs, amr_sDOF_to_coeffs
-  ) do new_n_fdofs, new_n_ddofs, agg_sDOF_to_dof, agg_sDOF_to_dofs, agg_sDOF_to_coeffs, amr_sDOF_to_dof, amr_sDOF_to_dofs, amr_sDOF_to_coeffs
-    on_conflict(dof, dofs1, coeffs1, offset1, dofs2, coeffs2, offset2) = (dofs2, coeffs2, offset2)
-    sDOF_to_dof, sDOF_to_dofs, sDOF_to_coeffs, sDOF_to_offsets = FESpaces.merge_slave_constraint_tables(
-      new_n_fdofs, new_n_fdofs+new_n_ddofs,
-      agg_sDOF_to_dof, agg_sDOF_to_dofs, agg_sDOF_to_coeffs, 
-      amr_sDOF_to_dof, amr_sDOF_to_dofs, amr_sDOF_to_coeffs;
-      on_conflict
-    )
+  # # 3.2. Merge and close the constraint tables, preferring the AMR 
+  # #      constraints in case of conflict for ill-posed dofs that 
+  # #      are also hanging
+  # _sDOF_to_dof, sDOF_to_dofs, sDOF_to_coeffs = map(
+  #   new_n_fdofs, new_n_ddofs, agg_sDOF_to_dof, agg_sDOF_to_dofs, agg_sDOF_to_coeffs, amr_sDOF_to_dof, amr_sDOF_to_dofs, amr_sDOF_to_coeffs
+  # ) do new_n_fdofs, new_n_ddofs, agg_sDOF_to_dof, agg_sDOF_to_dofs, agg_sDOF_to_coeffs, amr_sDOF_to_dof, amr_sDOF_to_dofs, amr_sDOF_to_coeffs
+  #   on_conflict(dof, dofs1, coeffs1, offset1, dofs2, coeffs2, offset2) = (dofs2, coeffs2, offset2)
+  #   sDOF_to_dof, sDOF_to_dofs, sDOF_to_coeffs, sDOF_to_offsets = FESpaces.merge_slave_constraint_tables(
+  #     new_n_fdofs, new_n_fdofs+new_n_ddofs,
+  #     agg_sDOF_to_dof, agg_sDOF_to_dofs, agg_sDOF_to_coeffs, 
+  #     amr_sDOF_to_dof, amr_sDOF_to_dofs, amr_sDOF_to_coeffs;
+  #     on_conflict
+  #   )
 
-    sDOF_to_dof, sDOF_to_dofs, sDOF_to_coeffs, sDOF_to_offsets = FESpaces.close_slave_constraint_tables(
-      new_n_fdofs, new_n_fdofs+new_n_ddofs, sDOF_to_dof, sDOF_to_dofs, sDOF_to_coeffs, sDOF_to_offsets
-    )
-  end |> tuple_of_arrays;
+  #   sDOF_to_dof, sDOF_to_dofs, sDOF_to_coeffs, sDOF_to_offsets = FESpaces.close_slave_constraint_tables(
+  #     new_n_fdofs, new_n_fdofs+new_n_ddofs, sDOF_to_dof, sDOF_to_dofs, sDOF_to_coeffs, sDOF_to_offsets
+  #   )
+  # end |> tuple_of_arrays;
 
-  # 3.3. Regenerate constraint gids after merge & close
-  cell_gids = GridapDistributed.generate_cell_gids(Ωa)
-  # sDOF_gids, new_n_fdofs, new_n_ddofs, new_mfdof_gids, new_mddof_gids, mDOF_to_dof, sDOF_to_dof, sDOF_to_DOFs, sDOF_to_coeffs = 
-  #   GridapDistributed.generate_distributed_constraints(cell_gids, spaces, sDOF_to_dof, sDOF_to_dofs, sDOF_to_coeffs);
-  dof_is_slave = map(spaces, _sDOF_to_dof) do space, _sDOF_to_dof
-    dof_is_slave = fill(false, num_free_dofs(space))
-    dof_is_slave[_sDOF_to_dof] .= true # TO-DO: Dirichlet BCs
-    return dof_is_slave
-  end
-  _, mfdof_gids, _, sDOF_to_DOF, _, _, _, DOF_to_dof =
-    GridapDistributed.generate_constraint_gids(cell_gids, spaces, dof_is_slave)
-  sDOF_to_dofs, sDOF_to_coeffs = GridapDistributed.permute_constraints!(
-    sDOF_to_DOF, _sDOF_to_dof, DOF_to_dof, sDOF_to_dofs, sDOF_to_coeffs
-  )
+  # # 3.3. Regenerate constraint gids after merge & close
+  # cell_gids = GridapDistributed.generate_cell_gids(Ωa)
+  # # sDOF_gids, new_n_fdofs, new_n_ddofs, new_mfdof_gids, new_mddof_gids, mDOF_to_dof, sDOF_to_dof, sDOF_to_DOFs, sDOF_to_coeffs = 
+  # #   GridapDistributed.generate_distributed_constraints(cell_gids, spaces, sDOF_to_dof, sDOF_to_dofs, sDOF_to_coeffs);
+  # dof_is_slave = map(new_n_fdofs, _sDOF_to_dof) do new_n_fdofs, _sDOF_to_dof
+  #   dof_is_slave = fill(false, new_n_fdofs)
+  #   dof_is_slave[_sDOF_to_dof] .= true # TO-DO: Dirichlet BCs
+  #   return dof_is_slave
+  # end
+  # _, mfdof_gids, _, sDOF_to_DOF, _, _, _, DOF_to_dof =
+  #   GridapDistributed.generate_constraint_gids(cell_gids, spaces, dof_is_slave)
+  # sDOF_to_dofs, sDOF_to_coeffs = GridapDistributed.permute_constraints!(
+  #   sDOF_to_DOF, _sDOF_to_dof, DOF_to_dof, sDOF_to_dofs, sDOF_to_coeffs
+  # )
 
   u, f, ud = problem
 
   V = MyFESpace(
-    Ωa,reffe,spaces,new_n_fdofs,new_n_ddofs,mfdof_gids,
-    sDOF_to_DOF,sDOF_to_dofs,sDOF_to_coeffs # TO-DO: Dirichlet BCs
+    Ωa,reffe,spaces,new_n_fdofs,new_n_ddofs,agg_mfdof_gids,
+    agg_mDOF_to_dof,agg_sDOF_to_dof,agg_sDOF_to_mdofs,agg_sDOF_to_coeffs # TODO: Dirichlet BCs
   )
 
   uᵢ = interpolate_everywhere(u,V)
