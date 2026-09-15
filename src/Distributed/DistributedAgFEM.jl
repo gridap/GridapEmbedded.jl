@@ -796,6 +796,190 @@ function generate_aggregated_space_constraints(
   )
 end
 
+function generate_merged_space_constraints(
+  trian::DistributedTriangulation,
+  spaces::AbstractArray{<:FESpace},
+  bgcell_to_bgroot::AbstractVector,
+  shfns_g::DistributedCellField,
+  dofs_g::DistributedCellDof,
+  bgcell_to_gcell,
+  amr_sDOF_to_dof,
+  amr_sDOF_to_dofs,
+  amr_sDOF_to_coeffs
+)
+  cell_gids = GridapDistributed.generate_cell_gids(trian)
+
+  cell_to_root, cell_to_dofs, dof_is_amr, dof_is_agg, fdof_to_cell, fdof_to_ldof, ltrians = map(
+    spaces, bgcell_to_bgroot, bgcell_to_gcell, amr_sDOF_to_dof, amr_sDOF_to_dofs
+  ) do space, bgcell_to_bgroot, bgcell_to_gcell, amr_sDOF_to_dof, amr_sDOF_to_dofs
+    ltrian = get_triangulation(space)
+
+    glue = get_glue(ltrian,Val(num_cell_dims(ltrian)))
+    cell_to_bgcell = glue.tface_to_mface
+    bgcell_to_cell = glue.mface_to_tface
+    cell_to_bgroot = view(bgcell_to_bgroot,cell_to_bgcell)
+    cell_to_root = collect(Int32,lazy_map(Reindex(bgcell_to_cell),cell_to_bgroot))
+    cell_to_gcell = collect(Int32,lazy_map(Reindex(bgcell_to_gcell),cell_to_bgcell))
+
+    cell_to_dofs = get_cell_dof_ids(space)
+
+    nfdofs = num_free_dofs(space)
+
+    # Fill dof_is_amr
+    dof_is_amr = falses(nfdofs)
+    dof_is_amr[amr_sDOF_to_dof] .= true
+
+    # Fill dof_to_is_agg
+    dof_is_agg, fdof_to_cell, fdof_to_ldof = AgFEM._allocate_fdof_to_data(nfdofs)
+    AgFEM._fill_fdof_to_data!(dof_is_agg,fdof_to_cell,fdof_to_ldof,cell_to_root,cell_to_dofs,cell_to_gcell)
+
+    # Remove agg dofs that are ill-posed hanging or masters of well-posed hanging
+    amr_only_sDOF = findall(dof->!dof_is_agg[dof],amr_sDOF_to_dof)
+    is_mfdof_of_well_posed_hanging = falses(nfdofs)  # amr masters are always local
+    for sDOF in amr_only_sDOF
+      masters = amr_sDOF_to_dofs[sDOF]
+      fmasters = masters[masters .> 0]
+      is_mfdof_of_well_posed_hanging[fmasters] .= true
+    end
+    dof_is_agg[dof_is_amr] .= false
+    dof_is_agg[is_mfdof_of_well_posed_hanging] .= false
+
+    return cell_to_root, cell_to_dofs, dof_is_amr, dof_is_agg, fdof_to_cell, fdof_to_ldof, ltrian
+  end |> tuple_of_arrays
+
+  gids = GridapDistributed.generate_gids(trian,spaces)
+  # amr constraints on ghost dofs are not necessarily consistent
+  consistent!(PVector(dof_is_amr, partition(gids))) |> wait
+  # ghost dofs cannot see if one interior cell is around
+  consistent!(PVector(dof_is_agg, partition(gids))) |> wait
+
+  function aggfem_callback(sDOF_to_dof, sDOF_gids)
+
+    # Create aggdof to nldofs mapping (i.e count how many masters every slave dof has)
+    ptrs, sDOF_to_nldofs = map(
+      sDOF_to_dof,fdof_to_cell,cell_to_root,cell_to_dofs,partition(sDOF_gids)
+    ) do sDOF_to_dof,fdof_to_cell,cell_to_root,cell_to_dofs,sDOF_ids
+      ptrs = get_aggdof_ptrs(
+        sDOF_to_dof,fdof_to_cell,cell_to_root,cell_to_dofs,own_to_local(sDOF_ids)
+      )
+      sDOF_to_nldofs = view(ptrs,2:length(ptrs))
+      return ptrs, sDOF_to_nldofs
+    end |> tuple_of_arrays
+    consistent!(PVector(sDOF_to_nldofs, partition(sDOF_gids))) |> wait
+
+    # Fill the info for the owned sDOFs
+    # I.e the returned tables only have entries filled for the owned sDOFs
+    sDOF_to_DOFs, sDOF_to_coeffs = map(
+      spaces,ptrs,sDOF_to_dof,fdof_to_cell,fdof_to_ldof,cell_to_root,cell_to_dofs,
+      local_views(shfns_g),local_views(dofs_g),partition(sDOF_gids),ltrians
+    ) do space,ptrs,sDOF_to_dof,fdof_to_cell,fdof_to_ldof,cell_to_root,cell_to_dofs,shfns_g,dofs_g,sDOF_ids,ltrian
+
+      cell_phys_shfns_g = get_array(change_domain(shfns_g,PhysicalDomain()))
+      cell_phys_root_shfns_g = lazy_map(Reindex(cell_phys_shfns_g),cell_to_root)
+      root_shfns_g = GenericCellField(cell_phys_root_shfns_g,ltrian,PhysicalDomain())
+
+      dofs_f = get_fe_dof_basis(space)
+      shfns_f = get_fe_basis(space)
+      cell_to_coeffs = dofs_f(root_shfns_g)
+      cell_to_proj = dofs_g(shfns_f)
+
+      sDOF_to_DOFs_data, sDOF_to_coeffs_data = AgFEM._allocate_aggdof_to_data(ptrs,cell_to_coeffs)
+      aggdof_to_dofs!(
+        sDOF_to_DOFs_data,ptrs,sDOF_to_dof,fdof_to_cell,cell_to_root,cell_to_dofs,own_to_local(sDOF_ids)
+      )
+      # Reindex the dofs with the "pas the end" indexing, as required by the callback of generate_distributed_constraints
+      nf = num_free_dofs(space)
+      nd = num_dirichlet_dofs(space)
+      dof_to_DOF_reindex = PosNegReindex(Int32(1):Int32(nf),Int32(nf+1):Int32(nf+nd))
+      T = eltype(sDOF_to_DOFs_data)
+      sDOF_to_DOFs_data = map(sDOF_to_DOFs_data) do dof
+        # Remote dofs are not reindexed. Before communication they have a 0 placeholder value.
+        iszero(dof) ? zero(T) : T(evaluate(dof_to_DOF_reindex,dof))
+      end
+      aggdof_to_coeffs!(
+        sDOF_to_coeffs_data,ptrs,sDOF_to_dof,fdof_to_cell,fdof_to_ldof,cell_to_coeffs,cell_to_proj,own_to_local(sDOF_ids)
+      )
+      return Table(sDOF_to_DOFs_data,ptrs), Table(sDOF_to_coeffs_data,ptrs)
+    end |> tuple_of_arrays
+
+    return sDOF_to_DOFs, sDOF_to_coeffs
+  end
+
+  function amr_callback(sDOF_to_DOF, sDOF_gids)
+
+    # Count master DOFs on owned sDOFs and make row sizes consistent
+    sDOF_to_nldofs, amr_sDOF_to_DOF = map(
+      spaces, sDOF_to_DOF, amr_sDOF_to_dof, amr_sDOF_to_dofs, partition(sDOF_gids)
+    ) do space, sDOF_to_DOF, amr_sDOF_to_dof, amr_sDOF_to_dofs, sDOF_ids
+      nf = num_free_dofs(space)
+      amr_sDOF_to_DOF = Int32[_dof_to_DOF(d, nf) for d in amr_sDOF_to_dof]
+      p = indexin(sDOF_to_DOF, amr_sDOF_to_DOF)
+
+      n_sDOFs = length(sDOF_to_DOF)
+      nldofs = zeros(Int32, n_sDOFs)
+      for lid in own_to_local(sDOF_ids)
+        idx = p[lid]
+        if !isnothing(idx)
+          nldofs[lid] = amr_sDOF_to_dofs.ptrs[idx+1] - amr_sDOF_to_dofs.ptrs[idx]
+        end
+      end
+      return nldofs, amr_sDOF_to_DOF
+    end |> tuple_of_arrays
+    consistent!(PVector(sDOF_to_nldofs, partition(sDOF_gids))) |> wait
+
+    # Allocate tables with consistent ptrs and fill in owned entries
+    amr_sDOF_to_DOFs, amr_sDOF_to_coeffs = map(
+      spaces, sDOF_to_DOF, sDOF_to_nldofs, amr_sDOF_to_DOF, amr_sDOF_to_dofs, amr_sDOF_to_coeffs, partition(sDOF_gids)
+    ) do space, sDOF_to_DOF, sDOF_to_nldofs, amr_sDOF_to_DOF, amr_sDOF_to_dofs, amr_sDOF_to_coeffs, sDOF_ids
+      nf = num_free_dofs(space)
+      nd = num_dirichlet_dofs(space)
+
+      p = indexin(sDOF_to_DOF, amr_sDOF_to_DOF)
+
+      # Build consistent ptrs
+      n_sDOFs = length(sDOF_to_nldofs)
+      ptrs = zeros(Int32, n_sDOFs + 1)
+      ptrs[1] = 1
+      for i in 1:n_sDOFs
+        ptrs[i+1] = ptrs[i] + sDOF_to_nldofs[i]
+      end
+      ndata = ptrs[end] - 1
+
+      # Allocate data vectors
+      data_DOFs   = zeros(Int32, ndata)
+      data_coeffs = zeros(eltype(amr_sDOF_to_coeffs.data), ndata)
+
+      # Fill owned entries
+      dof_to_DOF_reindex = PosNegReindex(Int32(1):Int32(nf), Int32(nf+1):Int32(nf+nd))
+      for lid in own_to_local(sDOF_ids)
+        idx = p[lid]
+        isnothing(idx) && continue
+
+        src_range = amr_sDOF_to_dofs.ptrs[idx]:(amr_sDOF_to_dofs.ptrs[idx+1] - 1)
+        dst_range = ptrs[lid]:(ptrs[lid+1] - 1)
+
+        data_coeffs[dst_range] .= amr_sDOF_to_coeffs.data[src_range]
+        for (j, k) in enumerate(src_range)
+          dof = amr_sDOF_to_dofs.data[k]
+          data_DOFs[dst_range[j]] = iszero(dof) ? zero(Int32) : Int32(evaluate(dof_to_DOF_reindex, dof))
+        end
+      end
+
+      return Table(data_DOFs, ptrs), Table(data_coeffs, ptrs)
+    end |> tuple_of_arrays
+
+    return amr_sDOF_to_DOFs, amr_sDOF_to_coeffs
+  end
+
+  dof_to_constraint = map(dof_is_amr,dof_is_agg) do dof_is_amr, dof_is_agg
+    map((amr, agg) -> amr ? 1 : agg ? 2 : 0, dof_is_amr, dof_is_agg)
+  end
+
+  return GridapDistributed.generate_distributed_constraints(
+    cell_gids, spaces, (amr_callback, aggfem_callback), dof_to_constraint
+  )
+end
+
 function get_aggdof_ptrs(
   aggdof_to_fdof,
   fdof_to_cell,
