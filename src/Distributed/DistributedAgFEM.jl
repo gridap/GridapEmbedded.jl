@@ -908,73 +908,52 @@ function generate_merged_space_constraints(
       return Table(sDOF_to_DOFs_data,ptrs), Table(sDOF_to_coeffs_data,ptrs)
     end |> tuple_of_arrays
 
-    return sDOF_to_DOFs, sDOF_to_coeffs
+    # [!] Assuming that the sDOF owner is the one with the cell around with largest gid
+    sDOF_to_closeable = map(partition(sDOF_gids)) do sDOF_ids
+      closeable = falses(length(sDOF_ids))
+      closeable[own_to_local(sDOF_ids)] .= true
+      return closeable
+    end
+
+    return sDOF_to_DOFs, sDOF_to_coeffs, sDOF_to_closeable
   end
 
   function amr_callback(sDOF_to_DOF, sDOF_gids)
 
-    # Count master DOFs on owned sDOFs and make row sizes consistent
-    sDOF_to_nldofs, amr_sDOF_to_DOF = map(
-      spaces, sDOF_to_DOF, amr_sDOF_to_dof, amr_sDOF_to_dofs, partition(sDOF_gids)
-    ) do space, sDOF_to_DOF, amr_sDOF_to_dof, amr_sDOF_to_dofs, sDOF_ids
-      nf = num_free_dofs(space)
-      amr_sDOF_to_DOF = Int32[_dof_to_DOF(d, nf) for d in amr_sDOF_to_dof]
-      p = indexin(sDOF_to_DOF, amr_sDOF_to_DOF)
+    amr_sDOF_to_DOFs, amr_sDOF_to_coeffs, sDOF_to_closeable = map(
+      spaces, sDOF_to_DOF, amr_sDOF_to_dof, amr_sDOF_to_dofs, amr_sDOF_to_coeffs, dof_is_agg, partition(cell_gids)
+    ) do space, sDOF_to_DOF, amr_sDOF_to_dof, amr_sDOF_to_dofs, amr_sDOF_to_coeffs, dof_is_agg, cell_ids
 
-      n_sDOFs = length(sDOF_to_DOF)
-      nldofs = zeros(Int32, n_sDOFs)
-      for lid in own_to_local(sDOF_ids)
-        idx = p[lid]
-        if !isnothing(idx)
-          nldofs[lid] = amr_sDOF_to_dofs.ptrs[idx+1] - amr_sDOF_to_dofs.ptrs[idx]
-        end
-      end
-      return nldofs, amr_sDOF_to_DOF
-    end |> tuple_of_arrays
-    consistent!(PVector(sDOF_to_nldofs, partition(sDOF_gids))) |> wait
-
-    # Allocate tables with consistent ptrs and fill in owned entries
-    amr_sDOF_to_DOFs, amr_sDOF_to_coeffs = map(
-      spaces, sDOF_to_DOF, sDOF_to_nldofs, amr_sDOF_to_DOF, amr_sDOF_to_dofs, amr_sDOF_to_coeffs, partition(sDOF_gids)
-    ) do space, sDOF_to_DOF, sDOF_to_nldofs, amr_sDOF_to_DOF, amr_sDOF_to_dofs, amr_sDOF_to_coeffs, sDOF_ids
       nf = num_free_dofs(space)
       nd = num_dirichlet_dofs(space)
-
+      
+      amr_sDOF_to_DOF = Int32[_dof_to_DOF(d, nf) for d in amr_sDOF_to_dof]
       p = indexin(sDOF_to_DOF, amr_sDOF_to_DOF)
-
-      # Build consistent ptrs
-      n_sDOFs = length(sDOF_to_nldofs)
-      ptrs = zeros(Int32, n_sDOFs + 1)
-      ptrs[1] = 1
-      for i in 1:n_sDOFs
-        ptrs[i+1] = ptrs[i] + sDOF_to_nldofs[i]
-      end
-      ndata = ptrs[end] - 1
-
-      # Allocate data vectors
-      data_DOFs   = zeros(Int32, ndata)
-      data_coeffs = zeros(eltype(amr_sDOF_to_coeffs.data), ndata)
-
-      # Fill owned entries
       dof_to_DOF_reindex = PosNegReindex(Int32(1):Int32(nf), Int32(nf+1):Int32(nf+nd))
-      for lid in own_to_local(sDOF_ids)
-        idx = p[lid]
-        isnothing(idx) && continue
+      DOFs_data = map(amr_sDOF_to_dofs.data) do dof
+        iszero(dof) ? zero(Int32) : Int32(evaluate(dof_to_DOF_reindex, dof))
+      end
+      amr_sDOF_to_DOFs = Table(DOFs_data, amr_sDOF_to_dofs.ptrs)
 
-        src_range = amr_sDOF_to_dofs.ptrs[idx]:(amr_sDOF_to_dofs.ptrs[idx+1] - 1)
-        dst_range = ptrs[lid]:(ptrs[lid+1] - 1)
+      reindexed_DOFs, reindexed_coeffs = GridapDistributed.reindex_tables(p, amr_sDOF_to_DOFs, amr_sDOF_to_coeffs)
 
-        data_coeffs[dst_range] .= amr_sDOF_to_coeffs.data[src_range]
-        for (j, k) in enumerate(src_range)
-          dof = amr_sDOF_to_dofs.data[k]
-          data_DOFs[dst_range[j]] = iszero(dof) ? zero(Int32) : Int32(evaluate(dof_to_DOF_reindex, dof))
+      # Mark DOFs in owned cells
+      _cell_to_dofs = get_cell_dof_ids(space) # [!] Not cell_to_dofs because it overrides
+      dof_in_own_cell = falses(nf + nd)
+      for cell in own_to_local(cell_ids)
+        for dof in _cell_to_dofs[cell]
+          DOF = _dof_to_DOF(dof, nf)
+          dof_in_own_cell[DOF] = true
         end
       end
 
-      return Table(data_DOFs, ptrs), Table(data_coeffs, ptrs)
+      # Construct boolean mask corresponding 1-to-1 with sDOF_to_DOF
+      sDOF_to_closeable = [dof_in_own_cell[DOF] && !dof_is_agg[DOF] for DOF in sDOF_to_DOF]
+
+      return reindexed_DOFs, reindexed_coeffs, sDOF_to_closeable
     end |> tuple_of_arrays
 
-    return amr_sDOF_to_DOFs, amr_sDOF_to_coeffs
+    return amr_sDOF_to_DOFs, amr_sDOF_to_coeffs, sDOF_to_closeable
   end
 
   dof_to_constraint = map(dof_is_amr,dof_is_agg) do dof_is_amr, dof_is_agg
