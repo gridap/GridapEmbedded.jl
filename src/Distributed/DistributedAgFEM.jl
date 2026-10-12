@@ -728,7 +728,10 @@ function generate_aggregated_space_constraints(
     cell_to_bgcell = glue.tface_to_mface
     bgcell_to_cell = glue.mface_to_tface
     cell_to_bgroot = view(bgcell_to_bgroot,cell_to_bgcell)
-    cell_to_root = collect(Int32,lazy_map(Reindex(bgcell_to_cell),cell_to_bgroot))
+    cell_to_root = Int32[
+      iszero(bgroot) ? 0 : bgcell_to_cell[bgroot]
+      for bgroot in cell_to_bgroot
+    ]
     cell_to_gcell = collect(Int32,lazy_map(Reindex(bgcell_to_gcell),cell_to_bgcell))
 
     cell_to_dofs = get_cell_dof_ids(space)
@@ -818,7 +821,10 @@ function generate_merged_space_constraints(
     cell_to_bgcell = glue.tface_to_mface
     bgcell_to_cell = glue.mface_to_tface
     cell_to_bgroot = view(bgcell_to_bgroot,cell_to_bgcell)
-    cell_to_root = collect(Int32,lazy_map(Reindex(bgcell_to_cell),cell_to_bgroot))
+    cell_to_root = [
+      iszero(bgroot) ? Int32(0) : Int32(bgcell_to_cell[bgroot])
+      for bgroot in cell_to_bgroot
+    ]
     cell_to_gcell = collect(Int32,lazy_map(Reindex(bgcell_to_gcell),cell_to_bgcell))
 
     cell_to_dofs = get_cell_dof_ids(space)
