@@ -8,7 +8,7 @@ if !MPI.Initialized()
   MPI.Init()
 end
 
-model, cutgeo, geo, uₕ = with_mpi() do distribute
+el2, eh1, h = with_mpi() do distribute
   # Square:                 begin with initial_uniform_refs = 3
   # SquareWithCircularHole: begin with initial_uniform_refs = 3
   # Flower:                 begin with initial_uniform_refs = 6

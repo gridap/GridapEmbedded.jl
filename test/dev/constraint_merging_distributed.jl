@@ -23,6 +23,72 @@ using GridapDistributed: DistributedCellField, DistributedCellDof
 using DrWatson
 using Plots
 
+function exchange_impl!(vector_partition,cache)
+  buffer_snd = map(vector_partition,cache) do values, cache
+    local_indices_snd = cache.local_indices_snd
+    for (p,lid) in enumerate(local_indices_snd.data)
+      cache.buffer_snd.data[p] = values[lid]
+    end
+    cache.buffer_snd
+  end
+  neighbors_snd, neighbors_rcv, buffer_rcv = map(cache) do cache
+    cache.neighbors_snd, cache.neighbors_rcv, cache.buffer_rcv
+  end |> tuple_of_arrays
+  graph = ExchangeGraph(neighbors_snd,neighbors_rcv)
+  t = exchange!(buffer_rcv,buffer_snd,graph)
+  return t
+end
+
+function find_optimal_roots!(lcell_to_root,lcell_to_value,lcell_to_owner,cell_indices)
+  # Bring all root candidates to the owner of the cut cell
+  roots_cache = PartitionedArrays.p_vector_cache(lcell_to_root,cell_indices)
+  t1 = exchange_impl!(lcell_to_root,roots_cache)
+  values_cache = PartitionedArrays.p_vector_cache(lcell_to_value,cell_indices)
+  t2 = exchange_impl!(lcell_to_value,values_cache)
+  owners_cache = PartitionedArrays.p_vector_cache(lcell_to_owner,cell_indices)
+  t3 = exchange_impl!(lcell_to_owner,owners_cache)
+  wait(t1)
+  wait(t2)
+  wait(t3)
+
+  # Select the optimal root for each local cut cell
+  map(
+    lcell_to_root,lcell_to_value,lcell_to_owner,roots_cache,values_cache,owners_cache
+  ) do lcell_to_root, lcell_to_value, lcell_to_owner, roots_cache, values_cache, owners_cache
+    lids_rcv = roots_cache.local_indices_rcv
+    values_rcv = values_cache.buffer_rcv
+    roots_rcv = roots_cache.buffer_rcv
+    owners_rcv = owners_cache.buffer_rcv
+    for k in eachindex(roots_cache.neighbors_rcv)
+      for (lcell,root,value,owner) in zip(lids_rcv[k], roots_rcv[k], values_rcv[k], owners_rcv[k])
+        if lcell_to_value[lcell] > value # Take the minimum
+          lcell_to_root[lcell] = root # Global ID
+          lcell_to_value[lcell] = value
+          lcell_to_owner[lcell] = owner
+        end
+      end
+    end
+  end
+
+  # Scatter the optimal roots and values
+  # Technically, we do not need to scatter the values, it can be removed after 
+  # we are done debugging
+  t1 = consistent!(PVector(lcell_to_owner,cell_indices,owners_cache))
+  t2 = consistent!(PVector(lcell_to_root,cell_indices,roots_cache))
+  t3 = consistent!(PVector(lcell_to_value,cell_indices,values_cache))
+  
+  wait(t1)
+
+  agg_cell_indices = map(cell_indices,lcell_to_owner) do cell_indices, lcell_to_owner
+    LocalIndices(global_length(cell_indices),part_id(cell_indices),local_to_global(cell_indices),lcell_to_owner)
+  end
+
+  wait(t2)
+  wait(t3)
+
+  return lcell_to_root, lcell_to_owner, lcell_to_value, agg_cell_indices
+end
+
 # This respects the input triangulation, without adding back all the ghosts
 function MyFESpace(
   trian::GridapDistributed.DistributedTriangulation,reffe,spaces,
@@ -252,15 +318,31 @@ end
 
 function generate_aggregates(fmodel, cutgeo, geo)
   cell_gids = get_cell_gids(fmodel)
+  cell_indices = partition(cell_gids)
+
   ncgt = NonConformingGridTopology(fmodel)
   strategy = AggregateCutCellsByThreshold(1.0)
-  _, lcell_to_root, _ = map(
-    local_views(cutgeo),partition(cell_gids),ncgt
+  lcell_to_lroot, lcell_to_root, lcell_to_value = map(
+    local_views(cutgeo),cell_indices,ncgt
   ) do cutgeo,cell_indices,ncgt
     lid_to_gid = local_to_global(cell_indices)
     aggregate(strategy,cutgeo,geo,lid_to_gid,IN,grid_topology=ncgt)
   end |> tuple_of_arrays
-  return lcell_to_root
+  
+  lcell_to_owner = map(copy∘local_to_owner,cell_indices)
+  lcell_to_owner = map(lcell_to_owner,lcell_to_lroot) do lcell_to_owner,lcell_to_lroot
+    for i in eachindex(lcell_to_owner)
+      if !iszero(lcell_to_lroot[i])
+        lcell_to_owner[i] = lcell_to_owner[lcell_to_lroot[i]]
+      end
+    end
+    lcell_to_owner
+  end
+
+  lcell_to_root, lcell_to_owner, lcell_to_value, agg_cell_indices =
+    find_optimal_roots!(lcell_to_root,lcell_to_value,lcell_to_owner,cell_indices);
+
+  return lcell_to_root, agg_cell_indices
 end
 
 function generate_agfem_constraints(trian, spaces, bgcell_to_groot)
@@ -291,6 +373,15 @@ function generate_merged_constraints(trian,
   model = get_background_model(trian)
   cell_gids = get_cell_gids(model)
   bgcell_to_gcell = local_to_global(cell_gids)
+  map(bgcell_to_groot,partition(cell_gids)) do bgcell_to_groot,cell_ids
+    own_gids = local_to_global(cell_ids)[own_to_local(cell_ids)]
+    owned_gids = Set(own_gids)
+    for bgcell in own_to_local(cell_ids)
+      groot = bgcell_to_groot[bgcell]
+      groot == 0 && continue
+      @assert groot in owned_gids "The root of an owned cell must also be owned"
+    end
+  end
   # (TMP) This gives wrong output when root is not owned, but does 
   # not affect below, because the bgcell_to_bgroot is only queried
   # on owned cells
@@ -308,6 +399,30 @@ function generate_merged_constraints(trian,
       amr_sDOF_to_coeffs
     )
   return sDOF_gids, new_n_fdofs, new_n_ddofs, mfdof_gids, mddof_gids, mDOF_to_dof, sDOF_to_dof, sDOF_to_DOFs, sDOF_to_coeffs
+end
+
+function aggregate_conforming_model(model::OctreeDistributedDiscreteModel,agg_cell_indices)
+  aggdmodel = GridapDistributed.GenericDistributedDiscreteModel(
+    local_views(model),PRange(agg_cell_indices)
+  )
+  return OctreeDistributedDiscreteModel(
+    num_cell_dims(model), num_point_dims(model),
+    model.parts,aggdmodel,model.non_conforming_glue,
+    model.coarse_model,
+    model.ptr_pXest_connectivity,
+    model.ptr_pXest,
+    model.pXest_type,
+    model.pXest_refinement_rule_type,
+    model.connectivity_ref; num_ghost_layers = model.num_ghost_layers
+  )
+end
+
+# Triangulation whose cell ownership is given by the aggregate-conforming cell indices
+function aggregate_conforming_trian(TT,portion,model,cutgeo,agg_cell_indices,args...)
+  trians = map(local_views(cutgeo),agg_cell_indices) do cutgeo,agg_cell_indices
+    TT(portion,agg_cell_indices,cutgeo,args...)
+  end
+  return GridapDistributed.DistributedTriangulation(trians,model)
 end
 
 function in_fe_space(;order=2)
@@ -330,11 +445,23 @@ function solve_on_model(model,cutgeo,geo,geometry::UnfittedGeometry;
                         write_solution::Bool=false,
                         vtk_suffix::String="")
   vtk_name(name::String) = isempty(vtk_suffix) ? name : "$(name)_$(vtk_suffix)"
+
+  if write_solution
+    writevtk(Triangulation(model),datadir(vtk_name("old_model")));
+  end
+
+  # Generate aggregates and the aggregate-conforming triangulations
+  cell_to_root, agg_cell_indices = generate_aggregates(model,cutgeo,geo)
+  model = aggregate_conforming_model(model,agg_cell_indices)
   Ω = Triangulation(model)
-  Γ = EmbeddedBoundary(cutgeo)
+  Ωa = aggregate_conforming_trian(Triangulation,GridapDistributed.WithGhost(),model,cutgeo,agg_cell_indices,ACTIVE_IN)
+  Ωp = aggregate_conforming_trian(Triangulation,GridapDistributed.NoGhost(),model,cutgeo,agg_cell_indices,PHYSICAL_IN)
+  Γ = aggregate_conforming_trian(EmbeddedBoundary,GridapDistributed.NoGhost(),model,cutgeo,agg_cell_indices)
   n_Γ = get_normal_vector(Γ)
-  Ωa = Triangulation(cutgeo,ACTIVE_IN)
-  Ωp = Triangulation(cutgeo,PHYSICAL_IN)
+
+  ocell_to_root = map(cell_to_root,map(own_to_local,agg_cell_indices)) do agg,o_to_l
+    map(Reindex(agg),o_to_l)
+  end
 
   if write_solution
     writevtk(model,datadir(vtk_name("model")));
@@ -342,6 +469,9 @@ function solve_on_model(model,cutgeo,geo,geometry::UnfittedGeometry;
     writevtk(Γ,datadir(vtk_name("boundary")));
     writevtk(Ωa,datadir(vtk_name("active")));
     writevtk(Ωp,datadir(vtk_name("physical")));
+    writevtk(Ω,
+             datadir(vtk_name("aggregates")),
+             celldata=["aggregate"=>ocell_to_root]);
   end
 
   reffe = ReferenceFE(lagrangian,Float64,order)
@@ -353,22 +483,14 @@ function solve_on_model(model,cutgeo,geo,geometry::UnfittedGeometry;
     end
   end
 
-  # 1. Generate AMR constraints
+  # 1. Generate AMR constraints (on the aggregate-conforming triangulation)
 
   amr_sDOF_to_dof, amr_sDOF_to_dofs, amr_sDOF_to_coeffs = 
     generate_amr_constraints(Ωa,spaces,reffe);
 
   # 2. Generate AGG constraints
 
-  # 2.1. Generate aggregates
-  cell_to_root = generate_aggregates(model,cutgeo,geo)
-  if write_solution
-    writevtk(Triangulation(model),
-             datadir(vtk_name("aggregates")),
-             celldata=["aggregate"=>cell_to_root]);
-  end
-
-  # 2.2. Generate AGG constraints (properly)
+  # 2.1. Generate AGG constraints (properly)
   agg_sDOF_gids, new_n_fdofs, new_n_ddofs, agg_mfdof_gids, agg_mddof_gids, agg_mDOF_to_dof, agg_sDOF_to_dof, agg_sDOF_to_mdofs, agg_sDOF_to_coeffs = 
     generate_merged_constraints(Ωa, 
                                 spaces, 
@@ -376,81 +498,6 @@ function solve_on_model(model,cutgeo,geo,geometry::UnfittedGeometry;
                                 amr_sDOF_to_dof, 
                                 amr_sDOF_to_dofs, # TODO: dof numbered and GD might assume DOF numbered
                                 amr_sDOF_to_coeffs);
-
-  # # 2.3. Correct for Dirichlet DoFs
-  # agg_sDOF_to_dofs = map(agg_mDOF_to_dof, agg_sDOF_to_DOFs) do mDOF_to_dof, sDOF_to_DOFs
-  #   T = eltype(sDOF_to_DOFs.data)
-  #   data = Vector{T}(undef, length(sDOF_to_DOFs.data))
-  #   @inbounds for i in eachindex(sDOF_to_DOFs.data)
-  #     mdof = sDOF_to_DOFs.data[i]
-  #     data[i] = ifelse(mdof > zero(T), mDOF_to_dof[mdof], mdof)
-  #   end
-  #   return Table(data, sDOF_to_DOFs.ptrs)
-  # end
-
-  # # 3. Generate AMR-AGG constraints (combine)
-
-  # # 3.1. Remove AGG constraints that are masters of well-posed hanging
-  # agg_sDOF_keep = map(
-  #   spaces, amr_sDOF_to_dof, amr_sDOF_to_dofs, agg_sDOF_to_dof, agg_sDOF_to_dofs,
-  # ) do space, amr_sDOF_to_dof, amr_sDOF_to_dofs, agg_sDOF_to_dof, agg_sDOF_to_dofs
-  #   ndofs = num_free_dofs(space) # agg_sDOFs are always local
-  #   is_agg_dof = falses(ndofs)
-  #   is_agg_dof[agg_sDOF_to_dof] .= true
-  #   amr_only_sDOF = findall(dof->!is_agg_dof[dof],amr_sDOF_to_dof)
-  #   is_mfdof_of_well_posed_hanging = falses(ndofs)  # amr masters are always local
-  #   for sDOF in amr_only_sDOF
-  #     masters = amr_sDOF_to_dofs[sDOF]
-  #     fmasters = masters[masters .> 0]
-  #     is_mfdof_of_well_posed_hanging[fmasters] .= true
-  #   end
-  #   keep_agg_constraint = falses(length(agg_sDOF_to_dof))
-  #   for (sDOF,dof) in enumerate(agg_sDOF_to_dof)
-  #     keep_agg_constraint[sDOF] = !is_mfdof_of_well_posed_hanging[dof]
-  #   end
-  #   display("Removing $(count(!,keep_agg_constraint)) agg constraints:")
-  #   display(findall(!,keep_agg_constraint))
-  #   return findall(keep_agg_constraint)
-  # end;
-  # agg_sDOF_to_dof, agg_sDOF_to_dofs, agg_sDOF_to_coeffs = map(
-  #   agg_sDOF_keep, agg_sDOF_to_dof, agg_sDOF_to_dofs, agg_sDOF_to_coeffs
-  # ) do agg_sDOF_keep, agg_sDOF_to_dof, agg_sDOF_to_dofs, agg_sDOF_to_coeffs
-  #   return agg_sDOF_to_dof[agg_sDOF_keep], agg_sDOF_to_dofs[agg_sDOF_keep], agg_sDOF_to_coeffs[agg_sDOF_keep]
-  # end |> tuple_of_arrays;
-
-  # # 3.2. Merge and close the constraint tables, preferring the AMR 
-  # #      constraints in case of conflict for ill-posed dofs that 
-  # #      are also hanging
-  # _sDOF_to_dof, sDOF_to_dofs, sDOF_to_coeffs = map(
-  #   new_n_fdofs, new_n_ddofs, agg_sDOF_to_dof, agg_sDOF_to_dofs, agg_sDOF_to_coeffs, amr_sDOF_to_dof, amr_sDOF_to_dofs, amr_sDOF_to_coeffs
-  # ) do new_n_fdofs, new_n_ddofs, agg_sDOF_to_dof, agg_sDOF_to_dofs, agg_sDOF_to_coeffs, amr_sDOF_to_dof, amr_sDOF_to_dofs, amr_sDOF_to_coeffs
-  #   on_conflict(dof, dofs1, coeffs1, offset1, dofs2, coeffs2, offset2) = (dofs2, coeffs2, offset2)
-  #   sDOF_to_dof, sDOF_to_dofs, sDOF_to_coeffs, sDOF_to_offsets = FESpaces.merge_slave_constraint_tables(
-  #     new_n_fdofs, new_n_fdofs+new_n_ddofs,
-  #     agg_sDOF_to_dof, agg_sDOF_to_dofs, agg_sDOF_to_coeffs, 
-  #     amr_sDOF_to_dof, amr_sDOF_to_dofs, amr_sDOF_to_coeffs;
-  #     on_conflict
-  #   )
-
-  #   sDOF_to_dof, sDOF_to_dofs, sDOF_to_coeffs, sDOF_to_offsets = FESpaces.close_slave_constraint_tables(
-  #     new_n_fdofs, new_n_fdofs+new_n_ddofs, sDOF_to_dof, sDOF_to_dofs, sDOF_to_coeffs, sDOF_to_offsets
-  #   )
-  # end |> tuple_of_arrays;
-
-  # # 3.3. Regenerate constraint gids after merge & close
-  # cell_gids = GridapDistributed.generate_cell_gids(Ωa)
-  # # sDOF_gids, new_n_fdofs, new_n_ddofs, new_mfdof_gids, new_mddof_gids, mDOF_to_dof, sDOF_to_dof, sDOF_to_DOFs, sDOF_to_coeffs = 
-  # #   GridapDistributed.generate_distributed_constraints(cell_gids, spaces, sDOF_to_dof, sDOF_to_dofs, sDOF_to_coeffs);
-  # dof_is_slave = map(new_n_fdofs, _sDOF_to_dof) do new_n_fdofs, _sDOF_to_dof
-  #   dof_is_slave = fill(false, new_n_fdofs)
-  #   dof_is_slave[_sDOF_to_dof] .= true # TO-DO: Dirichlet BCs
-  #   return dof_is_slave
-  # end
-  # _, mfdof_gids, _, sDOF_to_DOF, _, _, _, DOF_to_dof =
-  #   GridapDistributed.generate_constraint_gids(cell_gids, spaces, dof_is_slave)
-  # sDOF_to_dofs, sDOF_to_coeffs = GridapDistributed.permute_constraints!(
-  #   sDOF_to_DOF, _sDOF_to_dof, DOF_to_dof, sDOF_to_dofs, sDOF_to_coeffs
-  # )
 
   u, f, ud = problem
 
@@ -493,8 +540,9 @@ function solve_on_model(model,cutgeo,geo,geometry::UnfittedGeometry;
   el2 = sqrt(sum(∫( e*e )dΩ))
   eh1 = sqrt(sum(∫( e*e + ∇(e)⋅∇(e) )dΩ))
 
-  return model, cutgeo, geo, uₕ, el2, eh1, h
-  # # return model, cutgeo, geo, nothing, nothing, nothing, nothing
+  @show el2, eh1, h
+
+  return el2, eh1, h
 end
 
 function run_single_test(distribute,
@@ -510,11 +558,11 @@ function run_single_test(distribute,
                             num_parts,
                             geometry,
                             initial_uniform_refs=initial_uniform_refs)
-  model, cutgeo, geo, uₕ, _, _, _ = solve_on_model(
+  el2, eh1, h = solve_on_model(
     model,cutgeo,geo,geometry;
     order,problem,write_solution
   )
-  return model, cutgeo, geo, uₕ
+  return el2, eh1, h
 end
 
 function run_convergence_test(geometry::UnfittedGeometry;
