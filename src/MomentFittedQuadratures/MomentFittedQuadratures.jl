@@ -266,13 +266,13 @@ end
 function add_facet_moments!(ccm::CutCellMoments,
                             trian::SubFacetTriangulation,
                             array::AbstractArray)
-  add_facet_moments!(ccm,trian.subfacets,array)
+  add_facet_moments!(ccm,trian.subfaces,array)
 end
 
 function add_facet_moments!(ccm::CutCellMoments,
                             sfd::SubFacetData,
                             array::AbstractArray)
-  facet_to_cut_cell = lazy_map(Reindex(ccm.bgcell_to_cut_cell),sfd.facet_to_bgcell)
+  facet_to_cut_cell = lazy_map(Reindex(ccm.bgcell_to_cut_cell),sfd.cell_to_bgcell)
   c = array_cache(array)
   for i = 1:length(facet_to_cut_cell)
     ccm.data[facet_to_cut_cell[i]] += getindex!(c,array,i)

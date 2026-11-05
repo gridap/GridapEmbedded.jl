@@ -16,6 +16,7 @@ using GridapEmbedded.Interfaces: Simplex
 using GridapEmbedded.Interfaces: merge_sub_face_data
 using GridapEmbedded.Interfaces: compute_inoutcut
 using GridapEmbedded.Interfaces: SubCellTriangulation, SubFacetTriangulation
+using GridapEmbedded.Interfaces: SubFaceTriangulation
 
 using LinearAlgebra
 using MiniQhull

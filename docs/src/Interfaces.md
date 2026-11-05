@@ -81,7 +81,17 @@ EmbeddedBoundary(::EmbeddedDiscretization)
 GhostSkeleton(::EmbeddedDiscretization)
 Gridap.Geometry.BoundaryTriangulation(::EmbeddedFacetDiscretization,::Any)
 Gridap.Geometry.SkeletonTriangulation(::EmbeddedFacetDiscretization,::Any)
+SubFaceTriangulation
 SubCellTriangulation
 SubFacetTriangulation
 SubFacetBoundaryTriangulation
+```
+
+The pieces of the cut are stored as `SubFaceData`: simplices of dimension `Df`, attached to
+background faces of dimension `Dr`, in a `Dp`-dimensional space.
+
+```@docs
+SubFaceData
+SubCellData
+SubFacetData
 ```

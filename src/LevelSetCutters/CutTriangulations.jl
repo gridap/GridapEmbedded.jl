@@ -507,7 +507,7 @@ function _cut_cell_boundary!(s_boundary,m,case,mcell,sfacet,spoint,z)
   return sfacet, z
 end
 
-## SubCellData / SubFacetData as the sub-triangulation being cut
+## SubFaceData (SubCellData / SubFacetData) as the sub-triangulation being cut
 
 function allocate_sub_triangulation(
   m::SubCellData{Dc,Dp,T}, n_cells::Integer, n_points::Integer) where {Dc,Dp,T}
@@ -547,21 +547,23 @@ function _allocate_table(a::Table{T,Vd,Vp},n_cells,n_lpoints) where {T,Vd,Vp}
   Table(data,ptrs)
 end
 
-get_cell_to_points(m::SubCellData) = m.cell_to_points
+get_cell_to_points(m::SubFaceData) = m.cell_to_points
 
-get_cell_dim(m::SubCellData{Dc}) where Dc = Dc
+get_cell_dim(m::SubFaceData{Df}) where Df = Df
+
+get_point_to_coords(m::SubFaceData) = m.point_to_coords
+
+function set_point_data!(s::SubFaceData, m::SubFaceData, d...)
+  set_point_data!(s.point_to_coords, m.point_to_coords, d...)
+  set_point_data!(s.point_to_rcoords, m.point_to_rcoords, d...)
+end
 
 function set_cell_data!(s::SubCellData, m::SubCellData, d...)
   set_cell_data!(s.cell_to_bgcell, m.cell_to_bgcell, d...)
 end
 
-function set_point_data!(s::SubCellData, m::SubCellData, d...)
-  set_point_data!(s.point_to_coords, m.point_to_coords, d...)
-  set_point_data!(s.point_to_rcoords, m.point_to_rcoords, d...)
-end
-
 function set_cell_data_boundary!(s::SubFacetData, m::SubCellData, d...)
-  set_cell_data!(s.facet_to_bgcell, m.cell_to_bgcell, d...)
+  set_cell_data!(s.cell_to_bgcell, m.cell_to_bgcell, d...)
 end
 
 function allocate_sub_triangulation(
@@ -569,8 +571,8 @@ function allocate_sub_triangulation(
 
   point_to_coords = zeros(Point{Dp,T},n_points)
   point_to_rcoords = zeros(Point{Dp,T},n_points)
-  facet_to_points = _allocate_table(m.facet_to_points,n_facets,Dp)
-  facet_to_bgcell = zeros(eltype(m.facet_to_bgcell),n_facets)
+  facet_to_points = _allocate_table(m.cell_to_points,n_facets,Dp)
+  facet_to_bgcell = zeros(eltype(m.cell_to_bgcell),n_facets)
   facet_to_normal = zeros(VectorValue{Dp,T},n_facets)
   facet_to_inoutcut = zeros(Int8,n_facets)
 
@@ -584,20 +586,9 @@ function allocate_sub_triangulation(
   s, facet_to_inoutcut
 end
 
-get_cell_to_points(m::SubFacetData) = m.facet_to_points
-
-get_cell_dim(m::SubFacetData{Dp}) where Dp = Dp-1
-
-get_point_to_coords(m::SubFacetData) = m.point_to_coords
-
-get_facet_to_normal(m::SubFacetData) = m.facet_to_normal
+get_facet_to_normal(m::SubFacetData) = m.cell_to_normal
 
 function set_cell_data!(s::SubFacetData, m::SubFacetData, d...)
-  set_cell_data!(s.facet_to_bgcell, m.facet_to_bgcell, d...)
-  set_cell_data!(s.facet_to_normal, m.facet_to_normal, d...)
-end
-
-function set_point_data!(s::SubFacetData, m::SubFacetData, d...)
-  set_point_data!(s.point_to_coords, m.point_to_coords, d...)
-  set_point_data!(s.point_to_rcoords, m.point_to_rcoords, d...)
+  set_cell_data!(s.cell_to_bgcell, m.cell_to_bgcell, d...)
+  set_cell_data!(s.cell_to_normal, m.cell_to_normal, d...)
 end

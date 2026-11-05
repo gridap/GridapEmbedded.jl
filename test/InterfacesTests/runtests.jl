@@ -2,9 +2,7 @@ module InterfacesTests
 
 using Test
 
-@testset "SubCellTriangulations" begin include("SubCellTriangulationsTests.jl") end
-
-@testset "SubFacetTriangulations" begin include("SubFacetTriangulationsTests.jl") end
+@testset "SubFaceTriangulations" begin include("SubFaceTriangulationsTests.jl") end
 
 @testset "EmbeddedDiscretizations" begin include("EmbeddedDiscretizationsTests.jl") end
 

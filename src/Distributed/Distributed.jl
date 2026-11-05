@@ -22,6 +22,7 @@ using GridapEmbedded.Interfaces: ActiveInOrOut
 using GridapEmbedded.Interfaces: SubFacetTriangulation
 using GridapEmbedded.Interfaces: SubCellData
 using GridapEmbedded.Interfaces: SubFacetData
+using GridapEmbedded.Interfaces: SubFaceData
 using GridapEmbedded.Interfaces: AbstractEmbeddedDiscretization
 using GridapEmbedded.Interfaces: CutFaceBoundaryTriangulation
 using GridapEmbedded.Interfaces: CutFaceSkeletonTriangulation

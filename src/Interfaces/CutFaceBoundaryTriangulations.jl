@@ -83,8 +83,7 @@ function get_ghost_mask(
   topo = get_grid_topology(face_model)
   face_to_facets = get_faces(topo,Df-1,Df)
 
-  subfacets = face_trian.subfacets
-  facet_to_bgcell = subfacets.facet_to_bgcell
+  facet_to_bgcell = face_trian.subfaces.cell_to_bgcell
 
   n_faces = num_faces(topo,Df-1)
   face_is_ghost = zeros(Bool,n_faces)
