@@ -20,9 +20,13 @@ using GridapEmbedded.Interfaces: SubFaceTriangulation
 
 using LinearAlgebra
 using MiniQhull
+using StaticArrays
+using FillArrays: Fill
 
 using Gridap.TensorValues
 using Gridap.ReferenceFEs
+import Gridap.ReferenceFEs: num_vertices, num_facets, num_nodes, num_faces
+import Gridap.ReferenceFEs: get_vertex_coordinates, get_face_vertices
 using Gridap.Arrays
 using Gridap.Arrays: testitem, return_type
 using Gridap.Fields
@@ -37,6 +41,7 @@ using Gridap.MultiField
 using GridapDistributed: DistributedMultiFieldFESpace
 
 export LevelSetCutter
+export RecursivePlaneCutter
 export AnalyticalGeometry
 export doughnut
 export popcorn
@@ -61,6 +66,15 @@ include("LookupTables.jl")
 include("CutTriangulations.jl")
 
 include("DifferentiableTriangulations.jl")
+
+# The recursive cell cutter (copied from background-gmg) and the cutter built on it
+include("CutCells.jl")
+
+include("CellCutters.jl")
+
+include("CutFaces.jl")
+
+include("RecursivePlaneCutter.jl")
 
 """
     struct LevelSetCutter <: Cutter end

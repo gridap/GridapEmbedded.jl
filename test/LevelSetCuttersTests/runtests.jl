@@ -14,4 +14,6 @@ using Test
 
 @testset "GeometricalDifferentiation" begin include("GeometricalDifferentiationTests.jl") end
 
+@testset "RecursivePlaneCutter" begin include("RecursivePlaneCutterTests.jl") end
+
 end # module

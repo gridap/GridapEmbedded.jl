@@ -28,6 +28,7 @@ end
 @publish Interfaces PHYSICAL_OUT
 
 @publish LevelSetCutters LevelSetCutter
+@publish LevelSetCutters RecursivePlaneCutter
 @publish LevelSetCutters AnalyticalGeometry
 @publish LevelSetCutters popcorn
 @publish LevelSetCutters doughnut
