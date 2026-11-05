@@ -195,11 +195,9 @@ function _compute_ls_to_bgcell_to_inoutcut(grid,geom::DiscreteGeometry)
   ugrid = UnstructuredGrid(grid)
   tree = get_tree(geom)
   ls_to_point_to_value, oid_to_ls = _find_unique_leaves(tree)
-  p = _check_and_get_polytope(ugrid)
-  table = LookupTable(p)
   cell_to_points = get_cell_node_ids(ugrid)
   ls_to_cell_to_inoutcut = [
-    _compute_in_out_or_cut(table,cell_to_points,point_to_value)
+    _compute_in_out_or_cut(cell_to_points,point_to_value)
     for point_to_value in ls_to_point_to_value]
   ls_to_cell_to_inoutcut, tree, oid_to_ls
 end
