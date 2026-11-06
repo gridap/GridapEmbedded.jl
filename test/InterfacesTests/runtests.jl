@@ -10,6 +10,8 @@ using Test
 
 @testset "Cutters" begin include("CuttersTests.jl") end
 
+@testset "ImmersedDiscreteModels" begin include("ImmersedDiscreteModelsTests.jl") end
+
 @testset "Issue Reproducers" begin
   @testset "Issue115" begin include("issue_115.jl") end
 end

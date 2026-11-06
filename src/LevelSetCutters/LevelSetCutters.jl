@@ -32,6 +32,7 @@ using Gridap.Arrays: testitem, return_type
 using Gridap.Fields
 using Gridap.Helpers
 using Gridap.Geometry
+using Gridap.Geometry: push_normal
 using Gridap.CellData
 using Gridap.Polynomials
 using Gridap.Visualization
@@ -67,9 +68,7 @@ include("CutTriangulations.jl")
 
 include("DifferentiableTriangulations.jl")
 
-# The recursive cell cutter (copied from background-gmg) and the cutter built on it
-include("CutCells.jl")
-
+# The recursive cell cutter and the cutter built on it
 include("CellCutters.jl")
 
 include("CutFaces.jl")

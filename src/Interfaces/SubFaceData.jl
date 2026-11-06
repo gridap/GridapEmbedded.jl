@@ -5,21 +5,24 @@ Collection of `Df`-dimensional simplices (sub-faces) attached to the `Dr`-dimens
 of a background mesh, embedded in a `Dp`-dimensional space (`Df ≤ Dr ≤ Dp`):
 
 - `cell_to_points`: vertices of each simplex (`Df+1` points per simplex);
-- `cell_to_bgcell`: the background `Dr`-face containing each simplex (a background cell if
-  `Dr == Dp`, a background facet if `Dr == Dp-1`);
+- `cell_to_bgcell`: the background `Dr`-face containing each simplex;
 - `point_to_coords`: physical coordinates of the points;
 - `point_to_rcoords`: reference coordinates of the points in their background `Dr`-face;
 - `cell_to_normal`: `nothing`, or the unit normal of each simplex (only if `Df == Dp-1`).
-  Normals are never computed: only stored normals are available (`get_facet_normal` of the
-  triangulation), as given by the producer of the data.
 
-The two cases used by the level-set cutter are aliases:
+## Aliases: 
 
-- `SubCellData{Dr,Dp,Tp,Tr}`: `Df == Dr`, no normals (pieces of cut background cells or facets);
-- `SubFacetData{Dp,T,Tn}`: `Dr == Dp`, stored normals (pieces of the interface in background cells;
-  `Df == Dp-1` is checked by the constructor).
+`SubCellData{Dr,Dp,Tp,Tr}` and `SubFacetData{Dp,T,Tn}` are now aliases.
 
-Other combinations (e.g. `Df = Dp-2` pieces in background cells) are plain `SubFaceData`.
+    const SubCellData{Dr,Dp,Tp,Tr} = SubFaceData{Dr,Dr,Dp,Tp,Tr,Nothing}
+    const SubFacetData{Dp,T,Tn} = SubFaceData{Df,Dp,Dp,T,T,Vector{VectorValue{Dp,Tn}}} where Df
+
+## Constructors: 
+
+    SubFaceData{Df}(cell_to_points, cell_to_bgcell, point_to_coords, point_to_rcoords[, cell_to_normal])
+    SubCellData(cell_to_points, cell_to_bgcell, point_to_coords, point_to_rcoords)
+    SubFacetData(facet_to_points, facet_to_normal, facet_to_bgcell, point_to_coords, point_to_rcoords)
+
 """
 struct SubFaceData{Df,Dr,Dp,Tp,Tr,N} <: GridapType
   cell_to_points::Table{Int32,Vector{Int32},Vector{Int32}}
@@ -40,19 +43,7 @@ struct SubFaceData{Df,Dr,Dp,Tp,Tr,N} <: GridapType
   end
 end
 
-"""
-    const SubCellData{Dr,Dp,Tp,Tr} = SubFaceData{Dr,Dr,Dp,Tp,Tr,Nothing}
-
-Simplices of the same dimension `Dr` as the background faces they are attached to (cut
-background cells, or cut background facets in `EmbeddedFacetDiscretization`), no normals.
-"""
 const SubCellData{Dr,Dp,Tp,Tr} = SubFaceData{Dr,Dr,Dp,Tp,Tr,Nothing}
-
-"""
-    const SubFacetData{Dp,T,Tn} = SubFaceData{Df,Dp,Dp,T,T,Vector{VectorValue{Dp,Tn}}} where Df
-
-`(Dp-1)`-simplices in background cells (pieces of the interface), with stored normals.
-"""
 const SubFacetData{Dp,T,Tn} = SubFaceData{Df,Dp,Dp,T,T,Vector{VectorValue{Dp,Tn}}} where Df
 
 function SubFaceData{Df,Dr,Dp,Tp,Tr,Nothing}(
@@ -61,9 +52,6 @@ function SubFaceData{Df,Dr,Dp,Tp,Tr,Nothing}(
     cell_to_points,cell_to_bgcell,point_to_coords,point_to_rcoords,nothing)
 end
 
-"""
-    SubFaceData{Df}(cell_to_points, cell_to_bgcell, point_to_coords, point_to_rcoords[, cell_to_normal])
-"""
 function SubFaceData{Df}(
   cell_to_points,
   cell_to_bgcell,
@@ -79,11 +67,6 @@ end
 _convert_normals(::Nothing) = nothing
 _convert_normals(n::AbstractVector{<:VectorValue}) = convert(Vector{eltype(n)},n)
 
-"""
-    SubCellData(cell_to_points, cell_to_bgcell, point_to_coords, point_to_rcoords)
-
-`SubFaceData` with `Df == Dr` (the dimension of the reference coordinates) and no normals.
-"""
 function SubCellData(
   cell_to_points,
   cell_to_bgcell,
@@ -92,12 +75,6 @@ function SubCellData(
   SubFaceData{Dr}(cell_to_points,cell_to_bgcell,point_to_coords,point_to_rcoords)
 end
 
-"""
-    SubFacetData(facet_to_points, facet_to_normal, facet_to_bgcell, point_to_coords, point_to_rcoords)
-
-`SubFaceData` of `(Dp-1)`-simplices in background cells, with stored normals.
-(Note the position of the normals, kept from the former struct.)
-"""
 function SubFacetData(
   facet_to_points,
   facet_to_normal::AbstractVector{<:VectorValue},
@@ -135,20 +112,22 @@ Gridap.Geometry.num_point_dims(::Type{<:SubFaceData{Df,Dr,Dp}}) where {Df,Dr,Dp}
     SubFaceData(st::SubFaceData, newcells)
     SubFaceData(st::SubFaceData, newcells, orientation)
 
-Restriction of `st` to the simplices `newcells` (all the points are kept). With
-`orientation` (`±1` per new simplex), the stored normals are multiplied by it (requires
-stored normals).
+Restriction of `st` to the simplices `newcells` (all the points are kept). 
+With `orientation` (`±1` per new simplex), the stored normals are 
+multiplied by it (requires stored normals).
 """
 function SubFaceData(st::SubFaceData{Df},newcells::AbstractVector{<:Integer}) where Df
   cell_to_points = Table(lazy_map(Reindex(st.cell_to_points),newcells))
   cell_to_bgcell = st.cell_to_bgcell[newcells]
-  cell_to_normal = _restrict_normals(st.cell_to_normal,newcells)
-  SubFaceData{Df}(
-    cell_to_points,
-    cell_to_bgcell,
-    st.point_to_coords,
-    st.point_to_rcoords,
-    cell_to_normal)
+  if isnothing(st.cell_to_normal)
+    cell_to_normal = nothing
+  else
+    cell_to_normal = st.cell_to_normal[newcells]
+  end
+  return SubFaceData{Df}(
+    cell_to_points, cell_to_bgcell,
+    st.point_to_coords, st.point_to_rcoords, cell_to_normal
+  )
 end
 
 function SubFaceData(
@@ -160,39 +139,27 @@ function SubFaceData(
   cell_to_bgcell = st.cell_to_bgcell[newcells]
   cell_to_normal = st.cell_to_normal[newcells] .* orientation
   SubFaceData{Df}(
-    cell_to_points,
-    cell_to_bgcell,
-    st.point_to_coords,
-    st.point_to_rcoords,
-    cell_to_normal)
+    cell_to_points, cell_to_bgcell,
+    st.point_to_coords, st.point_to_rcoords, cell_to_normal
+  )
 end
 
 SubCellData(st::SubCellData,newcells::AbstractVector{<:Integer}) = SubFaceData(st,newcells)
 
 function SubFacetData(
   st::SubFacetData,newfacets::AbstractVector{<:Integer},orientation::AbstractVector)
-  SubFaceData(st,newfacets,orientation)
+  return SubFaceData(st,newfacets,orientation)
 end
-
-_restrict_normals(::Nothing,ids) = nothing
-_restrict_normals(n::AbstractVector,ids) = n[ids]
 
 # In-place concatenation
 
 function Base.empty(st::SubFaceData{Df,Dr,Dp,Tp,Tr}) where {Df,Dr,Dp,Tp,Tr}
-  SubFaceData{Df}(
-    Table(Int32[],Int32[1,]),
-    Int32[],
-    Point{Dp,Tp}[],
-    Point{Dr,Tr}[],
-    _empty_normals(st.cell_to_normal))
+  normals = ifelse(isnothing(st.cell_to_normal), nothing, empty(st.cell_to_normal))
+  return SubFaceData{Df}(
+    Table(Int32[],Int32[1,]), Int32[], Point{Dp,Tp}[], Point{Dr,Tr}[], normals
+  )
 end
 
-_empty_normals(::Nothing) = nothing
-_empty_normals(n::AbstractVector) = empty(n)
-
-# Signature deliberately loose: more specific methods on the aliases defined downstream
-# (e.g. append!(::SubCellData,::SubCellData)) must not become ambiguous.
 function Base.append!(a::SubFaceData,b::SubFaceData)
   @assert num_cell_dims(a) == num_cell_dims(b)
   @assert isnothing(a.cell_to_normal) == isnothing(b.cell_to_normal)
@@ -214,11 +181,10 @@ function Base.append!(a::SubFaceData,b::SubFaceData)
     a.cell_to_points.data[i] += o
   end
 
-  a
+  return a
 end
 
 function merge_sub_face_data(ls_to_subfacets,ls_to_ls_to_facet_to_inout)
-
   fst = empty(first(ls_to_subfacets))
   ls_to_facet_to_inout = [ empty(first(ls_to_f_to_i))  for ls_to_f_to_i in ls_to_ls_to_facet_to_inout  ]
   for (i,fst_i) in enumerate(ls_to_subfacets)
@@ -227,7 +193,7 @@ function merge_sub_face_data(ls_to_subfacets,ls_to_ls_to_facet_to_inout)
       append!(ls_to_facet_to_inout[j],facet_to_inout)
     end
   end
-  fst, ls_to_facet_to_inout
+  return fst, ls_to_facet_to_inout
 end
 
 # Grid, reference map of the glue, visualization
@@ -236,17 +202,16 @@ end
 function UnstructuredGrid(st::SubFaceData{Df}) where Df
   reffe = LagrangianRefFE(Float64,Simplex(Val{Df}()),1)
   cell_types = fill(Int8(1),length(st.cell_to_points))
-  UnstructuredGrid(
-    st.point_to_coords,
-    st.cell_to_points,
-    [reffe,],
-    cell_types,
-    NonOriented(),
-    _facet_normal(st.cell_to_normal))
+  if isnothing(st.cell_to_normal)
+    normals = nothing
+  else
+    normals = lazy_map(constant_field, st.cell_to_normal)
+  end
+  return UnstructuredGrid(
+    st.point_to_coords, st.cell_to_points, [reffe,], 
+    cell_types, NonOriented(), normals
+  )
 end
-
-_facet_normal(::Nothing) = nothing
-_facet_normal(n::AbstractVector) = lazy_map(constant_field,n)
 
 # Map from the reference simplex to the reference space of the background Dr-face
 function _setup_cell_ref_map(st::SubFaceData,grid)
@@ -259,7 +224,7 @@ function _setup_cell_ref_map(st::SubFaceData,grid)
   reffe = first(ctype_to_reffe)
   cell_to_shapefuns = expand_cell_data([get_shapefuns(reffe)],cell_to_ctype)
   cell_to_ref_map = lazy_map(linear_combination,cell_to_rcoords,cell_to_shapefuns)
-  cell_to_ref_map
+  return cell_to_ref_map
 end
 
 function Visualization.visualization_data(
@@ -280,5 +245,5 @@ function Visualization.visualization_data(
   for (k,v) in newcelldata
     _celldata[k] = v
   end
-  (Visualization.VisualizationData(ug,filename,celldata=_celldata),)
+  return (Visualization.VisualizationData(ug,filename,celldata=_celldata),)
 end

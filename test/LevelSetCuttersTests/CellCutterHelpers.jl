@@ -1,8 +1,8 @@
-# Tests of the recursive cell cutter (src/LevelSetCutters/{CutCells,CellCutters,CutFaces}.jl); helpers shared
-# by its test modules. Copied from background-gmg, test/cutters/helpers.jl. Geometric helpers,
-# only used to check the topology against analytic results.
+# Tests of the recursive cell cutter (src/LevelSetCutters/{CellCutters,CutFaces}.jl); helpers shared
+# by its test modules. Geometric helpers, only used to check the topology against analytic
+# results.
 
-using GridapEmbedded.LevelSetCutters: DegenerateCutError, Plane, ReferenceCell, CutCell, CellCutter,
+using GridapEmbedded.LevelSetCutters: Plane, ReferenceCell, CutCell, CellCutter,
   num_levelsets, num_planes, get_plane, get_plane_normal, levelset_plane, is_levelset_plane,
   get_plane_levelset, get_vertex_planes, compute_vertex_coordinates, get_vertex_values, get_vertex_signs, get_node_vertices,
   get_node_phase, get_node_children, get_node_levelset, get_node_vertices_on_plane, isleaf,

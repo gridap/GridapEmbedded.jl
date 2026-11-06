@@ -1,28 +1,27 @@
-# Copied from background-gmg, src/cutters/cellcutter/CutFaces.jl (the recursive cell cutter, originally
-# PolytopalCutters.jl). Changes are marked with [changed].
-
 ## The faces of a cut cell
 #
-# The leaves of a `CutCell` are the cells of the arrangement of the level-set planes inside
-# the cell, so together with their faces they form a face-to-face complex. A d-face of this
-# complex lies on exactly D-d planes (non-degeneracy) and is identified by them and by its
-# phase: `IN`/`OUT` for the level sets it is not on, `INTERFACE` for those it is on (the
-# region of the flat of its planes with a given sign vector is convex, so it is one face).
+# The leaves of a `CutCell` are phases of the level-set planes inside the cell, so together 
+# with the cell faces they form a face-to-face complex. 
+# A d-face of this complex lies on exactly D-d planes (non-degeneracy) and is UNIQUELY 
+# identified by 1) the plane ids it lies on and 2) the phase of the level sets it is not on.
+
+# The d-faces are read off the vertices of the leaves: 
+# Every distinc set of (D-d) planes subset of the D planes of a vertex 
+# defines a d-face through that vertex.
+# Then, every vertex emits their keys (planes, phase) and a dictionary groups 
+# the vertices by key, so each face is counted once. Faces can be selected by
+# dimension and by the planes they lie on (see `CellFaceExtractor`).
 #
-# The d-faces are read off the vertices of the leaves: in a simple polytope every set of D-d of
-# the D planes of a vertex is a d-face through it, made of the vertices on all of them. Every
-# vertex emits these keys (planes, phase) and a dictionary groups the vertices by key, so a
-# face shared by two leaves (on a level set) comes out once. Faces can be selected by
-# dimension and by the planes they lie on (`CellFaceExtractor`).
-#
-# Every face is split into d-simplices by a pulling triangulation: cone from its smallest
-# vertex id over the triangulations of its facets not containing it. A face is triangulated
+# Finally, every face is simplexified into d-simplices. A face is triangulated
 # from its vertex set only, so neighbouring faces of the cell are triangulated conformingly.
 
 """
-    struct CutFaces{N}
+    struct CutCellFaces{D,N,T}
 
-The d-faces of a cut cell for one dimension d (an entry of `CutCellFaces`):
+The faces of every dimension of a `CutCell`, triangulated into simplices. 
+This struct is the cache and the output of `CellFaceExtractor`.
+
+The d-faces are stored in entry `d+1` of every face array:
 
 - `face_planes`: the `D-d` sorted plane ids of every face, flat (stride `D-d`);
 - `face_phase`: `IN`/`OUT` per level set, `INTERFACE` for the level sets the face is on;
@@ -32,42 +31,14 @@ The d-faces of a cut cell for one dimension d (an entry of `CutCellFaces`):
 
 Vertex ids are those of the `CutCell`.
 """
-struct CutFaces{N}
-  d::Int
-  nplanes::Int
-  face_planes::Vector{Int32}
-  face_phase::Vector{NTuple{N,Int8}}
-  face_ptrs::Vector{Int32}
-  face_vertices::Vector{Int32}
-  simplex_vertices::Vector{Int32}
-  face_simplex_ptrs::Vector{Int32}
-end
-
-CutFaces{N}(d::Integer,D::Integer) where N =
-  CutFaces{N}(d,D-d,Int32[],NTuple{N,Int8}[],Int32[1],Int32[],Int32[],Int32[1])
-
-function _reset!(f::CutFaces)
-  empty!(f.face_planes)
-  empty!(f.face_phase)
-  resize!(f.face_ptrs,1)
-  empty!(f.face_vertices)
-  empty!(f.simplex_vertices)
-  resize!(f.face_simplex_ptrs,1)
-  return f
-end
-
-"""
-    struct CutCellFaces{D,N,T}
-
-The faces of every dimension of a `CutCell` (`get_cut_cell`, the last one evaluated), with
-their simplices (vertex coordinates: those of the cut cell). It is the cache and the output of
-`CellFaceExtractor`, so it is overwritten for every cell. Accessors: `num_faces`,
-`get_face_planes`, `get_face_phase`, `get_face_vertices`, `get_face_normal`,
-`num_simplices`, `get_simplex_vertices`, `get_face_simplices`, `get_face_quadrature`.
-"""
 mutable struct CutCellFaces{D,N,T,C<:CutCell{D,N,T}}
   cell::C
-  faces::Vector{CutFaces{N}}
+  face_planes::Vector{Vector{Int32}}
+  face_phase::Vector{Vector{NTuple{N,Int8}}}
+  face_ptrs::Vector{Vector{Int32}}
+  face_vertices::Vector{Vector{Int32}}
+  simplex_vertices::Vector{Vector{Int32}}
+  face_simplex_ptrs::Vector{Vector{Int32}}
   # Work buffers of the extraction: face of every key (planes padded with 0, phase), and the
   # (face, vertex) incidences
   face_index::Dict{Tuple{NTuple{D,Int32},NTuple{N,Int8}},Int32}
@@ -79,9 +50,21 @@ mutable struct CutCellFaces{D,N,T,C<:CutCell{D,N,T}}
 end
 
 function CutCellFaces(c::CutCell{D,N,T}) where {D,N,T}
-  CutCellFaces(c,[CutFaces{N}(d,D) for d in 0:D],
+  v() = [Int32[] for _ in 0:D]
+  CutCellFaces(c,v(),[NTuple{N,Int8}[] for _ in 0:D],[Int32[1] for _ in 0:D],v(),v(),
+    [Int32[1] for _ in 0:D],
     Dict{Tuple{NTuple{D,Int32},NTuple{N,Int8}},Int32}(),Tuple{Int32,Int32}[],
-    [Int32[] for _ in 0:D],Int32[],Int32[])
+    v(),Int32[],Int32[])
+end
+
+function _reset!(cf::CutCellFaces,d::Integer)
+  empty!(cf.face_planes[d+1])
+  empty!(cf.face_phase[d+1])
+  resize!(cf.face_ptrs[d+1],1)
+  empty!(cf.face_vertices[d+1])
+  empty!(cf.simplex_vertices[d+1])
+  resize!(cf.face_simplex_ptrs[d+1],1)
+  return cf
 end
 
 """
@@ -117,52 +100,45 @@ get_cut_cell(cf::CutCellFaces) = cf.cell
 
 get_vertex_coordinates(cf::CutCellFaces,v::Integer) = get_vertex_coordinates(cf.cell,v)
 
-num_faces(cf::CutCellFaces,d::Integer) = length(cf.faces[d+1].face_phase)
+num_faces(cf::CutCellFaces,d::Integer) = length(cf.face_phase[d+1])
 
-function get_face_planes(cf::CutCellFaces,d::Integer,f::Integer)
-  fs = cf.faces[d+1]
-  k = fs.nplanes
-  view(fs.face_planes,(f-1)*k+1:f*k)
+function get_face_planes(cf::CutCellFaces{D},d::Integer,f::Integer) where D
+  k = D-d
+  view(cf.face_planes[d+1],(f-1)*k+1:f*k)
 end
 
-get_face_phase(cf::CutCellFaces,d::Integer,f::Integer) = cf.faces[d+1].face_phase[f]
+get_face_phase(cf::CutCellFaces,d::Integer,f::Integer) = cf.face_phase[d+1][f]
 
 function get_face_vertices(cf::CutCellFaces,d::Integer,f::Integer)
-  fs = cf.faces[d+1]
-  view(fs.face_vertices,fs.face_ptrs[f]:fs.face_ptrs[f+1]-1)
+  ptrs = cf.face_ptrs[d+1]
+  view(cf.face_vertices[d+1],ptrs[f]:ptrs[f+1]-1)
 end
 
-num_simplices(cf::CutCellFaces,d::Integer) = length(cf.faces[d+1].simplex_vertices) ÷ (d+1)
+num_simplices(cf::CutCellFaces,d::Integer) = length(cf.simplex_vertices[d+1]) ÷ (d+1)
 
 get_simplex_vertices(cf::CutCellFaces,d::Integer,s::Integer) =
-  view(cf.faces[d+1].simplex_vertices,(s-1)*(d+1)+1:s*(d+1))
+  view(cf.simplex_vertices[d+1],(s-1)*(d+1)+1:s*(d+1))
 
 function get_face_simplices(cf::CutCellFaces,d::Integer,f::Integer)
-  ptrs = cf.faces[d+1].face_simplex_ptrs
+  ptrs = cf.face_simplex_ptrs[d+1]
   ptrs[f]:ptrs[f+1]-1
 end
 
-"""
-    get_face_normal(cf::CutCellFaces{D},f::Integer)
+# Unit normal of the (D-1)-face `f`: the normal of its plane, towards
+# `φ > 0` on a level set and outwards on a cell facet.
+function get_face_normal(cf::CutCellFaces{D},f::Integer) where D
+  get_plane_normal(cf.cell,only(get_face_planes(cf,D-1,f)))
+end
 
-Unit normal (reference coordinates) of the (D-1)-face `f`: the normal of its plane, towards
-`φ > 0` on a level set and outwards on a cell facet.
-"""
-get_face_normal(cf::CutCellFaces{D},f::Integer) where D = get_plane_normal(cf.cell,only(get_face_planes(cf,D-1,f)))
-
-"""
-    get_face_quadrature(cf::CutCellFaces,d,f,degree) -> (points, weights)
-
-Gauss rule of `degree` on the d-face `f`, in reference coordinates of the cell: Gridap's
-rule on the reference simplex mapped onto every simplex of the face (weights: d-measure).
-"""
+# Gauss rule of `degree` on the d-face `f`, with `f` a general polytope.
+# This is not used for the embedded quadratures.
 function get_face_quadrature(cf::CutCellFaces{D,N,T},d::Integer,f::Integer,degree::Integer) where {D,N,T}
   P = VectorValue{D,T}
   xs, ws = P[], T[]
   if d == 0
     push!(xs,get_vertex_coordinates(cf,only(get_face_vertices(cf,0,f))))
     push!(ws,one(T))
-    return xs, ws
+    return GenericQuadrature(xs,ws)
   end
   q = Quadrature((SEGMENT,TRI,TET)[d],degree)
   for s in get_face_simplices(cf,d,f)
@@ -174,7 +150,7 @@ function get_face_quadrature(cf::CutCellFaces{D,N,T},d::Integer,f::Integer,degre
       push!(ws,w*μ)
     end
   end
-  xs, ws
+  return GenericQuadrature(xs,ws)
 end
 
 ## Extraction
@@ -182,31 +158,35 @@ end
 function _extract!(cf::CutCellFaces{D},k::CellFaceExtractor) where D
   c = cf.cell
   for d in 0:D
-    fs = _reset!(cf.faces[d+1])
+    _reset!(cf,d)
     _selected(k.dims,d) || continue
     if d == D
-      foreach(n -> _add_leaf!(fs,c,n),get_leaves(c))
+      foreach(n -> _add_leaf!(cf,n),get_leaves(c))
     else
-      _add_faces!(cf,fs,k.planes)
+      _add_faces!(cf,d,k.planes)
     end
-    for f in 1:length(fs.face_phase)
-      _triangulate_face!(cf,fs,f)
+    for f in 1:num_faces(cf,d)
+      _triangulate_face!(cf,d,f)
     end
   end
   return cf
 end
 
-function _add_leaf!(fs::CutFaces,c::CutCell,n::Integer)
-  append!(fs.face_vertices,get_node_vertices(c,n))
-  push!(fs.face_ptrs,length(fs.face_vertices)+1)
-  push!(fs.face_phase,get_node_phase(c,n))
+function _add_leaf!(cf::CutCellFaces{D},n::Integer) where D
+  c = cf.cell
+  face_vertices = cf.face_vertices[D+1]
+  append!(face_vertices,get_node_vertices(c,n))
+  push!(cf.face_ptrs[D+1],length(face_vertices)+1)
+  push!(cf.face_phase[D+1],get_node_phase(c,n))
 end
 
-# The d-faces of the leaves, d = D - fs.nplanes < D, on the selected planes: every vertex of
+# The d-faces of the leaves, d < D, on the selected planes: every vertex of
 # a leaf emits the keys of its d-faces (D-d of its planes, the face phase); the vertices of a
 # face are those emitting its key, sorted.
-function _add_faces!(cf::CutCellFaces{D},fs::CutFaces,planes) where D
-  c, k = cf.cell, fs.nplanes
+function _add_faces!(cf::CutCellFaces{D},d::Integer,planes) where D
+  c, k = cf.cell, D-d
+  face_planes, face_phase = cf.face_planes[d+1], cf.face_phase[d+1]
+  face_ptrs, face_vertices = cf.face_ptrs[d+1], cf.face_vertices[d+1]
   index, pairs = cf.face_index, cf.face_vertex_pairs
   empty!(index)
   empty!(pairs)
@@ -219,9 +199,9 @@ function _add_faces!(cf::CutCellFaces{D},fs::CutFaces,planes) where D
         all(i -> !_inmask(mask,i) || _selected(planes,vplanes[i]),1:D) || continue
         key = (_key_planes(vplanes,mask),_face_phase(c,phase,vplanes,mask))
         f = get!(index,key) do
-          append!(fs.face_planes,Iterators.take(key[1],k))
-          push!(fs.face_phase,key[2])
-          Int32(length(fs.face_phase))
+          append!(face_planes,Iterators.take(key[1],k))
+          push!(face_phase,key[2])
+          Int32(length(face_phase))
         end
         push!(pairs,(f,v))
       end
@@ -230,11 +210,11 @@ function _add_faces!(cf::CutCellFaces{D},fs::CutFaces,planes) where D
   sort!(pairs;alg=QuickSort) # in place (the default sort allocates)
   for (i,(f,v)) in enumerate(pairs)
     i > 1 && pairs[i-1] == (f,v) && continue # a vertex of a face shared by two leaves
-    push!(fs.face_vertices,v)
-    f == length(fs.face_ptrs) || push!(fs.face_ptrs,length(fs.face_vertices))
+    push!(face_vertices,v)
+    f == length(face_ptrs) || push!(face_ptrs,length(face_vertices))
   end
-  isempty(pairs) || push!(fs.face_ptrs,length(fs.face_vertices)+1)
-  return fs
+  isempty(pairs) || push!(face_ptrs,length(face_vertices)+1)
+  return cf
 end
 
 _inmask(mask,i) = (mask >> (i-1)) & 1 == 1
@@ -258,29 +238,28 @@ function _face_phase(c::CutCell{D,N},phase::NTuple{N,Int8},planes,mask) where {D
   phase
 end
 
-function _triangulate_face!(cf::CutCellFaces{D},fs::CutFaces,f::Integer) where D
+function _triangulate_face!(cf::CutCellFaces,d::Integer,f::Integer)
   verts = cf.vertex_buffers[1]
   empty!(verts)
-  append!(verts,view(fs.face_vertices,fs.face_ptrs[f]:fs.face_ptrs[f+1]-1))
+  append!(verts,get_face_vertices(cf,d,f))
   empty!(cf.plane_stack)
-  k = fs.nplanes
-  append!(cf.plane_stack,view(fs.face_planes,(f-1)*k+1:f*k))
+  append!(cf.plane_stack,get_face_planes(cf,d,f))
   empty!(cf.apex_stack)
-  _pull!(cf,fs,1,fs.d)
-  push!(fs.face_simplex_ptrs,length(fs.simplex_vertices) ÷ (fs.d+1) + 1)
+  _pull!(cf,cf.simplex_vertices[d+1],1,d)
+  push!(cf.face_simplex_ptrs[d+1],num_simplices(cf,d)+1)
 end
 
 # Pulling triangulation of the dim-face with vertices `vertex_buffers[depth]` and planes
-# `plane_stack`: cone from its smallest vertex over its facets not containing it. The facets
+# `plane_stack`, appended to `simplex_vertices`: cone from its smallest vertex over its facets not containing it. The facets
 # are the planes of its vertices that are not its own; every such plane is a facet (simple
 # polytopes), and the first vertex on it is the one that reports it.
-function _pull!(cf::CutCellFaces,fs::CutFaces,depth::Integer,dim::Integer)
+function _pull!(cf::CutCellFaces,simplex_vertices,depth::Integer,dim::Integer)
   c = cf.cell
   verts = cf.vertex_buffers[depth]
   if dim == 0
     @check length(verts) == 1
-    append!(fs.simplex_vertices,cf.apex_stack)
-    push!(fs.simplex_vertices,verts[1])
+    append!(simplex_vertices,cf.apex_stack)
+    push!(simplex_vertices,verts[1])
     return
   end
   v0 = minimum(verts)
@@ -295,7 +274,7 @@ function _pull!(cf::CutCellFaces,fs::CutFaces,depth::Integer,dim::Integer)
       p in get_vertex_planes(c,w) && push!(sub,w)
     end
     push!(cf.plane_stack,p)
-    _pull!(cf,fs,depth+1,dim-1)
+    _pull!(cf,simplex_vertices,depth+1,dim-1)
     pop!(cf.plane_stack)
   end
   pop!(cf.apex_stack)

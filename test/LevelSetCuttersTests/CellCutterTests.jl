@@ -1,4 +1,3 @@
-# Copied from background-gmg, test/cutters/CellCutterTests.jl.
 module CellCutterTests
 
 using Test
@@ -139,24 +138,21 @@ end
       x = VectorValue(ntuple(_ -> rand(rng)/D,D))
       vertex_values(p,a,-a⋅x)
     end
-    c = try cut(p,φs...) catch e
-      e isa DegenerateCutError ? continue : rethrow()
-    end
-    test_invariants(c)
+    test_invariants(cut(p,φs...))
   end
 end
 
 @testset "Degeneracies" begin
   # Level set through a vertex of the cell
-  @test_throws DegenerateCutError cut(TRI,[0.0,1.0,-1.0])
+  @test_throws AssertionError cut(TRI,[0.0,1.0,-1.0])
   # Two level sets meeting on a facet of the cell: φ₂ vanishes on Γ₁ ∩ {y = 0}
   φ1 = vertex_values(TRI,VectorValue(1.0,0.0),-0.3)
   φ2 = vertex_values(TRI,VectorValue(-1.0,1.0),0.3)
-  @test_throws DegenerateCutError cut(TRI,φ1,φ2)
+  @test_throws AssertionError cut(TRI,φ1,φ2)
   # Three level sets meeting at a point in 2D
   φ3 = vertex_values(TRI,VectorValue(0.0,1.0),-0.2)
   φ4 = vertex_values(TRI,VectorValue(1.0,1.0),-0.5)
-  @test_throws DegenerateCutError cut(TRI,φ1,φ3,φ4)
+  @test_throws AssertionError cut(TRI,φ1,φ3,φ4)
   # ... which is fine in 3D, where the triple point is a vertex
   ψs = [vertex_values(TET,VectorValue(ntuple(j -> Float64(i == j),3)),-0.2) for i in 1:3]
   c = cut(TET,ψs...)
@@ -173,7 +169,7 @@ end
     @test region_volume(c,(IN,)) ≈ 1/4
   end
   # ... unless the shift vanishes too
-  @test_throws DegenerateCutError cut(TRI,[SVector(0.0)],φ)
+  @test_throws AssertionError cut(TRI,[SVector(0.0)],φ)
   # Level set φ = y on the facet y = 0: no cut, or a zero-measure IN region
   φ = vertex_values(TRI,VectorValue(0.0,1.0),0.0)
   c = cut(TRI,[SVector(1.0)],φ)
@@ -188,7 +184,7 @@ end
   test_invariants(cut(TRI,translation_shifts.([a1,a2]),φ1,φ2))
   # Three level sets meeting at a point: a common translation keeps them concurrent, shifting
   # them independently does not
-  @test_throws DegenerateCutError cut(TRI,translation_shifts.([a1,a3,a4]),φ1,φ3,φ4)
+  @test_throws AssertionError cut(TRI,translation_shifts.([a1,a3,a4]),φ1,φ3,φ4)
   test_invariants(cut(TRI,independent_shifts(3),φ1,φ3,φ4))
 end
 
@@ -259,9 +255,6 @@ end
   @test occursin("2 nodes, 0 leaves",s)
   @test occursin("pruned by φ2",s)
 end
-
-## Copied from background-gmg, test/cutters/MapTests.jl
-
 
 function physical_volume(c::CutCell{D},n,cell_coords) where D
   x0 = cell_coords[1]

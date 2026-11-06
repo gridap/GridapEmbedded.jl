@@ -1,4 +1,3 @@
-# Copied from background-gmg, test/cutters/CutFaceTests.jl.
 module CutFaceTests
 
 using Test
@@ -17,8 +16,11 @@ function extract(c::CutCell)
   evaluate!(cf,CellFaceExtractor(),c)
 end
 
-measure(cf,d,f) = sum(get_face_quadrature(cf,d,f,1)[2])
-integrate(g,cf,d,f,degree) = ((xs,ws) = get_face_quadrature(cf,d,f,degree); sum(w*g(x) for (x,w) in zip(xs,ws)))
+measure(cf,d,f) = sum(get_weights(get_face_quadrature(cf,d,f,1)))
+function integrate(g,cf,d,f,degree)
+  q = get_face_quadrature(cf,d,f,degree)
+  sum(w*g(x) for (x,w) in zip(get_coordinates(q),get_weights(q)))
+end
 
 # Independent measure of a d-face from its vertices (convex)
 function face_measure(cf::CutCellFaces{D},d,f) where D
@@ -151,10 +153,7 @@ end
       x = VectorValue(ntuple(_ -> rand(rng)/D,D))
       vertex_values(p,a,-a⋅x)
     end
-    c = try cut(p,φs...) catch e
-      e isa DegenerateCutError ? continue : rethrow()
-    end
-    test_faces(extract(c))
+    test_faces(extract(cut(p,φs...)))
   end
 end
 

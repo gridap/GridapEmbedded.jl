@@ -60,6 +60,8 @@ export SubFaceData
 export SubCellData
 export SubFacetData
 export SubFaceTriangulation
+export ImmersedFaceData
+export ImmersedDiscreteModel
 export Cutter
 export cut
 export cut_facets
@@ -101,6 +103,8 @@ include("EmbeddedFacetDiscretizations.jl")
 include("CutFaceBoundaryTriangulations.jl")
 
 include("Cutters.jl")
+
+include("ImmersedDiscreteModels.jl")
 
 function Simplex(p::Polytope)
   D = num_cell_dims(p)
