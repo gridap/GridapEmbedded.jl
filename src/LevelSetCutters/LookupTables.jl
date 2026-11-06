@@ -7,7 +7,7 @@ Marching-simplices table of a polytope `p` of dimension `D` with `N` vertices. G
 [`get_lookup_table`](@ref).
 
 A case is the IN/OUT pattern of the level set at the vertices,
-`case = 1 + Σ_{v OUT} 2^(v-1)` (see [`compute_case`](@ref)). Per case, the local points of
+`case = 1 + Σ_{v OUT} 2^(v-1)` (see `compute_case`). Per case, the local points of
 the cut polytope are its `N` vertices followed by one point per cut edge, in the order of
 `case_to_cut_edges[case]`. The cutter appends the points of every cell in this same order, so
 the local point ids of subcells and subfacets are valid in the cut cell.

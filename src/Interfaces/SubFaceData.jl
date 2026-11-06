@@ -154,7 +154,7 @@ end
 # In-place concatenation
 
 function Base.empty(st::SubFaceData{Df,Dr,Dp,Tp,Tr}) where {Df,Dr,Dp,Tp,Tr}
-  normals = ifelse(isnothing(st.cell_to_normal), nothing, empty(st.cell_to_normal))
+  normals = isnothing(st.cell_to_normal) ? nothing : empty(st.cell_to_normal)
   return SubFaceData{Df}(
     Table(Int32[],Int32[1,]), Int32[], Point{Dp,Tp}[], Point{Dr,Tr}[], normals
   )
