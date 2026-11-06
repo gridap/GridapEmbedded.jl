@@ -1,3 +1,0 @@
-module SubFacetTriangulationsTests
-
-end # module

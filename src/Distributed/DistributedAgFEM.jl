@@ -635,23 +635,13 @@ function change_bgmodel(
   )
 end
 
-function change_bgmodel(cells::SubCellData,cell_to_newcell)
-  cell_to_bgcell = lazy_map(Reindex(cell_to_newcell),cells.cell_to_bgcell)
-  SubCellData(
-    cells.cell_to_points,
+function change_bgmodel(st::SubFaceData{Df},cell_to_newcell) where Df
+  cell_to_bgcell = lazy_map(Reindex(cell_to_newcell),st.cell_to_bgcell)
+  SubFaceData{Df}(
+    st.cell_to_points,
     collect(Int32,cell_to_bgcell),
-    cells.point_to_coords,
-    cells.point_to_rcoords
-  )
-end
-
-function change_bgmodel(facets::SubFacetData,cell_to_newcell)
-  facet_to_bgcell = lazy_map(Reindex(cell_to_newcell),facets.facet_to_bgcell)
-  SubFacetData(
-    facets.facet_to_points,
-    facets.facet_to_normal,
-    collect(Int32,facet_to_bgcell),
-    facets.point_to_coords,
-    facets.point_to_rcoords
+    st.point_to_coords,
+    st.point_to_rcoords,
+    st.cell_to_normal
   )
 end

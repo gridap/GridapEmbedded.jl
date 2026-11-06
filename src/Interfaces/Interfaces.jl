@@ -56,8 +56,12 @@ export PHYSICAL_IN
 export PHYSICAL_OUT
 export EmbeddedDiscretization
 export EmbeddedFacetDiscretization
+export SubFaceData
 export SubCellData
 export SubFacetData
+export SubFaceTriangulation
+export ImmersedFaceData
+export ImmersedDiscreteModel
 export Cutter
 export cut
 export cut_facets
@@ -88,9 +92,9 @@ const ACTIVE_IN = ActiveInOrOut(IN)
 const ACTIVE_OUT = ActiveInOrOut(OUT)
 const ACTIVE = ACTIVE_IN
 
-include("SubCellTriangulations.jl")
+include("SubFaceData.jl")
 
-include("SubFacetTriangulations.jl")
+include("SubFaceTriangulations.jl")
 
 include("EmbeddedDiscretizations.jl")
 
@@ -99,6 +103,8 @@ include("EmbeddedFacetDiscretizations.jl")
 include("CutFaceBoundaryTriangulations.jl")
 
 include("Cutters.jl")
+
+include("ImmersedDiscreteModels.jl")
 
 function Simplex(p::Polytope)
   D = num_cell_dims(p)

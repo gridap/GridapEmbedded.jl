@@ -81,7 +81,28 @@ EmbeddedBoundary(::EmbeddedDiscretization)
 GhostSkeleton(::EmbeddedDiscretization)
 Gridap.Geometry.BoundaryTriangulation(::EmbeddedFacetDiscretization,::Any)
 Gridap.Geometry.SkeletonTriangulation(::EmbeddedFacetDiscretization,::Any)
+SubFaceTriangulation
 SubCellTriangulation
 SubFacetTriangulation
 SubFacetBoundaryTriangulation
+```
+
+The pieces of the cut are stored as `SubFaceData`: simplices of dimension `Df`, attached to
+background faces of dimension `Dr`, in a `Dp`-dimensional space.
+
+```@docs
+SubFaceData
+```
+
+## Immersed Discrete Models
+
+A simplicial model cut by the cells of a background model: the pieces of every face of the
+immersed model inside every background cell it meets.
+
+```@autodocs
+Modules = [Interfaces,]
+Order   = [:type, :constant, :macro, :function]
+Pages   = [
+  "/ImmersedDiscreteModels.jl",
+]
 ```

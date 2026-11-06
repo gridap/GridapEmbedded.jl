@@ -4,7 +4,7 @@
     mutable struct DifferentiableTriangulation{Dc,Dp} <: Triangulation{Dc,Dp}
 
 A DifferentiableTriangulation is a wrapper around an embedded triangulation
-(i.e SubCellTriangulation or SubFacetTriangulation) implementing all the necessary
+(i.e a SubFaceTriangulation: SubCellTriangulation or SubFacetTriangulation) implementing all the necessary
 methods to compute derivatives w.r.t. deformations of the embedded mesh.
 
 To do so, it propagates dual numbers into the geometric maps mapping cut subcells/subfacets
@@ -39,7 +39,7 @@ end
 DifferentiableTriangulation(trian::Triangulation,fe_space) = trian
 
 function DifferentiableTriangulation(
-  trian::Union{<:SubCellTriangulation,<:SubFacetTriangulation},
+  trian::SubFaceTriangulation,
   fe_space::FESpace
 )
   caches = precompute_autodiff_caches(trian)
@@ -197,13 +197,13 @@ end
 
 function Geometry.is_change_possible(
   strian::A,ttrian::DifferentiableTriangulation{Dc,Dp,A}
-) where {Dc,Dp,A <: Union{SubCellTriangulation,SubFacetTriangulation}}
+) where {Dc,Dp,A <: SubFaceTriangulation}
   return strian === ttrian.trian
 end
 
 function Geometry.best_target(
   strian::A,ttrian::DifferentiableTriangulation{Dc,Dp,A}
-) where {Dc,Dp,A <: Union{SubCellTriangulation,SubFacetTriangulation}}
+) where {Dc,Dp,A <: SubFaceTriangulation}
   return ttrian
 end
 
@@ -212,7 +212,7 @@ for tdomain in (:ReferenceDomain,:PhysicalDomain)
     @eval begin
       function CellData.change_domain(
         a::CellField,strian::A,::$sdomain,ttrian::DifferentiableTriangulation{Dc,Dp,A},::$tdomain
-      ) where {Dc,Dp,A <: Union{SubCellTriangulation,SubFacetTriangulation}}
+      ) where {Dc,Dp,A <: SubFaceTriangulation}
         @assert is_change_possible(strian,ttrian)
         b = change_domain(a,$(tdomain)())
         return CellData.similar_cell_field(a,CellData.get_data(b),ttrian,$(tdomain)())
@@ -324,36 +324,23 @@ function belongs_to_edge(
 end
 
 function precompute_autodiff_caches(
-  trian::SubCellTriangulation
+  trian::SubFaceTriangulation
 )
   bgmodel = get_background_model(trian)
-  subcells = trian.subcells
-
-  precompute_autodiff_caches(
-    bgmodel,
-    subcells.cell_to_bgcell,
-    subcells.cell_to_points,
-    subcells.point_to_rcoords,
-    subcells.point_to_coords,
-  )
-end
-
-function precompute_autodiff_caches(
-  trian::SubFacetTriangulation
-)
-  bgmodel = get_background_model(trian)
-  subfacets = trian.subfacets
+  subfaces = trian.subfaces
 
   caches = precompute_autodiff_caches(
     bgmodel,
-    subfacets.facet_to_bgcell,
-    subfacets.facet_to_points,
-    subfacets.point_to_rcoords,
-    subfacets.point_to_coords,
+    subfaces.cell_to_bgcell,
+    subfaces.cell_to_points,
+    subfaces.point_to_rcoords,
+    subfaces.point_to_coords,
   )
+  cell_to_normal = subfaces.cell_to_normal
+  isnothing(cell_to_normal) && return caches
 
-  # Precompute orientations
-  orientations = collect(lazy_map(orient,subfacets.facet_to_normal,caches.face_to_coords))
+  # Precompute orientations (stored normals vs normals from the vertex order)
+  orientations = collect(lazy_map(orient,cell_to_normal,caches.face_to_coords))
 
   cache = (; caches..., orientations)
   return cache
@@ -395,31 +382,16 @@ function precompute_autodiff_caches(
 end
 
 function extract_dualized_cell_values(
-  trian::SubCellTriangulation,
+  trian::SubFaceTriangulation,
   φh::CellField,
 )
   @assert isa(DomainStyle(φh),ReferenceDomain)
   bgmodel = get_background_model(trian)
   bgcell_to_values = extract_dualized_cell_values(bgmodel,φh)
 
-  subcells = trian.subcells
-  cell_to_bgcell = subcells.cell_to_bgcell
+  cell_to_bgcell = trian.subfaces.cell_to_bgcell
   cell_to_values = lazy_map(Reindex(bgcell_to_values),cell_to_bgcell)
   return cell_to_values
-end
-
-function extract_dualized_cell_values(
-  trian::SubFacetTriangulation,
-  φh::CellField,
-)
-  @assert isa(DomainStyle(φh),ReferenceDomain)
-  bgmodel = get_background_model(trian)
-  bgcell_to_values = extract_dualized_cell_values(bgmodel,φh)
-
-  subfacets = trian.subfacets
-  facet_to_bgcell = subfacets.facet_to_bgcell
-  facet_to_values = lazy_map(Reindex(bgcell_to_values),facet_to_bgcell)
-  return facet_to_values
 end
 
 function extract_dualized_cell_values(

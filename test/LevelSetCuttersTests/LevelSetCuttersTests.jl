@@ -90,7 +90,12 @@ geo3 = union(geo1,geo2,name="domain")
 cutgeo = cut(cutter,model,geo3)
 cutgeo_facets = cut_facets(cutter,model,geo3)
 
-writevtk(cutgeo_facets.subfacets,"subfacets")
+d = mktempdir()
+try
+  writevtk(cutgeo_facets.subfacets,joinpath(d,"subfacets"))
+finally
+  rm(d,recursive=true)
+end
 
 trian = Triangulation(model)
 trian3 = Triangulation(cutgeo,PHYSICAL,geo3)

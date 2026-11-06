@@ -1,3 +1,0 @@
-module SubCellTriangulationsTests
-
-end # module

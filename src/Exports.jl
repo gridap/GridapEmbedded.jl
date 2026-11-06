@@ -14,6 +14,7 @@ end
 @publish Interfaces compute_bgcell_to_inoutcut
 @publish Interfaces compute_bgfacet_to_inoutcut
 @publish Interfaces EmbeddedDiscretization
+@publish Interfaces ImmersedDiscreteModel
 @publish Interfaces EmbeddedBoundary
 @publish Interfaces GhostSkeleton
 @publish Interfaces IN
@@ -28,6 +29,7 @@ end
 @publish Interfaces PHYSICAL_OUT
 
 @publish LevelSetCutters LevelSetCutter
+@publish LevelSetCutters RecursivePlaneCutter
 @publish LevelSetCutters AnalyticalGeometry
 @publish LevelSetCutters popcorn
 @publish LevelSetCutters doughnut
