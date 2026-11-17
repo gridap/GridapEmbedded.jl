@@ -237,9 +237,9 @@ function generate_unfitted_model(ranks,
                                  num_parts,
                                  geometry::UnfittedGeometry;
                                  initial_uniform_refs=4,
-                                 post_uniform_refinements=0)
+                                 post_uniform_refinements=0,
+                                 num_ghost_layers::Integer=1)
   coarse_model = CartesianDiscreteModel((-1,1,-1,1),(1,1))
-  num_ghost_layers = 1
   dmodel = OctreeDistributedDiscreteModel(
     ranks,coarse_model,initial_uniform_refs;num_ghost_layers=num_ghost_layers
   )
@@ -257,7 +257,6 @@ function generate_unfitted_model(ranks,
       flags
   end
   fmodel,_ = Gridap.Adaptivity.adapt(dmodel,fmodel_refine_coarsen_flags);
-
   for i in 1:initial_uniform_refs-1
     cutgeo = cut(fmodel,geo)
     cell_to_inoutcut = compute_bgcell_to_inoutcut(cutgeo,geo)
@@ -401,28 +400,188 @@ function generate_merged_constraints(trian,
   return sDOF_gids, new_n_fdofs, new_n_ddofs, mfdof_gids, mddof_gids, mDOF_to_dof, sDOF_to_dof, sDOF_to_DOFs, sDOF_to_coeffs
 end
 
+# ---------------------------------------------------------------------------
+# Aggregate-conforming model with a single ghost layer
+#
+# Adapted from change_ownership_snippet.jl (change_ownership + trim_ghost_layers).
+# generate_aggregates already gives the new owners and the cell indices
+# (agg_cell_indices), so the snippet's step 1 is not needed here:
+#  a) Wrap the local models and non-conforming glue of the input model,
+#     unchanged, with agg_cell_indices. No geometry is rebuilt.
+#  b) Drop the ghost cells beyond one layer of the new owned cells, using
+#     Gridap's DiscreteModelPortion plus a restriction of the non-conforming glue.
+# A part can only own a cell that it already holds, i.e., a cell in its
+# input ghost layers. This is checked.
+# The result is not backed by a p4est forest (ptr_pXest === nothing), since p4est
+# cannot represent this partition. FE spaces, triangulations and integration
+# work on it, but adapt/refine/coarsen/redistribute do not.
+# ---------------------------------------------------------------------------
+
+"""
+    aggregate_conforming_model(model,agg_cell_indices) -> agg_model, new_to_old_cell
+
+Returns an `OctreeDistributedDiscreteModel` with the same mesh as `model`, with
+one ghost layer, in which the cells are owned as in `agg_cell_indices`. Global
+cell ids are preserved. Also returns, for each part, the local ids in `model` of
+the local cells of `agg_model`, to move cell-wise data (e.g., the aggregates) to
+`agg_model`.
+"""
 function aggregate_conforming_model(model::OctreeDistributedDiscreteModel,agg_cell_indices)
-  aggdmodel = GridapDistributed.GenericDistributedDiscreteModel(
-    local_views(model),PRange(agg_cell_indices)
-  )
-  return OctreeDistributedDiscreteModel(
-    num_cell_dims(model), num_point_dims(model),
-    model.parts,aggdmodel,model.non_conforming_glue,
-    model.coarse_model,
-    model.ptr_pXest_connectivity,
-    model.ptr_pXest,
-    model.pXest_type,
-    model.pXest_refinement_rule_type,
-    model.connectivity_ref; num_ghost_layers = model.num_ghost_layers
-  )
+  # Every cell must be owned by some part. It is not if its new owner does not
+  # hold it as a local cell.
+  num_owned_cells = reduction(+,map(own_length,agg_cell_indices);init=0,destination=:all)
+  @assert PartitionedArrays.getany(num_owned_cells) == num_cells(model) """
+    Some cells are given to a part that does not hold them.
+    Increase the number of ghost layers of the input model."""
+
+  # Number of ghost layers that the local cells of `model` guarantee around the
+  # new owned cells. Each part needs at least one, i.e., it must hold every
+  # cell touching a cell it owns.
+  num_layers = map(local_views(model),partition(get_cell_gids(model)),agg_cell_indices) do lmodel,ids,agg_ids
+    old_layer = cell_layers(lmodel,own_to_local(ids),model.num_ghost_layers)
+    new_owned_layer = old_layer[own_to_local(agg_ids)]
+    any(==(-1),new_owned_layer) && return 0
+    model.num_ghost_layers - maximum(new_owned_layer;init=0)
+  end
+  agg_num_ghost_layers = PartitionedArrays.getany(reduction(min,num_layers;init=typemax(Int),destination=:all))
+  @assert agg_num_ghost_layers >= 1 """
+    Some part would own a cell in the outermost ghost layer of the input model.
+    Increase the number of ghost layers of the input model."""
+
+  # a) Same local cells, aggregate-conforming owners
+  wrapped_model = octree_model_with_local_models(model,
+                                                 local_views(model),
+                                                 model.non_conforming_glue,
+                                                 PRange(agg_cell_indices),
+                                                 agg_num_ghost_layers)
+  # b) Keep only one ghost layer
+  return trim_ghost_layers(wrapped_model,1)
 end
 
-# Triangulation whose cell ownership is given by the aggregate-conforming cell indices
-function aggregate_conforming_trian(TT,portion,model,cutgeo,agg_cell_indices,args...)
-  trians = map(local_views(cutgeo),agg_cell_indices) do cutgeo,agg_cell_indices
-    TT(portion,agg_cell_indices,cutgeo,args...)
+"""
+    trim_ghost_layers(model,num_ghost_layers) -> new_model, new_to_old_cell
+
+Restriction of `model` to its owned cells plus `num_ghost_layers` layers of ghost
+cells. Uses Gridap's DiscreteModelPortion for the grid, topology and face
+labeling, and restricts the non-conforming glue. Also returns, for each part,
+the local ids in `model` of the local cells of `new_model`.
+"""
+function trim_ghost_layers(model::OctreeDistributedDiscreteModel,num_ghost_layers::Integer)
+  @assert 1 <= num_ghost_layers <= model.num_ghost_layers
+  ids = partition(get_cell_gids(model))
+
+  # Kept cells (owned cells first), in the local numbering of model
+  new_to_old_cell = map(local_views(model),ids) do lmodel,ids
+    layer = cell_layers(lmodel,own_to_local(ids),num_ghost_layers)
+    l2g   = local_to_global(ids)
+    own   = sort(collect(own_to_local(ids)),by=c->l2g[c])
+    gho   = sort(findall(>(0),layer),by=c->l2g[c])
+    vcat(own,gho)
   end
-  return GridapDistributed.DistributedTriangulation(trians,model)
+  new_ids = map(ids,new_to_old_cell) do ids,n2o
+    LocalIndices(global_length(ids),part_id(ids),
+                 collect(Int,local_to_global(ids)[n2o]),
+                 collect(Int32,local_to_owner(ids)[n2o]))
+  end
+  # The ghost relation is symmetric (cell distance), as in setup_cell_prange
+  assembly_neighbors(new_ids;symmetric=true)
+
+  models, non_conforming_glue = map(local_views(model),model.non_conforming_glue,new_to_old_cell) do lmodel,ncglue,n2o
+    portion = Gridap.Geometry.DiscreteModelPortion(lmodel,n2o)
+    portion.model, restrict_non_conforming_glue(model.pXest_refinement_rule_type,ncglue,portion)
+  end |> tuple_of_arrays
+  new_model = octree_model_with_local_models(model,models,non_conforming_glue,PRange(new_ids),Int(num_ghost_layers))
+  return new_model, new_to_old_cell
+end
+
+# OctreeDistributedDiscreteModel with the same coarse model, connectivity and
+# refinement rule as `model`, but new local models and cell gids. It is not
+# backed by a p4est forest, as p4est cannot represent arbitrary partitions.
+# (Passing model.ptr_pXest instead would make both models destroy the same
+# forest when they are garbage collected.)
+function octree_model_with_local_models(model::OctreeDistributedDiscreteModel{Dc,Dp},
+                                        models,non_conforming_glue,cell_gids,
+                                        num_ghost_layers) where {Dc,Dp}
+  dmodel = GridapDistributed.DistributedDiscreteModel(models,cell_gids)
+  OctreeDistributedDiscreteModel(Dc,Dp,model.parts,dmodel,non_conforming_glue,
+                                 model.coarse_model,
+                                 model.ptr_pXest_connectivity,
+                                 nothing,
+                                 model.pXest_type,
+                                 model.pXest_refinement_rule_type,
+                                 model.connectivity_ref;
+                                 num_ghost_layers=num_ghost_layers)
+end
+
+# Distance (in layers of vertex neighbours) of each local cell to `seeds`,
+# up to `max_layer`; -1 for cells further away
+function cell_layers(lmodel,seeds,max_layer)
+  topo = Gridap.Geometry.get_grid_topology(lmodel)
+  Dc   = num_cell_dims(lmodel)
+  cell_to_vertices = get_faces(topo,Dc,0)
+  vertex_to_cells  = get_faces(topo,0,Dc)
+  layer = fill(-1,num_cells(lmodel))
+  layer[seeds] .= 0
+  front = collect(Int,seeds)
+  for k in 1:max_layer
+    next = Int[]
+    for cell in front, vertex in cell_to_vertices[cell], ncell in vertex_to_cells[vertex]
+      if layer[ncell] == -1
+        layer[ncell] = k
+        push!(next,ncell)
+      end
+    end
+    front = next
+  end
+  layer
+end
+
+# Non-conforming glue of `portion`, a DiscreteModelPortion of a local model
+# with glue `ncglue`. Gridap numbers the d-faces (d < Dc) of the portion in
+# increasing order of their parent ids, so regular faces still come first.
+# Hanging faces stay hanging. If the owner cell of a hanging face is not in the
+# portion, it becomes -1, as in models built by p4est for hanging faces whose
+# owner cell is not local.
+function restrict_non_conforming_glue(pXest_refinement_rule,ncglue,portion)
+  Dc   = num_cell_dims(portion)
+  topo = Gridap.Geometry.get_grid_topology(portion)
+  cell_to_old_cell = Gridap.Geometry.get_cell_to_parent_cell(portion)
+  old_cell_to_cell = zeros(Int,num_cells(Gridap.Geometry.get_parent_model(portion)))
+  old_cell_to_cell[cell_to_old_cell] .= eachindex(cell_to_old_cell)
+
+  num_regular_faces      = Vector{Int}(undef,Dc)
+  num_hanging_faces      = Vector{Int}(undef,Dc)
+  hanging_faces_glue     = Vector{Vector{Tuple{Int,Int,Int}}}(undef,Dc)
+  hanging_faces_to_cell  = Vector{Vector{Int}}(undef,Dc)
+  hanging_faces_to_lface = Vector{Vector{Int}}(undef,Dc)
+  owner_faces_pindex     = Vector{Vector{Int}}(undef,Dc-1)
+  owner_faces_lids       = Vector{Dict{Int,Tuple{Int,Int,Int}}}(undef,Dc-1)
+  cell_faces             = Vector{Gridap.Arrays.Table}(undef,Dc)
+  for d in 0:Dc-1
+    face_to_old_face = Gridap.Geometry.get_face_to_parent_face(portion,d)
+    num_regular_faces_old = ncglue.num_regular_faces[d+1]
+    @assert issorted(face_to_old_face)
+    num_regular_faces[d+1] = count(<=(num_regular_faces_old),face_to_old_face)
+    num_hanging_faces[d+1] = length(face_to_old_face) - num_regular_faces[d+1]
+    hanging_faces_glue[d+1] = map(face_to_old_face[num_regular_faces[d+1]+1:end]) do old_face
+      ocell, ocell_lface, subface = ncglue.hanging_faces_glue[d+1][old_face-num_regular_faces_old]
+      new_ocell = (ocell > 0 && old_cell_to_cell[ocell] > 0) ? old_cell_to_cell[ocell] : -1
+      (new_ocell, ocell_lface, subface)
+    end
+    cell_faces[d+1] = Gridap.Arrays.Table(get_faces(topo,Dc,d))
+    hanging_faces_to_cell[d+1], hanging_faces_to_lface[d+1] =
+      GridapP4est._generate_hanging_faces_to_cell_and_lface(num_regular_faces[d+1],
+                                                            num_hanging_faces[d+1],
+                                                            cell_faces[d+1])
+  end
+  GridapP4est._fill_owner_faces_pindex_and_lids!(Dc,pXest_refinement_rule,
+                                                 owner_faces_pindex,owner_faces_lids,
+                                                 num_hanging_faces,hanging_faces_glue,
+                                                 hanging_faces_to_cell,hanging_faces_to_lface,
+                                                 cell_faces)
+  GridapP4est.NonConformingGlue(num_regular_faces,num_hanging_faces,hanging_faces_glue,
+                                hanging_faces_to_cell,hanging_faces_to_lface,
+                                owner_faces_pindex,owner_faces_lids)
 end
 
 function in_fe_space(;order=2)
@@ -446,20 +605,27 @@ function solve_on_model(model,cutgeo,geo,geometry::UnfittedGeometry;
                         vtk_suffix::String="")
   vtk_name(name::String) = isempty(vtk_suffix) ? name : "$(name)_$(vtk_suffix)"
 
-  if write_solution
-    writevtk(Triangulation(model),datadir(vtk_name("old_model")));
-  end
-
-  # Generate aggregates and the aggregate-conforming triangulations
+  # Generate aggregates and the aggregate-conforming model (with one ghost layer)
   cell_to_root, agg_cell_indices = generate_aggregates(model,cutgeo,geo)
-  model = aggregate_conforming_model(model,agg_cell_indices)
+  model, new_to_old_cell = aggregate_conforming_model(model,agg_cell_indices)
+
+  # The local cells of the new model are a renumbered subset of the old ones:
+  # move the aggregates (root gids, unchanged) to the new local numbering, and
+  # cut the new model (the old cutgeo is defined on the old local models)
+  cell_to_root = map(cell_to_root,new_to_old_cell) do cell_to_root,new_to_old_cell
+    cell_to_root[new_to_old_cell]
+  end
+  cutgeo = cut(model,geo)
+
+  # The cell ownership now comes from the model, so the standard constructors
+  # give the aggregate-conforming triangulations
   Ω = Triangulation(model)
-  Ωa = aggregate_conforming_trian(Triangulation,GridapDistributed.WithGhost(),model,cutgeo,agg_cell_indices,ACTIVE_IN)
-  Ωp = aggregate_conforming_trian(Triangulation,GridapDistributed.NoGhost(),model,cutgeo,agg_cell_indices,PHYSICAL_IN)
-  Γ = aggregate_conforming_trian(EmbeddedBoundary,GridapDistributed.NoGhost(),model,cutgeo,agg_cell_indices)
+  Ωa = Triangulation(GridapDistributed.WithGhost(),cutgeo,ACTIVE_IN)
+  Ωp = Triangulation(GridapDistributed.NoGhost(),cutgeo,PHYSICAL_IN)
+  Γ = EmbeddedBoundary(GridapDistributed.NoGhost(),cutgeo)
   n_Γ = get_normal_vector(Γ)
 
-  ocell_to_root = map(cell_to_root,map(own_to_local,agg_cell_indices)) do agg,o_to_l
+  ocell_to_root = map(cell_to_root,map(own_to_local,partition(get_cell_gids(model)))) do agg,o_to_l
     map(Reindex(agg),o_to_l)
   end
 
@@ -551,13 +717,15 @@ function run_single_test(distribute,
                          initial_uniform_refs::Integer=4,
                          order::Integer=2,
                          problem::Tuple=in_fe_space(),
-                         write_solution::Bool=false)
+                         write_solution::Bool=false,
+                         num_ghost_layers::Integer=1)
   ranks = distribute(LinearIndices((num_parts,)))
   model, cutgeo, geo =
     generate_unfitted_model(ranks,
                             num_parts,
                             geometry,
-                            initial_uniform_refs=initial_uniform_refs)
+                            initial_uniform_refs=initial_uniform_refs,
+                            num_ghost_layers=num_ghost_layers)
   el2, eh1, h = solve_on_model(
     model,cutgeo,geo,geometry;
     order,problem,write_solution
@@ -570,7 +738,8 @@ function run_convergence_test(geometry::UnfittedGeometry;
                               order::Integer,
                               num_refinements::Integer,
                               problem::Tuple=in_fe_space(),
-                              write_solution::Bool=false)
+                              write_solution::Bool=false,
+                              num_ghost_layers::Integer=1)
   
   @assert num_refinements >= 1 "num_refinements must be >= 1"
 
@@ -581,11 +750,13 @@ function run_convergence_test(geometry::UnfittedGeometry;
   for level in 1:num_refinements
     suffix = "level_$(level)"
     model, cutgeo, geo = with_mpi() do distribute 
-      generate_unfitted_model(distribute,geometry,
+      ranks = distribute(LinearIndices((1,)))
+      generate_unfitted_model(ranks,1,geometry,
         initial_uniform_refs=initial_uniform_refs,
-        post_uniform_refinements=level-1)
+        post_uniform_refinements=level-1,
+        num_ghost_layers=num_ghost_layers)
     end
-    _, _, _, _, el2, eh1, h = solve_on_model(
+    el2, eh1, h = solve_on_model(
       model,cutgeo,geo,geometry;
       order,problem,write_solution,
       vtk_suffix=suffix

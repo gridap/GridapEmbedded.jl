@@ -21,10 +21,11 @@ el2, eh1, h = with_mpi() do distribute
   TestModule.run_single_test(distribute,
                              TestModule.Flower(),
                              num_parts=4,
-                             initial_uniform_refs=6,
+                             initial_uniform_refs=7,
                              order=2,
                              problem=TestModule.in_fe_space(order=2),
-                             write_solution=true)
+                             write_solution=true,
+                             num_ghost_layers=3)
 end
 
 MPI.Finalize()
