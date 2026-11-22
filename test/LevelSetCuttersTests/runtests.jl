@@ -16,4 +16,6 @@ using Test
 
 @testset "RecursivePlaneCutter" begin include("RecursivePlaneCutterTests.jl") end
 
+@testset "SubdomainEmbedded" begin include("SubdomainEmbeddedTests.jl") end
+
 end # module

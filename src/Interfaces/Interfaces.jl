@@ -70,11 +70,13 @@ export compute_bgfacet_to_inoutcut
 export split_in_out
 export EmbeddedBoundary
 export GhostSkeleton
+export merge_triangulations
 
 const IN = -1
 const OUT = 1
 const INTERFACE = 0
 const CUT = 0
+const UNDEF = 2
 
 struct CutInOrOut
   in_or_out::Int

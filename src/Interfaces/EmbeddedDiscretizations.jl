@@ -134,6 +134,7 @@ function compute_inoutcut(a::UnaryNode)
 end
 
 function _compute_inoutcut_union(inout_1,inout_2)
+  (inout_1==UNDEF || inout_2==UNDEF) && return Int8(UNDEF)
   inout_12 = (inout_1,inout_2)
   if (inout_1==OUT) && (inout_2==OUT)
     Int8(OUT)
@@ -145,6 +146,7 @@ function _compute_inoutcut_union(inout_1,inout_2)
 end
 
 function _compute_inoutcut_intersection(inout_1,inout_2)
+  (inout_1==UNDEF || inout_2==UNDEF) && return Int8(UNDEF)
   inout_12 = (inout_1,inout_2)
   if (inout_1==IN) && (inout_2==IN)
     Int8(IN)
@@ -156,6 +158,7 @@ function _compute_inoutcut_intersection(inout_1,inout_2)
 end
 
 function _compute_inoutcut_setdiff(inout_1,inout_2)
+  (inout_1==UNDEF || inout_2==UNDEF) && return Int8(UNDEF)
   inout_12 = (inout_1,inout_2)
   if (inout_1==IN) && (inout_2==OUT)
     Int8(IN)
@@ -167,6 +170,7 @@ function _compute_inoutcut_setdiff(inout_1,inout_2)
 end
 
 function _compute_inoutcut_complementary(inout_1)
+  inout_1==UNDEF && return Int8(UNDEF)
   if (inout_1==OUT)
     Int8(IN)
   elseif (inout_1==IN)
@@ -294,10 +298,13 @@ function Triangulation(cut::EmbeddedDiscretization,in_or_out,name::String)
   Triangulation(cut,in_or_out,geo)
 end
 
+_lazy_append_nonempty(a::Triangulation,b::Triangulation) =
+  iszero(num_cells(a)) ? b : (iszero(num_cells(b)) ? a : lazy_append(a,b))
+
 function Triangulation(cut::EmbeddedDiscretization,in_or_out::Tuple,geo::CSG.Geometry)
   trian1 = Triangulation(cut,in_or_out[1],geo)
   trian2 = Triangulation(cut,in_or_out[2],geo)
-  num_cells(trian1) == 0 ? trian2 : lazy_append(trian1,trian2)
+  _lazy_append_nonempty(trian1,trian2)
 end
 
 function Triangulation(cut::EmbeddedDiscretization,in_or_out::CutInOrOut,geo::CSG.Geometry)
@@ -569,4 +576,43 @@ function _fill_ghost_skeleton_mask!(
       facet_to_mask[facet] = true
     end
   end
+end
+
+"""
+    merge_triangulations(trians::Triangulation{D}...) where D
+
+Creates an injective `BodyFittedTriangulation` representing the union of cells/faces
+of the given triangulations sharing the same background `DiscreteModel`.
+"""
+function merge_triangulations(trian1::Triangulation{D},trians::Triangulation{D}...) where D
+  bgmodel = get_background_model(trian1)
+  @check all(t -> get_background_model(t) === bgmodel, trians) """
+  All triangulations must share the same background DiscreteModel.
+  """
+  mask = fill(false,num_faces(bgmodel,D))
+  for t in (trian1,trians...)
+    glue = get_glue(t,Val(D))
+    @check isa(glue,FaceToFaceGlue) """
+    All triangulations passed to `merge_triangulations` must have a `FaceToFaceGlue` of dimension $D.
+    """
+    for f in glue.tface_to_mface
+      mask[f] && error("Triangulations passed to `merge_triangulations` must have distinct cells/faces.")
+      mask[f] = true
+    end
+  end
+  Triangulation(ReferenceFE{D},bgmodel,mask)
+end
+
+function merge_triangulations(
+  trian1::AppendedTriangulation{D,Dp,<:SubCellTriangulation},
+  trian2::Triangulation{D}
+) where {D,Dp}
+  _lazy_append_nonempty(trian1.a,merge_triangulations(trian1.b,trian2))
+end
+
+function merge_triangulations(
+  trian1::Triangulation{D},
+  trian2::AppendedTriangulation{D,Dp,<:SubCellTriangulation}
+) where {D,Dp}
+  merge_triangulations(trian2,trian1)
 end

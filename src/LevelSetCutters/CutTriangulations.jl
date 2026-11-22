@@ -7,10 +7,25 @@ function initial_sub_triangulation(grid::Grid,geom::AnalyticalGeometry)
 end
 
 function initial_sub_triangulation(grid::Grid,geom::DiscreteGeometry)
-  ugrid = UnstructuredGrid(grid)
   ls_to_point_to_value, oid_to_ls = _find_unique_leaves(get_tree(geom))
-  out = _initial_sub_triangulation(ugrid,ls_to_point_to_value)
+  ls_to_point_to_value = _adapt_point_values_to_grid(ls_to_point_to_value,grid)
+  out = _initial_sub_triangulation(UnstructuredGrid(grid),ls_to_point_to_value)
   out[1], out[2], out[3], oid_to_ls
+end
+
+function _adapt_point_values_to_grid(ls_to_point_to_value,grid::Grid)
+  isempty(ls_to_point_to_value) && return ls_to_point_to_value
+  n_nodes = num_nodes(grid)
+  if all(v -> length(v) == n_nodes, ls_to_point_to_value)
+    return ls_to_point_to_value
+  elseif isa(grid,Geometry.GridPortion) && all(v -> length(v) == num_nodes(grid.parent), ls_to_point_to_value)
+    return [v[grid.node_to_parent_node] for v in ls_to_point_to_value]
+  else
+    @error """
+    The length of the discrete geometry level-set values ($(length(first(ls_to_point_to_value))))
+    does not match the number of nodes in the grid ($n_nodes).
+    """
+  end
 end
 
 function _initial_sub_triangulation(grid::UnstructuredGrid,ls_to_point_to_value)
