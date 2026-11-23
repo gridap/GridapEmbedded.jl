@@ -85,6 +85,12 @@ function SkeletonTriangulation(
   SkeletonTriangulation(facets,cut,in_or_out,geo)
 end
 
+SkeletonTriangulation(facets::SkeletonTriangulation,cut::EmbeddedFacetDiscretization,in_or_out=PHYSICAL_IN) =
+  SkeletonTriangulation(facets,cut,in_or_out,cut.geo)
+
+SkeletonTriangulation(facets::SkeletonTriangulation,cut::EmbeddedFacetDiscretization,in_or_out,name::String) =
+  SkeletonTriangulation(facets,cut,in_or_out,get_geometry(cut.geo,name))
+
 function SkeletonTriangulation(
   facets::SkeletonTriangulation,
   cut::EmbeddedFacetDiscretization,
@@ -152,6 +158,38 @@ function BoundaryTriangulation(
   BoundaryTriangulation(facets,cut,in_or_out,geo)
 end
 
+BoundaryTriangulation(facets::BoundaryTriangulation,cut::EmbeddedFacetDiscretization,in_or_out=PHYSICAL_IN) =
+  BoundaryTriangulation(facets,cut,in_or_out,cut.geo)
+
+BoundaryTriangulation(facets::BoundaryTriangulation,cut::EmbeddedFacetDiscretization,in_or_out,name::String) =
+  BoundaryTriangulation(facets,cut,in_or_out,get_geometry(cut.geo,name))
+
+BoundaryTriangulation(facets::CompositeTriangulation,cut::EmbeddedFacetDiscretization,args...) =
+  BoundaryTriangulation(_to_bg_boundary_triangulation(cut.bgmodel,facets),cut,args...)
+
+function _to_bg_boundary_triangulation(
+  bgmodel::DiscreteModel,
+  facets::CompositeTriangulation{Df,Dp,<:BodyFittedTriangulation,<:BoundaryTriangulation}
+) where {Df,Dp}
+  @check get_background_model(facets) === bgmodel
+  D = num_cell_dims(bgmodel)
+  @check Df == D - 1
+  rmodel = get_background_model(facets.dtrian)
+  @check isa(rmodel,Gridap.Geometry.DiscreteModelPortion) && get_parent_model(rmodel) === bgmodel
+  rfacet_to_bgfacet = Gridap.Geometry.get_face_to_parent_face(rmodel,Df)
+  rcell_to_bgcell = get_glue(facets.rtrian,Val(D)).tface_to_mface
+  face_to_bgfacet = collect(Int32,lazy_map(Reindex(rfacet_to_bgfacet),facets.dtrian.glue.face_to_bgface))
+  face_to_bgcell = collect(Int32,lazy_map(Reindex(rcell_to_bgcell),facets.dtrian.glue.face_to_cell))
+  bgfacet_to_cells = Table(get_faces(get_grid_topology(bgmodel),Df,D))
+  bgfacet_to_lcell = fill(Int8(1),num_facets(bgmodel))
+  for (bgfacet,bgcell) in zip(face_to_bgfacet,face_to_bgcell)
+    lcell = findfirst(==(bgcell),view(bgfacet_to_cells,bgfacet))
+    @check !isnothing(lcell)
+    bgfacet_to_lcell[bgfacet] = Int8(lcell)
+  end
+  BoundaryTriangulation(bgmodel,face_to_bgfacet,bgfacet_to_lcell)
+end
+
 function BoundaryTriangulation(
   facets::BoundaryTriangulation,
   cut::EmbeddedFacetDiscretization,
@@ -160,7 +198,7 @@ function BoundaryTriangulation(
 
   a = BoundaryTriangulation(facets,cut,in_or_out[1],geo)
   b = BoundaryTriangulation(facets,cut,in_or_out[2],geo)
-  iszero(num_cells(a)) ? b : lazy_append(a,b)
+  _lazy_append_nonempty(a,b)
 end
 
 function BoundaryTriangulation(

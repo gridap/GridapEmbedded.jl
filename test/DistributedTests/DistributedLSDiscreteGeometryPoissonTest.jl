@@ -23,9 +23,10 @@ function main(distribute,parts;
   f(x) = -Δ(u)(x)
   ud(x) = u(x)
 
+  reffe_φ = ReferenceFE(lagrangian,Float64,1)
   reffe = ReferenceFE(lagrangian,Float64,order)
   Ω_bg = Triangulation(bgmodel)
-  V_bg = FESpace(Ω_bg,reffe)
+  V_bg = FESpace(Ω_bg,reffe_φ)
   φh = interpolate(x->sqrt((x[1]-0.5)^2+(x[2]-0.5)^2)-0.35,V_bg)
   geo = DiscreteGeometry(φh,bgmodel)
 

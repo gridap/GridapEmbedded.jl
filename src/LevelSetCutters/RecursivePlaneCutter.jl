@@ -33,27 +33,6 @@ end
 
 RecursivePlaneCutter(; atol::Real=1e-12) = RecursivePlaneCutter(Float64(atol))
 
-function cut(cutter::RecursivePlaneCutter,background::DiscreteModel,geom)
-  data = _cut(cutter,get_grid(background),geom,Val(true))
-  EmbeddedDiscretization(background, data..., geom)
-end
-
-function cut_facets(cutter::RecursivePlaneCutter,background::DiscreteModel,geom)
-  D = num_cell_dims(background)
-  grid = Grid(ReferenceFE{D-1},background)
-  data = _cut(cutter,grid,geom,Val(false))
-  EmbeddedFacetDiscretization(background, data..., geom)
-end
-
-function compute_bgcell_to_inoutcut(cutter::RecursivePlaneCutter,model::DiscreteModel,geom)
-  _compute_bgcell_to_inoutcut(cutter,get_grid(model),geom)
-end
-
-function compute_bgfacet_to_inoutcut(cutter::RecursivePlaneCutter,model::DiscreteModel,geom)
-  D = num_cell_dims(model)
-  _compute_bgcell_to_inoutcut(cutter,Grid(ReferenceFE{D-1},model),geom)
-end
-
 ## Level-set values: one vector per unique leaf of the CSG tree, snapped (|φ| ≤ atol → 0)
 
 function _levelset_values(cutter::RecursivePlaneCutter,grid::Grid,geom::AnalyticalGeometry)
@@ -64,13 +43,14 @@ end
 
 function _levelset_values(cutter::RecursivePlaneCutter,grid::Grid,geom::DiscreteGeometry)
   ls_to_point_to_value, oid_to_ls = _find_unique_leaves(get_tree(geom))
+  ls_to_point_to_value = _adapt_point_values_to_grid(ls_to_point_to_value,grid)
   snap(v) = abs(v) <= cutter.atol ? zero(v) : v
   map(values -> map(snap,values),ls_to_point_to_value), oid_to_ls
 end
 
 function _compute_bgcell_to_inoutcut(cutter::RecursivePlaneCutter,grid::Grid,geom)
+  ls_to_point_to_value, oid_to_ls = _levelset_values(cutter,grid,geom)
   ugrid = UnstructuredGrid(grid)
-  ls_to_point_to_value, oid_to_ls = _levelset_values(cutter,ugrid,geom)
   cell_to_points = get_cell_node_ids(ugrid)
   ls_to_cell_to_inoutcut = [
     _compute_in_out_or_cut(cell_to_points,point_to_value) for point_to_value in ls_to_point_to_value]
@@ -85,8 +65,8 @@ end
 
 # `with_boundary`: also the subfacets (the pieces of the level sets), for `cut`
 function _cut(cutter::RecursivePlaneCutter,grid::Grid,geom,with_boundary::Val)
+  ls_to_point_to_value, oid_to_ls = _levelset_values(cutter,grid,geom)
   ugrid = UnstructuredGrid(grid)
-  ls_to_point_to_value, oid_to_ls = _levelset_values(cutter,ugrid,geom)
   subsimplices, ls_to_subpoint_to_value, ls_to_bgcell_to_inoutcut =
     _initial_sub_triangulation(ugrid,ls_to_point_to_value)
   N = length(ls_to_point_to_value)

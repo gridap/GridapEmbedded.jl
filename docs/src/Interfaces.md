@@ -85,6 +85,7 @@ SubFaceTriangulation
 SubCellTriangulation
 SubFacetTriangulation
 SubFacetBoundaryTriangulation
+merge_triangulations
 ```
 
 The pieces of the cut are stored as `SubFaceData`: simplices of dimension `Df`, attached to
